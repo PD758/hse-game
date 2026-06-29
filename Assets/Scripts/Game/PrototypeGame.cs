@@ -1093,7 +1093,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         return tile switch
         {
-            Tile.Wall => wallSprite,
+            Tile.Wall => WallVisibleFor(cell) ? wallSprite : null,
             Tile.Plate => plateSprite,
             Tile.Gate => GateOpenForCell(cell) ? openGateSprite : gateSprite,
             Tile.Rubble => rubbleSprite,
@@ -1110,6 +1110,19 @@ public sealed class PrototypeGame : MonoBehaviour
         return cell == new Vector2Int(12, 10) && startGateOpen ||
                cell == new Vector2Int(34, 12) && puzzleExitOpen ||
                cell == new Vector2Int(34, 8) && combatExitOpen;
+    }
+
+    private bool WallVisibleFor(Vector2Int cell)
+    {
+        return OpenTileAdjacent(cell + Vector2Int.up) ||
+               OpenTileAdjacent(cell + Vector2Int.down) ||
+               OpenTileAdjacent(cell + Vector2Int.left) ||
+               OpenTileAdjacent(cell + Vector2Int.right);
+    }
+
+    private bool OpenTileAdjacent(Vector2Int cell)
+    {
+        return Inside(cell) && tiles[cell.x, cell.y] != Tile.Wall;
     }
 
     private bool TryApplyCharacterAtlas()
@@ -1138,10 +1151,8 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         try
         {
-            floorSprites = new Sprite[8];
-            for (int i = 0; i < floorSprites.Length; i++)
-                floorSprites[i] = CreateFixedAtlasSprite(EnvironmentAtlas, 0, i, $"floor_{i}");
-            floorSprite = floorSprites[0];
+            floorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 0, "floor_base");
+            floorSprites = new[] { floorSprite };
 
             floorDecalSprites = new Sprite[7];
             for (int i = 0; i < floorDecalSprites.Length; i++)
@@ -1297,13 +1308,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private void CreateFallbackSprites()
     {
         floorSprite = CreateSprite(new Color(0.09f, 0.10f, 0.11f), new Color(0.15f, 0.16f, 0.18f), new Color(0.18f, 0.22f, 0.25f), SpriteMark.None);
-        floorSprites = new[]
-        {
-            floorSprite,
-            CreateSprite(new Color(0.10f, 0.11f, 0.12f), new Color(0.15f, 0.16f, 0.18f), new Color(0.20f, 0.24f, 0.27f), SpriteMark.None),
-            CreateSprite(new Color(0.08f, 0.09f, 0.10f), new Color(0.13f, 0.14f, 0.16f), new Color(0.16f, 0.20f, 0.23f), SpriteMark.None),
-            CreateSprite(new Color(0.095f, 0.10f, 0.105f), new Color(0.16f, 0.16f, 0.17f), new Color(0.22f, 0.22f, 0.24f), SpriteMark.None),
-        };
+        floorSprites = new[] { floorSprite };
         floorDecalSprites = new[]
         {
             CreateDecalSprite(new Color(0.65f, 0.72f, 0.76f, 0.72f), SpriteMark.Story),

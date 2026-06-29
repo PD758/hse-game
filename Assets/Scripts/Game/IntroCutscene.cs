@@ -98,9 +98,9 @@ public sealed class IntroCutscene : MonoBehaviour
         float pulse = 0.5f + Mathf.Sin(Time.time * 18f) * 0.5f;
 
         screenRenderer.color = Color.Lerp(new Color(0.36f, 0.48f, 0.64f), new Color(0.82f, 0.92f, 1.00f), pulse * 0.45f + t * 0.25f);
-        glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.18f, 0.46f, t) + pulse * 0.06f);
+        glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.04f, 0.14f, t) + pulse * 0.02f);
         glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
-        beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.52f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
+        beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.12f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
         tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
         tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
         pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
@@ -126,8 +126,8 @@ public sealed class IntroCutscene : MonoBehaviour
 
         SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroSpriteOrFallback(1, 0, "intro_tv_body", CreateTvBodySprite()), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
         screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
-        glowRenderer = CreateSpriteObject("TV Glow", IntroSpriteOrFallback(1, 2, "intro_tv_glow", CreateGlowConeSprite()), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
-        beamRenderer = CreateSpriteObject("Pull Beam", IntroSpriteOrFallback(1, 3, "intro_pull_beam", CreateBeamSprite()), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
+        glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
+        beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
@@ -323,7 +323,7 @@ public sealed class IntroCutscene : MonoBehaviour
             {
                 float ny = y / (float)(height - 1);
                 float center = Mathf.Abs(x - width * 0.5f) / (width * Mathf.Lerp(0.18f, 0.62f, 1f - ny));
-                float alpha = Mathf.Clamp01(1f - center) * Mathf.Clamp01(1f - ny * 0.84f) * 0.48f;
+                float alpha = Mathf.Clamp01(1f - center) * Mathf.Clamp01(1f - ny * 0.84f) * 0.22f;
                 texture.SetPixel(x, y, new Color(0.45f, 0.78f, 1f, alpha));
             }
         }
@@ -344,7 +344,7 @@ public sealed class IntroCutscene : MonoBehaviour
                 float nx = Mathf.Abs(x - width * 0.5f) / (width * 0.42f);
                 float ny = y / (float)(height - 1);
                 bool scan = y % 9 == 0;
-                float alpha = Mathf.Clamp01(1f - nx) * Mathf.SmoothStep(0f, 1f, ny) * (scan ? 0.30f : 0.14f);
+                float alpha = Mathf.Clamp01(1f - nx) * Mathf.SmoothStep(0f, 1f, ny) * (scan ? 0.08f : 0.04f);
                 texture.SetPixel(x, y, new Color(0.72f, 0.90f, 1f, alpha));
             }
         }
