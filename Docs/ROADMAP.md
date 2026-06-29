@@ -1,41 +1,34 @@
-# 2D Multiplayer Roguelike Roadmap
+# 2D Single-Player TV Roguelike Roadmap
 
 ## Target
 
-Top-down 2D roguelike with deterministic grid simulation, multiplayer-ready state replication, tactical enemy AI, and room-scale puzzles.
+Top-down 2D roguelike about a viewer pulled into mandatory television channels, with responsive real-time movement, tactical enemy AI, room-scale puzzles, and a hidden psychological branch between aggression and clarity.
 
 ## Vertical Slice 0
 
-- Local single-player grid prototype.
-- Turn-based movement on a tile map.
+- Local single-player prototype.
+- Smooth real-time top-down movement with collision, acceleration, and inertia.
 - Enemy AI with patrol, sight, memory, and chase states.
-- Handcrafted multi-floor slice with pressure plates, keys, doors, traps, and patrol routes.
+- Intro cutscene and first handcrafted channel: surreal television news.
+- Viewer rating that falls during inactivity, accelerates over time, and damages the player at critical values.
+- Seamless first-channel branch: puzzle/story path versus combat/aggression path, with the unchosen passage collapsing.
+- Hidden narrative metrics for aggression and clarity that will later branch into two endings.
 - Runtime-generated placeholder pixel visuals.
-- NetSync native codec copied into the Unity project for later integration.
 
-## Network Direction
+## Systems Direction
 
-Use Unity as the transport owner. NetSync is a packet codec only:
+Keep the prototype single-player and make the world react to how the player watches the channel:
 
-- client sends input commands;
-- host/server owns authoritative simulation;
-- host sends snapshots and deltas encoded with NetSync;
-- clients render interpolated or corrected state from decoded events.
-
-For the first multiplayer milestone, keep the simulation deterministic and compact:
-
-- entity id;
-- prefab id;
-- grid position;
-- integer stats;
-- flags;
-- rare command payloads.
+- clarity opens colder, quieter, more readable rooms;
+- aggression increases red noise, enemy pressure, and hostile feedback;
+- viewer rating is the immediate survival pressure that keeps the run moving;
+- branch choices are made spatially in connected rooms, not through menus.
 
 ## Next Milestones
 
-1. Split the prototype into pure simulation and Unity presentation.
-2. Add Unity Transport for local host/client play.
-3. Encode snapshots with NetSync and decode them on a second local client.
-4. Replace runtime placeholder sprites with a small tileset.
-5. Expand AI into utility scoring: noise, scent/tracks, group calls, flanking.
-6. Add puzzle room generator templates.
+1. Split the prototype into cleaner simulation, presentation, and level data.
+2. Replace runtime placeholder sprites with a small news-channel tileset.
+3. Expand AI into utility scoring: noise, line of sight, group calls, flanking.
+4. Add a second handcrafted channel with a distinct visual language and puzzle grammar.
+5. Add persistence for run-level aggression/clarity and prototype two ending stubs.
+6. Add room templates after the handcrafted vertical slice feels good.

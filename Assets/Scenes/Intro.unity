@@ -130,7 +130,7 @@ GameObject:
   - component: {fileID: 318195230}
   - component: {fileID: 318195229}
   m_Layer: 0
-  m_Name: Prototype Game
+  m_Name: Intro Cutscene
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -145,10 +145,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 318195228}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4a3d4421a8b86f46c9a9cdc82e278824, type: 3}
+  m_Script: {fileID: 11500000, guid: 1382c606ee3d338c480e071cdb5d00d1, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PrototypeGame
-  SpriteAtlas: {fileID: 2800000, guid: 491fa0b40a3e46406be3584dcc3c9e63, type: 3}
+  m_EditorClassIdentifier: Assembly-CSharp::IntroCutscene
 --- !u!4 &318195230
 Transform:
   m_ObjectHideFlags: 0
@@ -191,7 +190,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 2
-  m_BackGroundColor: {r: 0.06, g: 0.07, b: 0.08, a: 1}
+  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -215,7 +214,7 @@ Camera:
   near clip plane: 0.3
   far clip plane: 1000
   field of view: 60
-  orthographic: 1
+  orthographic: 0
   orthographic size: 5
   m_Depth: 0
   m_CullingMask:
@@ -241,7 +240,7 @@ Transform:
   m_GameObject: {fileID: 572262712}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 12, y: 8, z: -10}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

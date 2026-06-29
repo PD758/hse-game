@@ -3,19 +3,6 @@ using UnityEngine.SceneManagement;
 
 public sealed class MainMenu : MonoBehaviour
 {
-    private enum MenuMode
-    {
-        Offline,
-        Server,
-        Client,
-    }
-
-    private MenuMode mode = MenuMode.Server;
-    private string serverPort = NetworkSessionConfig.DefaultPort.ToString();
-    private string clientAddress = NetworkSessionConfig.DefaultAddress;
-    private string clientPort = NetworkSessionConfig.DefaultPort.ToString();
-    private string validationMessage = string.Empty;
-
     private GUIStyle titleStyle;
     private GUIStyle labelStyle;
     private GUIStyle hintStyle;
@@ -41,96 +28,24 @@ public sealed class MainMenu : MonoBehaviour
         GUI.DrawTexture(panel, panelTexture);
         GUILayout.BeginArea(new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, panel.height - 48f));
 
-        GUILayout.Label("Rogue Sync", titleStyle);
-        GUILayout.Label("Handcrafted floors, tactical noise, multiplayer shell", hintStyle);
-        GUILayout.Space(20f);
-
-        GUILayout.Label("Mode", labelStyle);
-        GUILayout.BeginHorizontal();
-        DrawModeButton("Offline", MenuMode.Offline);
-        DrawModeButton("Server", MenuMode.Server);
-        DrawModeButton("Client", MenuMode.Client);
-        GUILayout.EndHorizontal();
-
+        GUILayout.Label("Канал", titleStyle);
+        GUILayout.Label("Рогалик о человеке, которого затягивает в обязательный эфир.", hintStyle);
         GUILayout.Space(18f);
-        if (mode == MenuMode.Server)
-        {
-            GUILayout.Label("Starts a local TCP listener. Gameplay sync comes in the next networking pass.", hintStyle);
-            GUILayout.Space(8f);
-            GUILayout.Label("Server port", labelStyle);
-            serverPort = GUILayout.TextField(serverPort, GUILayout.Height(34f));
-        }
-        else if (mode == MenuMode.Client)
-        {
-            GUILayout.Label("Connects to a running server instance.", hintStyle);
-            GUILayout.Space(8f);
-            GUILayout.Label("Server address", labelStyle);
-            clientAddress = GUILayout.TextField(clientAddress, GUILayout.Height(34f));
-            GUILayout.Space(10f);
-            GUILayout.Label("Server port", labelStyle);
-            clientPort = GUILayout.TextField(clientPort, GUILayout.Height(34f));
-        }
-        else
-        {
-            GUILayout.Label("Local run without network listener.", hintStyle);
-        }
-
-        GUILayout.Space(18f);
-        if (!string.IsNullOrEmpty(validationMessage))
-            GUILayout.Label(validationMessage, hintStyle);
+        GUILayout.Label("Один игрок", labelStyle);
+        GUILayout.Label("Первый канал: новости, рейтинг зрительского внимания, развилка между разбором сигнала и агрессивным эфиром.", hintStyle);
 
         GUILayout.FlexibleSpace();
-        if (GUILayout.Button("Start", buttonStyle, GUILayout.Height(44f)))
+        if (GUILayout.Button("Смотреть", buttonStyle, GUILayout.Height(44f)))
             StartGame();
 
         GUILayout.Space(12f);
-        GUILayout.Label("Controls in game: WASD/arrows move, push stones onto plates, R restarts, Esc returns here.", hintStyle);
+        GUILayout.Label("В игре: WASD/стрелки движение, Space/ЛКМ атака, E взаимодействие, R перезапуск, Esc меню.", hintStyle);
         GUILayout.EndArea();
-    }
-
-    private void DrawModeButton(string title, MenuMode target)
-    {
-        bool selected = mode == target;
-        Color previous = GUI.backgroundColor;
-        GUI.backgroundColor = selected ? new Color(0.20f, 0.58f, 0.70f) : new Color(0.20f, 0.22f, 0.25f);
-        if (GUILayout.Button(title, buttonStyle, GUILayout.Height(36f)))
-            mode = target;
-        GUI.backgroundColor = previous;
     }
 
     private void StartGame()
     {
-        validationMessage = string.Empty;
-
-        if (mode == MenuMode.Offline)
-        {
-            NetworkSessionConfig.SetOffline();
-        }
-        else if (mode == MenuMode.Server)
-        {
-            if (!TryReadPort(serverPort, out int port))
-                return;
-            NetworkSessionConfig.SetServer(port);
-        }
-        else
-        {
-            if (!TryReadPort(clientPort, out int port))
-                return;
-            NetworkSessionConfig.SetClient(clientAddress, port);
-        }
-
-        SceneManager.LoadScene("Prototype");
-    }
-
-    private bool TryReadPort(string text, out int port)
-    {
-        if (!int.TryParse(text, out port) || port < 1 || port > 65535)
-        {
-            validationMessage = "Port must be a number from 1 to 65535.";
-            return false;
-        }
-
-        return true;
+        SceneManager.LoadScene("Intro");
     }
 
     private void EnsureStyles()
