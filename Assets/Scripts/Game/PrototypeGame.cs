@@ -29,6 +29,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     public Texture2D CharacterAtlas;
     public Texture2D EnvironmentAtlas;
+    public Texture2D WallAtlas;
     public Texture2D HudAtlas;
 
     private enum Tile
@@ -101,6 +102,9 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly GameObject[,] tileViews = new GameObject[Width, Height];
     private readonly List<Vector2Int> startPlates = new List<Vector2Int>();
     private readonly List<Vector2Int> puzzlePlates = new List<Vector2Int>();
+    private readonly Vector2Int[] pathParents = new Vector2Int[Width * Height];
+    private readonly bool[] pathVisited = new bool[Width * Height];
+    private readonly Queue<Vector2Int> pathQueue = new Queue<Vector2Int>();
     private readonly List<Stone> stones = new List<Stone>();
     private readonly List<Enemy> enemies = new List<Enemy>();
 
@@ -398,7 +402,12 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Color RatingColor()
     {
-        Color tone = NarrativeRunState.IsAggressive() ? new Color(1.00f, 0.16f, 0.14f) : new Color(0.60f, 0.88f, 1.00f);
+        Color tone = NarrativeRunState.Branch switch
+        {
+            BranchChoice.Combat => new Color(1.00f, 0.16f, 0.14f),
+            BranchChoice.Puzzle => new Color(0.52f, 0.86f, 1.00f),
+            _ => NarrativeRunState.IsAggressive() ? new Color(1.00f, 0.16f, 0.14f) : new Color(0.60f, 0.88f, 1.00f),
+        };
         return Color.Lerp(Color.white, tone, 1f - viewerRating / 100f);
     }
 
@@ -768,6 +777,7 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             BlockCells(new Vector2Int(18, 13), new Vector2Int(19, 13), new Vector2Int(20, 13), new Vector2Int(18, 12), new Vector2Int(19, 12));
             message = "Верхний проход тухнет. Дикторы внизу встречают вашу злость аплодисментами.";
+            UpdateBranchObjective();
         }
     }
 
@@ -855,9 +865,18 @@ public sealed class PrototypeGame : MonoBehaviour
             float speed = enemy.Mode == EnemyMode.Hunt ? 2.55f : enemy.Mode == EnemyMode.Investigate ? 2.1f : 1.55f;
             if (RemoteJamActive())
                 speed *= RemoteEnemySpeedMultiplier;
-            Vector2 next = Vector2.MoveTowards(enemy.Position, target, speed * dt);
+            Vector2 steeringTarget = EnemySteeringTarget(enemy, target);
+            Vector2 next = Vector2.MoveTowards(enemy.Position, steeringTarget, speed * dt);
             if (CanEnemyOccupy(next, enemy))
+            {
                 enemy.Position = next;
+            }
+            else if (enemy.Mode != EnemyMode.Patrol)
+            {
+                Vector2 fallback = EnemyFallbackStep(enemy, speed * dt);
+                if (CanEnemyOccupy(fallback, enemy))
+                    enemy.Position = fallback;
+            }
 
             enemy.View.transform.position = enemy.Position;
             SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
@@ -924,10 +943,126 @@ public sealed class PrototypeGame : MonoBehaviour
         return target;
     }
 
+    private Vector2 EnemySteeringTarget(Enemy enemy, Vector2 directTarget)
+    {
+        if (enemy.Mode == EnemyMode.Patrol)
+            return directTarget;
+
+        Vector2Int from = WorldToCell(enemy.Position);
+        Vector2Int to = WorldToCell(directTarget);
+        if (from == to || HasStraightWalkLine(from, to))
+            return directTarget;
+
+        if (TryFindNextPathCell(from, to, out Vector2Int nextCell))
+            return ToWorld(nextCell);
+
+        return directTarget;
+    }
+
+    private Vector2 EnemyFallbackStep(Enemy enemy, float distance)
+    {
+        Vector2Int cell = WorldToCell(enemy.Position);
+        Vector2Int goal = enemy.Mode == EnemyMode.Hunt ? PlayerCell() : enemy.LastSeen;
+        Vector2Int bestCell = cell;
+        int bestScore = Manhattan(cell, goal);
+
+        foreach (Vector2Int next in CardinalCells(cell))
+        {
+            if (!CanEnemyEnterCell(next, enemy))
+                continue;
+
+            int score = Manhattan(next, goal);
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestCell = next;
+            }
+        }
+
+        return bestCell == cell ? enemy.Position : Vector2.MoveTowards(enemy.Position, ToWorld(bestCell), distance);
+    }
+
+    private bool TryFindNextPathCell(Vector2Int start, Vector2Int goal, out Vector2Int nextCell)
+    {
+        nextCell = start;
+        if (!Inside(start) || !Inside(goal))
+            return false;
+
+        Array.Fill(pathVisited, false);
+        Array.Fill(pathParents, new Vector2Int(-1, -1));
+        pathQueue.Clear();
+
+        int startIndex = CellIndex(start);
+        pathVisited[startIndex] = true;
+        pathQueue.Enqueue(start);
+
+        while (pathQueue.Count > 0)
+        {
+            Vector2Int current = pathQueue.Dequeue();
+            if (current == goal)
+                break;
+
+            foreach (Vector2Int next in CardinalCells(current))
+            {
+                if (!Inside(next))
+                    continue;
+
+                int index = CellIndex(next);
+                if (pathVisited[index] || !EnemyPathPassable(next, goal))
+                    continue;
+
+                pathVisited[index] = true;
+                pathParents[index] = current;
+                pathQueue.Enqueue(next);
+            }
+        }
+
+        if (!pathVisited[CellIndex(goal)])
+            return false;
+
+        Vector2Int step = goal;
+        while (pathParents[CellIndex(step)] != start)
+        {
+            step = pathParents[CellIndex(step)];
+            if (step.x < 0)
+                return false;
+        }
+
+        nextCell = step;
+        return true;
+    }
+
+    private bool HasStraightWalkLine(Vector2Int from, Vector2Int to)
+    {
+        if (from.x == to.x)
+        {
+            int step = Math.Sign(to.y - from.y);
+            for (int y = from.y + step; y != to.y; y += step)
+            {
+                if (!EnemyPathPassable(new Vector2Int(from.x, y), to))
+                    return false;
+            }
+            return true;
+        }
+
+        if (from.y == to.y)
+        {
+            int step = Math.Sign(to.x - from.x);
+            for (int x = from.x + step; x != to.x; x += step)
+            {
+                if (!EnemyPathPassable(new Vector2Int(x, from.y), to))
+                    return false;
+            }
+            return true;
+        }
+
+        return false;
+    }
+
     private bool CanEnemyOccupy(Vector2 position, Enemy self)
     {
         Vector2Int cell = WorldToCell(position);
-        if (!Inside(cell) || IsSolidCell(cell) || StoneAt(cell) != null)
+        if (!CanEnemyEnterCell(cell, self))
             return false;
 
         foreach (Enemy enemy in enemies)
@@ -937,6 +1072,25 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         return true;
+    }
+
+    private bool CanEnemyEnterCell(Vector2Int cell, Enemy self)
+    {
+        if (!EnemyPathPassable(cell, WorldToCell(playerView.transform.position)))
+            return false;
+
+        Enemy occupant = EnemyAt(cell);
+        return occupant == null || occupant == self;
+    }
+
+    private bool EnemyPathPassable(Vector2Int cell, Vector2Int goal)
+    {
+        if (!Inside(cell))
+            return false;
+        if (cell == goal)
+            return true;
+
+        return !IsSolidCell(cell) && StoneAt(cell) == null;
     }
 
     private bool CanSeePlayer(Vector2Int from)
@@ -1522,12 +1676,30 @@ public sealed class PrototypeGame : MonoBehaviour
             storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note", true);
             trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap", true);
             rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble", true);
+            TryApplyWallAtlas();
             return true;
         }
         catch (Exception ex)
         {
             Debug.LogWarning($"Environment atlas could not be sliced, keeping fallback environment: {ex.Message}");
             return false;
+        }
+    }
+
+    private void TryApplyWallAtlas()
+    {
+        if (WallAtlas == null)
+            return;
+
+        try
+        {
+            wallSprite = CreateFixedAtlasSprite(WallAtlas, 0, 0, "wall_horizontal");
+            wallVerticalSprite = CreateFixedAtlasSprite(WallAtlas, 0, 1, "wall_vertical");
+            wallCornerSprite = CreateFixedAtlasSprite(WallAtlas, 0, 2, "wall_corner");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Wall atlas could not be sliced, keeping environment wall sprites: {ex.Message}");
         }
     }
 
@@ -2026,6 +2198,10 @@ public sealed class PrototypeGame : MonoBehaviour
                 ratingFramePuzzleTexture = CreateHudAtlasTexture(0, 1, "rating_frame_puzzle", true);
                 ratingFrameCombatTexture = CreateHudAtlasTexture(0, 2, "rating_frame_combat", true);
                 ratingFrameCriticalTexture = CreateHudAtlasTexture(0, 3, "rating_frame_critical", true);
+                CutRatingFrameGaugeSlot(ratingFrameNeutralTexture);
+                CutRatingFrameGaugeSlot(ratingFramePuzzleTexture);
+                CutRatingFrameGaugeSlot(ratingFrameCombatTexture);
+                CutRatingFrameGaugeSlot(ratingFrameCriticalTexture);
                 hudPanelTexture = CreateHudAtlasTexture(1, 0, "hud_panel", false);
             }
             catch (Exception ex)
@@ -2048,6 +2224,25 @@ public sealed class PrototypeGame : MonoBehaviour
             whiteTexture.SetPixel(0, 0, Color.white);
             whiteTexture.Apply();
         }
+    }
+
+    private static void CutRatingFrameGaugeSlot(Texture2D texture)
+    {
+        if (texture == null)
+            return;
+
+        int minX = Mathf.RoundToInt(texture.width * 0.34f);
+        int maxX = Mathf.RoundToInt(texture.width * 0.66f);
+        int minY = Mathf.RoundToInt(texture.height * 0.13f);
+        int maxY = Mathf.RoundToInt(texture.height * 0.84f);
+
+        for (int x = minX; x <= maxX; x++)
+        {
+            for (int y = minY; y <= maxY; y++)
+                texture.SetPixel(x, y, Color.clear);
+        }
+
+        texture.Apply(false, false);
     }
 
     private Vector2Int PlayerCell()
@@ -2080,6 +2275,14 @@ public sealed class PrototypeGame : MonoBehaviour
     private IEnumerable<Vector2Int> NeighborCells(Vector2Int cell)
     {
         yield return cell;
+        yield return cell + Vector2Int.up;
+        yield return cell + Vector2Int.down;
+        yield return cell + Vector2Int.left;
+        yield return cell + Vector2Int.right;
+    }
+
+    private IEnumerable<Vector2Int> CardinalCells(Vector2Int cell)
+    {
         yield return cell + Vector2Int.up;
         yield return cell + Vector2Int.down;
         yield return cell + Vector2Int.left;
@@ -2122,5 +2325,10 @@ public sealed class PrototypeGame : MonoBehaviour
     private static int Manhattan(Vector2Int a, Vector2Int b)
     {
         return Math.Abs(a.x - b.x) + Math.Abs(a.y - b.y);
+    }
+
+    private static int CellIndex(Vector2Int cell)
+    {
+        return cell.y * Width + cell.x;
     }
 }

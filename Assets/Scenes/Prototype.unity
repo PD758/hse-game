@@ -150,6 +150,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::PrototypeGame
   CharacterAtlas: {fileID: 2800000, guid: 41434b3a907d43e68bd5e9659e31dd57, type: 3}
   EnvironmentAtlas: {fileID: 2800000, guid: adb838c42d1bbfec29c0fd5862140cc0, type: 3}
+  WallAtlas: {fileID: 2800000, guid: 6dca6dd5a34853431b6731538d73fa3d, type: 3}
   HudAtlas: {fileID: 2800000, guid: 76187fb3776cb73a79e877d06596cc7a, type: 3}
 --- !u!4 &83628357
 Transform:
