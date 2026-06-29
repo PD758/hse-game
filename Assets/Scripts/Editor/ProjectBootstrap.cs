@@ -85,7 +85,7 @@ public static class ProjectBootstrap
         cameraObject.tag = "MainCamera";
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = Color.black;
+        camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
 
         var gameObject = new GameObject("Intro Cutscene");
         gameObject.AddComponent<IntroCutscene>();
@@ -104,8 +104,9 @@ public static class ProjectBootstrap
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
         camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.06f, 0.07f, 0.08f);
-        camera.transform.position = new Vector3(12f, 8f, -10f);
+        camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+        camera.orthographicSize = 6.8f;
+        camera.transform.position = new Vector3(8f, 10f, -10f);
 
         var gameObject = new GameObject("Prototype Game");
         PrototypeGame game = gameObject.AddComponent<PrototypeGame>();

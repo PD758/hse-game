@@ -96,9 +96,9 @@ public sealed class IntroCutscene : MonoBehaviour
         glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.18f, 0.46f, t) + pulse * 0.06f);
         glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
         beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.52f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
-        tvLight.intensity = Mathf.Lerp(0.85f, 1.45f, t) + pulse * 0.10f;
-        tvLight.pointLightOuterRadius = Mathf.Lerp(4.2f, 6.0f, t);
-        pullLight.intensity = Mathf.SmoothStep(0f, 1.35f, Mathf.Clamp01((t - 0.48f) / 0.34f));
+        tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
+        tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
+        pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
         viewerRenderer.transform.position = Vector3.Lerp(new Vector3(0f, -1.82f, 0f), new Vector3(0f, -1.52f, 0f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.55f) / 0.35f)));
         fadeRenderer.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, 0.96f, Mathf.Clamp01((t - 0.72f) / 0.28f)));
 
@@ -110,8 +110,8 @@ public sealed class IntroCutscene : MonoBehaviour
     private void BuildScene()
     {
         CreateSpriteObject("Room Floor", CreateRoomFloorSprite(), Vector3.zero, new Vector3(1f, 1f, 1f), -10);
-        CreateSpriteObject("Window Shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.70f)), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
-        CreateSpriteObject("TV Cabinet", CreateRectSprite(96, 26, new Color(0.09f, 0.075f, 0.070f), new Color(0.045f, 0.038f, 0.036f)), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
+        CreateSpriteObject("Window Shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f)), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
+        CreateSpriteObject("TV Cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f)), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
 
         SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f)), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
@@ -127,8 +127,8 @@ public sealed class IntroCutscene : MonoBehaviour
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
         SetUnlit(couchShadow, screenRenderer, glowRenderer, beamRenderer, fadeRenderer);
-        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.42f, 0.48f, 0.56f), 0.18f);
-        tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.56f, 0.82f, 1.00f), 0.9f, 4.2f, 0.25f);
+        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
+        tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.58f, 0.84f, 1.00f), 1.15f, 5.2f, 0.25f);
         pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
         Urp2DLighting.AddShadowCaster(couch.gameObject);
         Urp2DLighting.AddShadowCaster(tvBody.gameObject);
@@ -163,9 +163,9 @@ public sealed class IntroCutscene : MonoBehaviour
         const int width = 320;
         const int height = 208;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
-        Color baseColor = new Color(0.055f, 0.060f, 0.066f);
-        Color seamColor = new Color(0.085f, 0.092f, 0.100f);
-        Color dustColor = new Color(0.072f, 0.078f, 0.086f);
+        Color baseColor = new Color(0.088f, 0.094f, 0.102f);
+        Color seamColor = new Color(0.128f, 0.138f, 0.150f);
+        Color dustColor = new Color(0.112f, 0.120f, 0.132f);
 
         for (int x = 0; x < width; x++)
         {
@@ -185,12 +185,12 @@ public sealed class IntroCutscene : MonoBehaviour
     {
         var texture = new Texture2D(160, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
-        DrawRect(texture, 10, 16, 140, 34, new Color(0.155f, 0.135f, 0.145f), true);
-        DrawRect(texture, 4, 20, 20, 38, new Color(0.110f, 0.095f, 0.105f), true);
-        DrawRect(texture, 136, 20, 20, 38, new Color(0.110f, 0.095f, 0.105f), true);
-        DrawRect(texture, 14, 12, 132, 10, new Color(0.205f, 0.180f, 0.190f), true);
-        DrawRect(texture, 11, 16, 138, 34, new Color(0.060f, 0.052f, 0.058f), false);
-        DrawLine(texture, 80, 18, 80, 48, new Color(0.085f, 0.075f, 0.080f));
+        DrawRect(texture, 10, 16, 140, 34, new Color(0.230f, 0.200f, 0.214f), true);
+        DrawRect(texture, 4, 20, 20, 38, new Color(0.165f, 0.145f, 0.158f), true);
+        DrawRect(texture, 136, 20, 20, 38, new Color(0.165f, 0.145f, 0.158f), true);
+        DrawRect(texture, 14, 12, 132, 10, new Color(0.285f, 0.250f, 0.265f), true);
+        DrawRect(texture, 11, 16, 138, 34, new Color(0.085f, 0.076f, 0.084f), false);
+        DrawLine(texture, 80, 18, 80, 48, new Color(0.120f, 0.108f, 0.116f));
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 32f, 0, SpriteMeshType.FullRect);
     }
@@ -200,8 +200,8 @@ public sealed class IntroCutscene : MonoBehaviour
         var texture = new Texture2D(48, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         Color hair = new Color(0.015f, 0.014f, 0.015f);
-        Color face = new Color(0.48f, 0.58f, 0.66f);
-        Color shirt = new Color(0.055f, 0.070f, 0.082f);
+        Color face = new Color(0.58f, 0.67f, 0.74f);
+        Color shirt = new Color(0.100f, 0.125f, 0.145f);
         DrawRect(texture, 16, 8, 16, 12, hair, true);
         DrawRect(texture, 17, 16, 14, 10, face, true);
         DrawRect(texture, 14, 28, 20, 22, shirt, true);
@@ -419,7 +419,7 @@ public sealed class IntroCutscene : MonoBehaviour
         }
 
         camera.clearFlags = CameraClearFlags.SolidColor;
-        camera.backgroundColor = new Color(0.006f, 0.008f, 0.011f);
+        camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
         camera.orthographic = true;
         camera.orthographicSize = 5.4f;
         camera.transform.position = new Vector3(0f, 0f, -10f);

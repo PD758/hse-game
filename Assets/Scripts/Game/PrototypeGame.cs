@@ -205,8 +205,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
         Vector3 target = playerView.transform.position;
         target.z = -10f;
-        target.x = Mathf.Clamp(target.x, 10f, Width - 11f);
-        target.y = Mathf.Clamp(target.y, 8f, Height - 9f);
+        float halfHeight = camera.orthographicSize;
+        float halfWidth = halfHeight * camera.aspect;
+        target.x = ClampCameraAxis(target.x, halfWidth - 0.5f, (Width - 1) * CellSize - halfWidth + 0.5f);
+        target.y = ClampCameraAxis(target.y, halfHeight - 0.5f, (Height - 1) * CellSize - halfHeight + 0.5f);
         camera.transform.position = Vector3.Lerp(camera.transform.position, target, 0.12f);
     }
 
@@ -953,12 +955,12 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateLighting()
     {
-        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.46f, 0.50f, 0.57f), 0.62f);
+        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.64f, 0.67f, 0.70f), 0.92f);
 
         var channelLightObject = new GameObject("Channel Light");
         channelLightObject.transform.SetParent(transform);
         channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
-        Urp2DLighting.AddPointLight(channelLightObject, new Color(0.45f, 0.72f, 1.00f), 0.38f, 12.5f, 1.5f);
+        Urp2DLighting.AddPointLight(channelLightObject, new Color(0.62f, 0.78f, 0.94f), 0.28f, 10.0f, 1.5f);
     }
 
     private static void SetLitMaterial(SpriteRenderer renderer)
@@ -1023,8 +1025,8 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         return mode switch
         {
-            EnemyMode.Hunt => new Color(1.00f, 0.12f, 0.16f),
-            EnemyMode.Investigate => new Color(1.00f, 0.68f, 0.18f),
+            EnemyMode.Hunt => new Color(1.00f, 0.42f, 0.56f),
+            EnemyMode.Investigate => new Color(1.00f, 0.78f, 0.36f),
             _ => Color.white,
         };
     }
@@ -1488,9 +1490,14 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         camera.orthographic = true;
-        camera.orthographicSize = 9.8f;
-        camera.transform.position = new Vector3(10f, 10f, -10f);
-        camera.backgroundColor = new Color(0.055f, 0.060f, 0.070f);
+        camera.orthographicSize = 6.8f;
+        camera.transform.position = new Vector3(8f, 10f, -10f);
+        camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+    }
+
+    private static float ClampCameraAxis(float value, float min, float max)
+    {
+        return min > max ? (min + max) * 0.5f : Mathf.Clamp(value, min, max);
     }
 
     private void EnsureHudTextures()
