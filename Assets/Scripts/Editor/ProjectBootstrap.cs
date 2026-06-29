@@ -112,7 +112,7 @@ public static class ProjectBootstrap
         var gameObject = new GameObject("Prototype Game");
         PrototypeGame game = gameObject.AddComponent<PrototypeGame>();
         game.CharacterAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/characters_1024.jpg");
-        game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
+        game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
         game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
 
         const string scenePath = "Assets/Scenes/Prototype.unity";
@@ -122,7 +122,6 @@ public static class ProjectBootstrap
     private static void ConfigureTextureImports()
     {
         ConfigureReadablePointTexture("Assets/Atlases/characters_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/environment_2_1024.jpg");
         ConfigureReadablePointTexture("Assets/Atlases/environment_v2.png");
         ConfigureReadablePointTexture("Assets/Atlases/hud_1024.jpg");
         ConfigureReadablePointTexture("Assets/Atlases/intro_wide_1024.jpg");

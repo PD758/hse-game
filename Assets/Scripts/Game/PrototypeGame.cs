@@ -1494,31 +1494,34 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         try
         {
-            floorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 5, 4, "floor_base");
+            floorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 0, "floor_base");
             floorSprites = new[] { floorSprite };
 
             floorDecalSprites = new[]
             {
-                CreateFixedAtlasSprite(EnvironmentAtlas, 5, 5, "floor_crack_a", true),
-                CreateFixedAtlasSprite(EnvironmentAtlas, 6, 5, "floor_crack_b", true),
-                CreateFixedAtlasSprite(EnvironmentAtlas, 6, 4, "floor_panel_detail", true),
-                CreateFixedAtlasSprite(EnvironmentAtlas, 7, 0, "floor_cable_detail", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 0, "floor_decal_0", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 1, "floor_decal_1", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 2, "floor_decal_2", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 3, "floor_decal_3", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 4, "floor_decal_4", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 5, "floor_decal_5", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 1, 6, "floor_decal_6", true),
             };
 
-            wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 0, "wall_horizontal");
-            wallVerticalSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 1, "wall_vertical");
-            wallCornerSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 2, "wall_corner");
-            gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 1, 4, "signal_gate_closed", true);
-            openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 1, 5, "signal_gate_open", true);
-            exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "tv_exit_locked", true);
-            openExitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 1, "tv_exit_open", true);
-            plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 7, "pressure_plate", true);
-            pressedPlateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 7, "pressure_plate_pressed", true);
-            stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 5, "signal_blocker", true);
-            remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 7, "remote", true);
-            storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 7, "story_note", true);
-            trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "camera_trap", true);
-            rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 6, 5, "rubble", true);
+            wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "wall_straight");
+            wallVerticalSprite = wallSprite;
+            wallCornerSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 1, "wall_corner");
+            gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "signal_gate_closed", true);
+            openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 1, "signal_gate_open", true);
+            exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 6, "tv_exit", true);
+            openExitSprite = exitSprite;
+            plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 0, "pressure_plate", true);
+            pressedPlateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 1, "pressure_plate_pressed", true);
+            stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 2, "signal_blocker", true);
+            remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 3, "remote", true);
+            storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note", true);
+            trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap", true);
+            rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble", true);
             return true;
         }
         catch (Exception ex)
