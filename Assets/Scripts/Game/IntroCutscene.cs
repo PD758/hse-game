@@ -197,7 +197,10 @@ public sealed class IntroCutscene : MonoBehaviour
 
         for (int i = 0; i < pixels.Length; i++)
         {
-            if (IsChromaGreen(pixels[i]))
+            int x = i % cellWidth;
+            int y = i / cellWidth;
+            bool atlasEdge = x <= 1 || y <= 1 || x >= cellWidth - 2 || y >= cellHeight - 2;
+            if (atlasEdge || IsChromaGreen(pixels[i]))
                 pixels[i] = new Color(0f, 0f, 0f, 0f);
         }
 

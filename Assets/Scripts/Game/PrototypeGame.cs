@@ -1210,7 +1210,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
         for (int i = 0; i < pixels.Length; i++)
         {
-            if (IsChromaGreen(pixels[i]))
+            int x = i % width;
+            int y = i / width;
+            bool atlasEdge = x <= 1 || y <= 1 || x >= width - 2 || y >= height - 2;
+            if (atlasEdge || IsChromaGreen(pixels[i]))
                 pixels[i] = new Color(0f, 0f, 0f, 0f);
         }
 
