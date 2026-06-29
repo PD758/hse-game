@@ -12,11 +12,12 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float PlayerAcceleration = 24f;
     private const float PlayerDeceleration = 18f;
     private const float RatingCritical = 15f;
-    private const int AtlasColumns = 16;
-    private const int AtlasCellSize = 128;
-    private const int AtlasInset = 4;
+    private const float GameplayCameraSize = 6.0f;
+    private const int FixedAtlasColumns = 8;
+    private const int FixedAtlasRows = 8;
 
-    public Texture2D SpriteAtlas;
+    public Texture2D CharacterAtlas;
+    public Texture2D EnvironmentAtlas;
 
     private enum Tile
     {
@@ -84,6 +85,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private readonly Tile[,] tiles = new Tile[Width, Height];
     private readonly GameObject[,] floorViews = new GameObject[Width, Height];
+    private readonly GameObject[,] floorDecalViews = new GameObject[Width, Height];
     private readonly GameObject[,] tileViews = new GameObject[Width, Height];
     private readonly List<Vector2Int> startPlates = new List<Vector2Int>();
     private readonly List<Vector2Int> puzzlePlates = new List<Vector2Int>();
@@ -111,8 +113,8 @@ public sealed class PrototypeGame : MonoBehaviour
     private Sprite enemyHuntSprite;
     private Texture2D hudTexture;
     private Texture2D whiteTexture;
-    private int[] atlasVerticalLines;
-    private int[] atlasHorizontalLines;
+    private Sprite[] floorSprites = Array.Empty<Sprite>();
+    private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
 
     private GameObject playerView;
     private Rigidbody2D playerBody;
@@ -894,6 +896,14 @@ public sealed class PrototypeGame : MonoBehaviour
                 floorRenderer.sortingOrder = -2;
                 floorViews[x, y] = floorView;
 
+                GameObject floorDecalView = new GameObject($"Floor Decal {x},{y}");
+                floorDecalView.transform.SetParent(tileRoot.transform);
+                floorDecalView.transform.position = ToWorld(cell);
+                SpriteRenderer decalRenderer = floorDecalView.AddComponent<SpriteRenderer>();
+                SetLitMaterial(decalRenderer);
+                decalRenderer.sortingOrder = -1;
+                floorDecalViews[x, y] = floorDecalView;
+
                 GameObject view = new GameObject($"Tile {x},{y}");
                 view.transform.SetParent(tileRoot.transform);
                 view.transform.position = ToWorld(cell);
@@ -993,8 +1003,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
         SpriteRenderer renderer = tileViews[cell.x, cell.y].GetComponent<SpriteRenderer>();
         SpriteRenderer floorRenderer = floorViews[cell.x, cell.y].GetComponent<SpriteRenderer>();
+        SpriteRenderer decalRenderer = floorDecalViews[cell.x, cell.y].GetComponent<SpriteRenderer>();
         bool hasFloor = tiles[cell.x, cell.y] != Tile.Wall;
-        floorRenderer.sprite = hasFloor ? floorSprite : null;
+        floorRenderer.sprite = hasFloor ? FloorSpriteFor(cell) : null;
+        decalRenderer.sprite = hasFloor && tiles[cell.x, cell.y] == Tile.Floor ? FloorDecalFor(cell) : null;
 
         renderer.sprite = OverlaySpriteFor(tiles[cell.x, cell.y], cell);
         renderer.sortingOrder = tiles[cell.x, cell.y] == Tile.Rubble ? 3 : tiles[cell.x, cell.y] == Tile.Wall ? 1 : 2;
@@ -1051,6 +1063,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
 
         FacingDirection direction = FacingFromAim(lastAim);
+        renderer.flipX = direction == FacingDirection.Right;
         int index = (int)direction;
         if (attackCooldown > 0.18f)
         {
@@ -1099,70 +1112,97 @@ public sealed class PrototypeGame : MonoBehaviour
                cell == new Vector2Int(34, 8) && combatExitOpen;
     }
 
-    private bool TryCreateAtlasSprites()
+    private bool TryApplyCharacterAtlas()
     {
         try
         {
-            DetectAtlasGrid();
-            floorSprite = CreateQuietFloorSprite();
-            wallSprite = CreateQuietWallSprite();
-            plateSprite = CreateAtlasSprite(3, 4, "signal_plate");
-            gateSprite = CreateAtlasSprite(3, 0, "closed_gate");
-            openGateSprite = CreateAtlasSprite(3, 2, "open_gate");
-            exitSprite = CreateAtlasSprite(3, 10, "signal_exit");
-            rubbleSprite = CreateAtlasSprite(14, 10, "static_rubble");
-            trapSprite = CreateAtlasSprite(3, 12, "camera_trap");
-            remoteSprite = CreateAtlasSprite(3, 9, "remote");
-            storySprite = CreateAtlasSprite(12, 1, "story_note");
-            stoneSprite = CreateAtlasSprite(3, 7, "signal_blocker");
-
-            SetPlayerSprites(FacingDirection.Down, 4, 0, 1, 2, 6);
-            SetPlayerSprites(FacingDirection.Up, 5, 1, 2, 3, 6);
-            SetPlayerSprites(FacingDirection.Left, 6, 0, 1, 2, 7);
-            SetPlayerSprites(FacingDirection.Right, 4, 8, 9, 10, 14);
+            SetPlayerSpritesFromFixedAtlas(FacingDirection.Down, 0);
+            SetPlayerSpritesFromFixedAtlas(FacingDirection.Up, 1);
+            SetPlayerSpritesFromFixedAtlas(FacingDirection.Left, 2);
+            CopyPlayerSprites(FacingDirection.Right, FacingDirection.Left);
             playerSprite = playerIdleSprites[(int)FacingDirection.Down];
 
-            enemySprite = CreateAtlasSprite(8, 0, "anchor_patrol");
-            enemyInvestigateSprite = CreateAtlasSprite(9, 8, "anchor_investigate");
-            enemyHuntSprite = CreateAtlasSprite(10, 8, "anchor_hunt");
+            enemySprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 0, "anchor_patrol_down");
+            enemyInvestigateSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 2, "anchor_investigate_down");
+            enemyHuntSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 3, "anchor_hunt_down");
             return true;
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"Sprite atlas could not be sliced, using fallback sprites: {ex.Message}");
+            Debug.LogWarning($"Character atlas could not be sliced, keeping fallback characters: {ex.Message}");
             return false;
         }
     }
 
-    private void SetPlayerSprites(FacingDirection direction, int topRow, int idleCol, int walkOneCol, int walkTwoCol, int attackCol)
+    private bool TryApplyEnvironmentAtlas()
     {
-        int index = (int)direction;
-        playerIdleSprites[index] = CreateAtlasSprite(topRow, idleCol, $"player_{direction}_idle");
-        playerWalkOneSprites[index] = CreateAtlasSprite(topRow, walkOneCol, $"player_{direction}_walk_1");
-        playerWalkTwoSprites[index] = CreateAtlasSprite(topRow, walkTwoCol, $"player_{direction}_walk_2");
-        playerAttackSprites[index] = CreateAtlasSprite(topRow, attackCol, $"player_{direction}_attack");
+        try
+        {
+            floorSprites = new Sprite[8];
+            for (int i = 0; i < floorSprites.Length; i++)
+                floorSprites[i] = CreateFixedAtlasSprite(EnvironmentAtlas, 0, i, $"floor_{i}");
+            floorSprite = floorSprites[0];
+
+            floorDecalSprites = new Sprite[7];
+            for (int i = 0; i < floorDecalSprites.Length; i++)
+                floorDecalSprites[i] = CreateFixedAtlasSprite(EnvironmentAtlas, 1, i, $"floor_decal_{i}");
+
+            wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "wall_straight");
+            gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "signal_gate_closed");
+            openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 1, "signal_gate_open");
+            exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 6, "tv_exit");
+            plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 0, "pressure_plate");
+            stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 2, "signal_blocker");
+            remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 3, "remote");
+            storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note");
+            trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap");
+            rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Environment atlas could not be sliced, keeping fallback environment: {ex.Message}");
+            return false;
+        }
     }
 
-    private Sprite CreateAtlasSprite(int topRow, int column, string spriteName)
+    private void SetPlayerSpritesFromFixedAtlas(FacingDirection direction, int row)
     {
-        if (atlasVerticalLines == null || atlasHorizontalLines == null ||
-            column + 1 >= atlasVerticalLines.Length || topRow + 1 >= atlasHorizontalLines.Length)
-        {
-            throw new InvalidOperationException($"Atlas cell {column},{topRow} is outside detected grid.");
-        }
+        int index = (int)direction;
+        playerIdleSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 0, $"player_{direction}_idle");
+        playerWalkOneSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 1, $"player_{direction}_walk_1");
+        playerWalkTwoSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 2, $"player_{direction}_walk_2");
+        playerAttackSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 3, $"player_{direction}_attack");
+    }
 
-        int left = atlasVerticalLines[column];
-        int right = atlasVerticalLines[column + 1];
-        int top = atlasHorizontalLines[topRow];
-        int bottom = atlasHorizontalLines[topRow + 1];
-        int cellWidth = right - left;
-        int cellHeight = bottom - top;
-        int cropSize = Mathf.Max(8, Mathf.Min(cellWidth, cellHeight) - AtlasInset * 2);
-        int sourceX = left + (cellWidth - cropSize) / 2;
-        int sourceTop = top + (cellHeight - cropSize) / 2;
-        int sourceY = SpriteAtlas.height - sourceTop - cropSize;
-        Color[] pixels = SpriteAtlas.GetPixels(sourceX, sourceY, cropSize, cropSize);
-        var texture = new Texture2D(cropSize, cropSize, TextureFormat.RGBA32, false)
+    private void CopyPlayerSprites(FacingDirection target, FacingDirection source)
+    {
+        int targetIndex = (int)target;
+        int sourceIndex = (int)source;
+        playerIdleSprites[targetIndex] = playerIdleSprites[sourceIndex];
+        playerWalkOneSprites[targetIndex] = playerWalkOneSprites[sourceIndex];
+        playerWalkTwoSprites[targetIndex] = playerWalkTwoSprites[sourceIndex];
+        playerAttackSprites[targetIndex] = playerAttackSprites[sourceIndex];
+    }
+
+    private Sprite CreateFixedAtlasSprite(Texture2D atlas, int row, int column, string spriteName)
+    {
+        if (atlas == null)
+            throw new InvalidOperationException("Atlas texture is not assigned.");
+        if (row < 0 || row >= FixedAtlasRows || column < 0 || column >= FixedAtlasColumns)
+            throw new InvalidOperationException($"Fixed atlas cell {column},{row} is outside 8x8 grid.");
+
+        int cellWidth = atlas.width / FixedAtlasColumns;
+        int cellHeight = atlas.height / FixedAtlasRows;
+        int sourceX = column * cellWidth;
+        int sourceY = atlas.height - (row + 1) * cellHeight;
+        return CreateSpriteFromAtlasPixels(atlas, sourceX, sourceY, cellWidth, cellHeight, spriteName, cellWidth);
+    }
+
+    private static Sprite CreateSpriteFromAtlasPixels(Texture2D atlas, int sourceX, int sourceY, int width, int height, string spriteName, float pixelsPerUnit)
+    {
+        Color[] pixels = atlas.GetPixels(sourceX, sourceY, width, height);
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
         {
             filterMode = FilterMode.Point,
             name = spriteName,
@@ -1170,95 +1210,15 @@ public sealed class PrototypeGame : MonoBehaviour
 
         for (int i = 0; i < pixels.Length; i++)
         {
-            int x = i % cropSize;
-            int y = i / cropSize;
-            if (x <= 1 || y <= 1 || x >= cropSize - 2 || y >= cropSize - 2 || IsChromaGreen(pixels[i]))
+            if (IsChromaGreen(pixels[i]))
                 pixels[i] = new Color(0f, 0f, 0f, 0f);
         }
 
         texture.SetPixels(pixels);
         texture.Apply(false, false);
-        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, cropSize, cropSize), new Vector2(0.5f, 0.5f), cropSize, 0, SpriteMeshType.FullRect);
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.5f), pixelsPerUnit, 0, SpriteMeshType.FullRect);
         sprite.name = spriteName;
         return sprite;
-    }
-
-    private void DetectAtlasGrid()
-    {
-        atlasVerticalLines = DetectAxisLines(true, AtlasColumns + 1, SpriteAtlas.width);
-        atlasHorizontalLines = DetectAxisLines(false, 16, SpriteAtlas.height);
-    }
-
-    private int[] DetectAxisLines(bool vertical, int expectedCount, int length)
-    {
-        var candidates = new List<int>();
-        int perpendicular = vertical ? SpriteAtlas.height : SpriteAtlas.width;
-        bool inRun = false;
-        int runStart = 0;
-
-        for (int i = 0; i < length; i++)
-        {
-            int dark = 0;
-            for (int j = 0; j < perpendicular; j++)
-            {
-                Color color = vertical ? ReadAtlasPixelTop(i, j) : ReadAtlasPixelTop(j, i);
-                if (IsSeparatorDark(color))
-                    dark++;
-            }
-
-            bool separator = dark / (float)perpendicular > 0.70f;
-            if (separator && !inRun)
-            {
-                inRun = true;
-                runStart = i;
-            }
-            else if (!separator && inRun)
-            {
-                AddSeparatorCandidate(candidates, runStart, i - 1);
-                inRun = false;
-            }
-        }
-
-        if (inRun)
-            AddSeparatorCandidate(candidates, runStart, length - 1);
-
-        var lines = new List<int> { 0 };
-        foreach (int candidate in candidates)
-        {
-            if (candidate <= 4 || candidate >= length - 4)
-                continue;
-            if (lines.Count == 0 || candidate - lines[lines.Count - 1] >= 64)
-                lines.Add(candidate);
-        }
-        if (lines[lines.Count - 1] != length)
-            lines.Add(length);
-
-        if (lines.Count >= expectedCount)
-            return lines.ToArray();
-
-        Debug.LogWarning($"Atlas grid detection found {lines.Count} lines on {(vertical ? "X" : "Y")} axis, falling back to uniform 128px grid.");
-        lines.Clear();
-        for (int i = 0; i <= length; i += AtlasCellSize)
-            lines.Add(Mathf.Min(i, length));
-        if (lines[lines.Count - 1] != length)
-            lines.Add(length);
-        return lines.ToArray();
-    }
-
-    private static void AddSeparatorCandidate(List<int> candidates, int start, int end)
-    {
-        if (end - start <= 4)
-            candidates.Add((start + end) / 2);
-    }
-
-    private Color ReadAtlasPixelTop(int x, int topY)
-    {
-        return SpriteAtlas.GetPixel(x, SpriteAtlas.height - 1 - topY);
-    }
-
-    private static bool IsSeparatorDark(Color color)
-    {
-        return color.r < 0.16f && color.g < 0.18f && color.b < 0.16f;
     }
 
     private static bool IsChromaGreen(Color color)
@@ -1323,15 +1283,30 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateSprites()
     {
-        if (SpriteAtlas != null && TryCreateAtlasSprites())
-            return;
-
         CreateFallbackSprites();
+
+        if (EnvironmentAtlas != null)
+            TryApplyEnvironmentAtlas();
+        if (CharacterAtlas != null)
+            TryApplyCharacterAtlas();
     }
 
     private void CreateFallbackSprites()
     {
         floorSprite = CreateSprite(new Color(0.09f, 0.10f, 0.11f), new Color(0.15f, 0.16f, 0.18f), new Color(0.18f, 0.22f, 0.25f), SpriteMark.None);
+        floorSprites = new[]
+        {
+            floorSprite,
+            CreateSprite(new Color(0.10f, 0.11f, 0.12f), new Color(0.15f, 0.16f, 0.18f), new Color(0.20f, 0.24f, 0.27f), SpriteMark.None),
+            CreateSprite(new Color(0.08f, 0.09f, 0.10f), new Color(0.13f, 0.14f, 0.16f), new Color(0.16f, 0.20f, 0.23f), SpriteMark.None),
+            CreateSprite(new Color(0.095f, 0.10f, 0.105f), new Color(0.16f, 0.16f, 0.17f), new Color(0.22f, 0.22f, 0.24f), SpriteMark.None),
+        };
+        floorDecalSprites = new[]
+        {
+            CreateDecalSprite(new Color(0.65f, 0.72f, 0.76f, 0.72f), SpriteMark.Story),
+            CreateDecalSprite(new Color(0.25f, 0.40f, 0.48f, 0.70f), SpriteMark.Remote),
+            CreateDecalSprite(new Color(0.80f, 0.18f, 0.22f, 0.58f), SpriteMark.Trap),
+        };
         wallSprite = CreateSprite(new Color(0.22f, 0.24f, 0.27f), new Color(0.12f, 0.13f, 0.15f), new Color(0.52f, 0.56f, 0.60f), SpriteMark.None);
         plateSprite = CreateSprite(new Color(0.28f, 0.25f, 0.18f), new Color(0.11f, 0.10f, 0.08f), new Color(0.95f, 0.82f, 0.36f), SpriteMark.Plate);
         gateSprite = CreateSprite(new Color(0.34f, 0.10f, 0.14f), new Color(0.12f, 0.05f, 0.06f), new Color(0.90f, 0.18f, 0.24f), SpriteMark.Gate);
@@ -1353,6 +1328,28 @@ public sealed class PrototypeGame : MonoBehaviour
         enemySprite = CreateSprite(new Color(0.34f, 0.12f, 0.16f), new Color(0.12f, 0.06f, 0.08f), new Color(0.95f, 0.24f, 0.30f), SpriteMark.Enemy);
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
+    }
+
+    private static Sprite CreateDecalSprite(Color color, SpriteMark mark)
+    {
+        const int size = 16;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+        };
+        Fill(texture, new Color(0f, 0f, 0f, 0f));
+        DrawMark(texture, mark, color);
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
+    }
+
+    private static void Fill(Texture2D texture, Color color)
+    {
+        for (int x = 0; x < texture.width; x++)
+        {
+            for (int y = 0; y < texture.height; y++)
+                texture.SetPixel(x, y, color);
+        }
     }
 
     private static Sprite CreateSprite(Color baseColor, Color edgeColor, Color markColor, SpriteMark mark)
@@ -1490,9 +1487,34 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         camera.orthographic = true;
-        camera.orthographicSize = 6.8f;
+        camera.orthographicSize = GameplayCameraSize;
         camera.transform.position = new Vector3(8f, 10f, -10f);
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+    }
+
+    private Sprite FloorSpriteFor(Vector2Int cell)
+    {
+        if (floorSprites.Length == 0)
+            return floorSprite;
+
+        return floorSprites[CellHash(cell, 11) % floorSprites.Length];
+    }
+
+    private Sprite FloorDecalFor(Vector2Int cell)
+    {
+        if (floorDecalSprites.Length == 0 || CellHash(cell, 29) % 10 != 0)
+            return null;
+
+        return floorDecalSprites[CellHash(cell, 47) % floorDecalSprites.Length];
+    }
+
+    private static int CellHash(Vector2Int cell, int salt)
+    {
+        unchecked
+        {
+            uint hash = (uint)(cell.x * 73856093) ^ (uint)(cell.y * 19349663) ^ (uint)(salt * 83492791);
+            return (int)(hash & 0x7fffffff);
+        }
     }
 
     private static float ClampCameraAxis(float value, float min, float max)

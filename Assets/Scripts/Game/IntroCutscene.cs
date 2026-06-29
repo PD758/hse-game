@@ -6,6 +6,11 @@ using UnityEngine.SceneManagement;
 public sealed class IntroCutscene : MonoBehaviour
 {
     private const float Duration = 9.5f;
+    private const int IntroAtlasColumns = 4;
+    private const int IntroAtlasRows = 8;
+    private const float IntroAtlasPixelsPerUnit = 64f;
+
+    public Texture2D IntroAtlas;
 
     private SpriteRenderer screenRenderer;
     private SpriteRenderer glowRenderer;
@@ -109,20 +114,20 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void BuildScene()
     {
-        CreateSpriteObject("Room Floor", CreateRoomFloorSprite(), Vector3.zero, new Vector3(1f, 1f, 1f), -10);
-        CreateSpriteObject("Window Shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f)), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
-        CreateSpriteObject("TV Cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f)), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
+        CreateSpriteObject("Room Floor", IntroSpriteOrFallback(0, 3, "intro_floor", CreateRoomFloorSprite()), Vector3.zero, new Vector3(2.5f, 1.6f, 1f), -10);
+        CreateSpriteObject("Window Shadow", IntroSpriteOrFallback(3, 0, "intro_window_shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f))), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
+        CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
 
-        SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f)), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
+        SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", IntroSpriteOrFallback(0, 1, "intro_couch_shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f))), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
-        SpriteRenderer couch = CreateSpriteObject("Couch", CreateCouchSprite(), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
-        viewerRenderer = CreateSpriteObject("Viewer", CreateViewerSprite(), new Vector3(0f, -1.82f, 0f), Vector3.one, 5);
+        SpriteRenderer couch = CreateSpriteObject("Couch", IntroSpriteOrFallback(0, 0, "intro_couch", CreateCouchSprite()), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
+        viewerRenderer = CreateSpriteObject("Viewer", IntroSpriteOrFallback(2, 0, "intro_viewer_seated", CreateViewerSprite()), new Vector3(0f, -1.82f, 0f), Vector3.one, 5);
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
-        SpriteRenderer tvBody = CreateSpriteObject("TV Body", CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
-        screenRenderer = CreateSpriteObject("TV Screen", CreateStaticScreenSprite(), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
-        glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
-        beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
+        SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroSpriteOrFallback(1, 0, "intro_tv_body", CreateTvBodySprite()), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
+        screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
+        glowRenderer = CreateSpriteObject("TV Glow", IntroSpriteOrFallback(1, 2, "intro_tv_glow", CreateGlowConeSprite()), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
+        beamRenderer = CreateSpriteObject("Pull Beam", IntroSpriteOrFallback(1, 3, "intro_pull_beam", CreateBeamSprite()), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
@@ -156,6 +161,60 @@ public sealed class IntroCutscene : MonoBehaviour
 
         foreach (SpriteRenderer renderer in renderers)
             renderer.sharedMaterial = material;
+    }
+
+    private Sprite IntroSpriteOrFallback(int row, int column, string spriteName, Sprite fallback)
+    {
+        if (IntroAtlas == null)
+            return fallback;
+
+        try
+        {
+            return CreateIntroAtlasSprite(row, column, spriteName);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Intro atlas cell {column},{row} could not be sliced, using fallback {spriteName}: {ex.Message}");
+            return fallback;
+        }
+    }
+
+    private Sprite CreateIntroAtlasSprite(int row, int column, string spriteName)
+    {
+        if (row < 0 || row >= IntroAtlasRows || column < 0 || column >= IntroAtlasColumns)
+            throw new InvalidOperationException($"Intro atlas cell {column},{row} is outside 4x8 grid.");
+
+        int cellWidth = IntroAtlas.width / IntroAtlasColumns;
+        int cellHeight = IntroAtlas.height / IntroAtlasRows;
+        int sourceX = column * cellWidth;
+        int sourceY = IntroAtlas.height - (row + 1) * cellHeight;
+        Color[] pixels = IntroAtlas.GetPixels(sourceX, sourceY, cellWidth, cellHeight);
+        var texture = new Texture2D(cellWidth, cellHeight, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = spriteName,
+        };
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            if (IsChromaGreen(pixels[i]))
+                pixels[i] = new Color(0f, 0f, 0f, 0f);
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, false);
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, cellWidth, cellHeight), new Vector2(0.5f, 0.5f), IntroAtlasPixelsPerUnit, 0, SpriteMeshType.FullRect);
+        sprite.name = spriteName;
+        return sprite;
+    }
+
+    private static bool IsChromaGreen(Color color)
+    {
+        float maxOther = Mathf.Max(color.r, color.b);
+        return color.g > 0.22f &&
+               color.g - maxOther > 0.10f &&
+               color.r < 0.50f &&
+               color.b < 0.50f;
     }
 
     private static Sprite CreateRoomFloorSprite()

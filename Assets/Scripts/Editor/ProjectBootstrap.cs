@@ -88,7 +88,8 @@ public static class ProjectBootstrap
         camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
 
         var gameObject = new GameObject("Intro Cutscene");
-        gameObject.AddComponent<IntroCutscene>();
+        IntroCutscene intro = gameObject.AddComponent<IntroCutscene>();
+        intro.IntroAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/intro_wide_1024.jpg");
 
         const string scenePath = "Assets/Scenes/Intro.unity";
         EditorSceneManager.SaveScene(scene, scenePath);
@@ -105,12 +106,13 @@ public static class ProjectBootstrap
         camera.orthographic = true;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
-        camera.orthographicSize = 6.8f;
+        camera.orthographicSize = 6.0f;
         camera.transform.position = new Vector3(8f, 10f, -10f);
 
         var gameObject = new GameObject("Prototype Game");
         PrototypeGame game = gameObject.AddComponent<PrototypeGame>();
-        game.SpriteAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/1.jpg");
+        game.CharacterAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/characters_1024.jpg");
+        game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_1024.jpg");
 
         const string scenePath = "Assets/Scenes/Prototype.unity";
         EditorSceneManager.SaveScene(scene, scenePath);
@@ -118,7 +120,9 @@ public static class ProjectBootstrap
 
     private static void ConfigureTextureImports()
     {
-        ConfigureReadablePointTexture("Assets/Atlases/1.jpg");
+        ConfigureReadablePointTexture("Assets/Atlases/characters_1024.jpg");
+        ConfigureReadablePointTexture("Assets/Atlases/environment_1024.jpg");
+        ConfigureReadablePointTexture("Assets/Atlases/intro_wide_1024.jpg");
     }
 
     private static void EnsureFolder(string parent, string child)
