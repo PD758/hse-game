@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 public sealed class IntroCutscene : MonoBehaviour
@@ -11,6 +12,8 @@ public sealed class IntroCutscene : MonoBehaviour
     private SpriteRenderer beamRenderer;
     private SpriteRenderer fadeRenderer;
     private SpriteRenderer viewerRenderer;
+    private Light2D tvLight;
+    private Light2D pullLight;
     private Texture2D hudTexture;
     private float startedAt;
 
@@ -93,6 +96,9 @@ public sealed class IntroCutscene : MonoBehaviour
         glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.18f, 0.46f, t) + pulse * 0.06f);
         glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
         beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.52f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
+        tvLight.intensity = Mathf.Lerp(0.85f, 1.45f, t) + pulse * 0.10f;
+        tvLight.pointLightOuterRadius = Mathf.Lerp(4.2f, 6.0f, t);
+        pullLight.intensity = Mathf.SmoothStep(0f, 1.35f, Mathf.Clamp01((t - 0.48f) / 0.34f));
         viewerRenderer.transform.position = Vector3.Lerp(new Vector3(0f, -1.82f, 0f), new Vector3(0f, -1.52f, 0f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.55f) / 0.35f)));
         fadeRenderer.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, 0.96f, Mathf.Clamp01((t - 0.72f) / 0.28f)));
 
@@ -109,16 +115,24 @@ public sealed class IntroCutscene : MonoBehaviour
 
         SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f)), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
-        CreateSpriteObject("Couch", CreateCouchSprite(), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
+        SpriteRenderer couch = CreateSpriteObject("Couch", CreateCouchSprite(), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
         viewerRenderer = CreateSpriteObject("Viewer", CreateViewerSprite(), new Vector3(0f, -1.82f, 0f), Vector3.one, 5);
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
-        CreateSpriteObject("TV Body", CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
+        SpriteRenderer tvBody = CreateSpriteObject("TV Body", CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
         screenRenderer = CreateSpriteObject("TV Screen", CreateStaticScreenSprite(), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
         glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
         beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
+
+        SetUnlit(couchShadow, screenRenderer, glowRenderer, beamRenderer, fadeRenderer);
+        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.42f, 0.48f, 0.56f), 0.18f);
+        tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.56f, 0.82f, 1.00f), 0.9f, 4.2f, 0.25f);
+        pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
+        Urp2DLighting.AddShadowCaster(couch.gameObject);
+        Urp2DLighting.AddShadowCaster(tvBody.gameObject);
+        Urp2DLighting.AddShadowCaster(viewerRenderer.gameObject);
     }
 
     private static SpriteRenderer CreateSpriteObject(string name, Sprite sprite, Vector3 position, Vector3 scale, int sortingOrder)
@@ -129,7 +143,19 @@ public sealed class IntroCutscene : MonoBehaviour
         var renderer = obj.AddComponent<SpriteRenderer>();
         renderer.sprite = sprite;
         renderer.sortingOrder = sortingOrder;
+        if (Urp2DLighting.SpriteLitMaterial != null)
+            renderer.sharedMaterial = Urp2DLighting.SpriteLitMaterial;
         return renderer;
+    }
+
+    private static void SetUnlit(params SpriteRenderer[] renderers)
+    {
+        Material material = Urp2DLighting.SpriteUnlitMaterial;
+        if (material == null)
+            return;
+
+        foreach (SpriteRenderer renderer in renderers)
+            renderer.sharedMaterial = material;
     }
 
     private static Sprite CreateRoomFloorSprite()

@@ -143,6 +143,7 @@ public sealed class PrototypeGame : MonoBehaviour
         CreateSprites();
         BuildLevel();
         CreateViews();
+        CreateLighting();
         RedrawAll();
     }
 
@@ -887,13 +888,14 @@ public sealed class PrototypeGame : MonoBehaviour
                 floorView.transform.SetParent(tileRoot.transform);
                 floorView.transform.position = ToWorld(cell);
                 SpriteRenderer floorRenderer = floorView.AddComponent<SpriteRenderer>();
+                SetLitMaterial(floorRenderer);
                 floorRenderer.sortingOrder = -2;
                 floorViews[x, y] = floorView;
 
                 GameObject view = new GameObject($"Tile {x},{y}");
                 view.transform.SetParent(tileRoot.transform);
                 view.transform.position = ToWorld(cell);
-                view.AddComponent<SpriteRenderer>();
+                SetLitMaterial(view.AddComponent<SpriteRenderer>());
                 tileViews[x, y] = view;
             }
         }
@@ -910,6 +912,7 @@ public sealed class PrototypeGame : MonoBehaviour
             playerView.transform.position = ToWorld(new Vector2Int(3, 10));
             var renderer = playerView.AddComponent<SpriteRenderer>();
             renderer.sprite = playerSprite;
+            SetLitMaterial(renderer);
             renderer.sortingOrder = 20;
             playerBody = playerView.AddComponent<Rigidbody2D>();
             playerBody.gravityScale = 0f;
@@ -930,6 +933,7 @@ public sealed class PrototypeGame : MonoBehaviour
             view.transform.position = ToWorld(stone.Cell);
             var renderer = view.AddComponent<SpriteRenderer>();
             renderer.sprite = stoneSprite;
+            SetLitMaterial(renderer);
             renderer.sortingOrder = 12;
             var collider = view.AddComponent<BoxCollider2D>();
             collider.size = new Vector2(0.82f, 0.82f);
@@ -942,8 +946,25 @@ public sealed class PrototypeGame : MonoBehaviour
             enemy.View.transform.position = enemy.Position;
             var renderer = enemy.View.AddComponent<SpriteRenderer>();
             renderer.sprite = enemySprite;
+            SetLitMaterial(renderer);
             renderer.sortingOrder = 15;
         }
+    }
+
+    private void CreateLighting()
+    {
+        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.46f, 0.50f, 0.57f), 0.62f);
+
+        var channelLightObject = new GameObject("Channel Light");
+        channelLightObject.transform.SetParent(transform);
+        channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
+        Urp2DLighting.AddPointLight(channelLightObject, new Color(0.45f, 0.72f, 1.00f), 0.38f, 12.5f, 1.5f);
+    }
+
+    private static void SetLitMaterial(SpriteRenderer renderer)
+    {
+        if (Urp2DLighting.SpriteLitMaterial != null)
+            renderer.sharedMaterial = Urp2DLighting.SpriteLitMaterial;
     }
 
     private void RedrawAll()
