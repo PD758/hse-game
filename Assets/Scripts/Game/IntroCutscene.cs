@@ -17,6 +17,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private SpriteRenderer beamRenderer;
     private SpriteRenderer fadeRenderer;
     private SpriteRenderer viewerRenderer;
+    private SpriteRenderer viewerCastShadowRenderer;
     private Light2D tvLight;
     private Light2D pullLight;
     private Texture2D hudTexture;
@@ -101,6 +102,9 @@ public sealed class IntroCutscene : MonoBehaviour
         glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.04f, 0.14f, t) + pulse * 0.02f);
         glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
         beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.12f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
+        float castShadow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.58f) / 0.30f));
+        viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 0.42f, castShadow));
+        viewerCastShadowRenderer.transform.localScale = new Vector3(1f + castShadow * 0.22f, 1f + castShadow * 0.30f, 1f);
         tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
         tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
         pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
@@ -122,6 +126,8 @@ public sealed class IntroCutscene : MonoBehaviour
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
         SpriteRenderer couch = CreateSpriteObject("Couch", IntroSpriteOrFallback(0, 0, "intro_couch", CreateCouchSprite()), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
         viewerRenderer = CreateSpriteObject("Viewer", IntroSpriteOrFallback(2, 0, "intro_viewer_seated", CreateViewerSprite()), new Vector3(0f, -1.82f, 0f), Vector3.one, 5);
+        viewerCastShadowRenderer = CreateSpriteObject("Viewer Cast Shadow", CreateHumanCastShadowSprite(), new Vector3(0f, -2.34f, 0f), Vector3.one, 2);
+        viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, 0f);
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
         SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroSpriteOrFallback(1, 0, "intro_tv_body", CreateTvBodySprite()), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
@@ -131,7 +137,7 @@ public sealed class IntroCutscene : MonoBehaviour
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
-        SetUnlit(couchShadow, screenRenderer, glowRenderer, beamRenderer, fadeRenderer);
+        SetUnlit(couchShadow, screenRenderer, glowRenderer, beamRenderer, viewerCastShadowRenderer, fadeRenderer);
         Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
         tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.58f, 0.84f, 1.00f), 1.15f, 5.2f, 0.25f);
         pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
@@ -351,6 +357,30 @@ public sealed class IntroCutscene : MonoBehaviour
 
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.82f), 32f, 0, SpriteMeshType.FullRect);
+    }
+
+    private static Sprite CreateHumanCastShadowSprite()
+    {
+        const int width = 92;
+        const int height = 138;
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                float nx = (x + 0.5f - width * 0.5f) / (width * 0.5f);
+                float ny = y / (float)(height - 1);
+                float torso = Mathf.Clamp01(1f - (nx * nx * 4.2f + Mathf.Pow(ny - 0.42f, 2f) * 4.8f));
+                float head = Mathf.Clamp01(1f - (nx * nx * 8.0f + Mathf.Pow(ny - 0.78f, 2f) * 20.0f));
+                float shoulders = Mathf.Clamp01(1f - (nx * nx * 2.2f + Mathf.Pow(ny - 0.58f, 2f) * 18.0f));
+                float fade = Mathf.SmoothStep(0f, 1f, ny) * Mathf.SmoothStep(1f, 0f, Mathf.Abs(nx) * 0.82f);
+                float alpha = Mathf.Max(Mathf.Max(torso, head), shoulders) * fade * 0.82f;
+                texture.SetPixel(x, y, new Color(0f, 0f, 0f, alpha));
+            }
+        }
+
+        texture.Apply(false, false);
+        return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.92f), 32f, 0, SpriteMeshType.FullRect);
     }
 
     private static Sprite CreateSoftRectSprite(int width, int height, Color color)
