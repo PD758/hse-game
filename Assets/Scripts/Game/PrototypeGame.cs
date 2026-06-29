@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.SceneManagement;
 
 public sealed class PrototypeGame : MonoBehaviour
@@ -22,9 +24,12 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float RemoteEnemySpeedMultiplier = 0.18f;
     private const int FixedAtlasColumns = 8;
     private const int FixedAtlasRows = 8;
+    private const int HudAtlasColumns = 4;
+    private const int HudAtlasRows = 4;
 
     public Texture2D CharacterAtlas;
     public Texture2D EnvironmentAtlas;
+    public Texture2D HudAtlas;
 
     private enum Tile
     {
@@ -101,12 +106,14 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Sprite floorSprite;
     private Sprite wallSprite;
+    private Sprite wallVerticalSprite;
     private Sprite wallCornerSprite;
     private Sprite plateSprite;
     private Sprite pressedPlateSprite;
     private Sprite gateSprite;
     private Sprite openGateSprite;
     private Sprite exitSprite;
+    private Sprite openExitSprite;
     private Sprite rubbleSprite;
     private Sprite trapSprite;
     private Sprite remoteSprite;
@@ -121,6 +128,11 @@ public sealed class PrototypeGame : MonoBehaviour
     private Sprite enemyInvestigateSprite;
     private Sprite enemyHuntSprite;
     private Texture2D hudTexture;
+    private Texture2D hudPanelTexture;
+    private Texture2D ratingFrameNeutralTexture;
+    private Texture2D ratingFramePuzzleTexture;
+    private Texture2D ratingFrameCombatTexture;
+    private Texture2D ratingFrameCriticalTexture;
     private Texture2D whiteTexture;
     private Sprite[] floorSprites = Array.Empty<Sprite>();
     private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
@@ -162,13 +174,16 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.R))
+        Keyboard keyboard = Keyboard.current;
+        Mouse mouse = Mouse.current;
+
+        if (Pressed(keyboard?.rKey))
         {
             Restart();
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (Pressed(keyboard?.escapeKey))
         {
             SceneManager.LoadScene("MainMenu");
             return;
@@ -182,7 +197,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         UpdateRating(Time.deltaTime);
         UpdateRemoteTimers(Time.deltaTime);
-        if (Input.GetKeyDown(KeyCode.Q))
+        if (Pressed(keyboard?.qKey))
             TryUseRemoteAbility();
 
         UpdateStoneMotion(Time.deltaTime);
@@ -192,10 +207,10 @@ public sealed class PrototypeGame : MonoBehaviour
         if (attackCooldown > 0f)
             attackCooldown -= Time.deltaTime;
 
-        if (Input.GetKeyDown(KeyCode.E))
+        if (Pressed(keyboard?.eKey))
             TryInteract();
 
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
+        if (Pressed(keyboard?.spaceKey) || Pressed(mouse?.leftButton))
             TryAttack();
     }
 
@@ -236,7 +251,7 @@ public sealed class PrototypeGame : MonoBehaviour
         float meterWidth = Screen.width < 760 ? 44f : 54f;
         float hudWidth = Mathf.Min(900f, Screen.width - meterWidth - 28f);
         float hudHeight = Screen.width < 760 ? 118f : 104f;
-        GUI.DrawTexture(new Rect(10, 10, hudWidth, hudHeight), hudTexture);
+        GUI.DrawTexture(new Rect(10, 10, hudWidth, hudHeight), hudPanelTexture ?? hudTexture, ScaleMode.StretchToFill, true);
 
         var style = new GUIStyle(GUI.skin.label)
         {
@@ -244,6 +259,7 @@ public sealed class PrototypeGame : MonoBehaviour
             wordWrap = true,
             normal = { textColor = Color.white },
         };
+        PixelGui.Apply(style);
 
         DrawStatusIcons(new Rect(18, 18, 178, 28));
         GUI.Label(new Rect(210, 16, hudWidth - 226f, 42), message, style);
@@ -253,6 +269,7 @@ public sealed class PrototypeGame : MonoBehaviour
             fontSize = Screen.width < 760 ? 12 : 14,
             normal = { textColor = new Color(0.74f, 0.78f, 0.82f) },
         };
+        PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(210, 56, hudWidth - 226f, 32), NarrativeRunState.SignalHint(), hintStyle);
 
         string controls = Screen.width < 900
@@ -332,16 +349,17 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void DrawVerticalRatingMeter(Rect rect)
     {
-        GUI.color = new Color(0.12f, 0.13f, 0.15f, 0.95f);
+        Texture2D frame = RatingFrameTexture();
+        GUI.color = new Color(0.02f, 0.025f, 0.03f, 0.94f);
         GUI.DrawTexture(rect, whiteTexture);
 
-        Rect inner = new Rect(rect.x + rect.width * 0.28f, rect.y + 12f, rect.width * 0.44f, rect.height - 24f);
+        Rect inner = new Rect(rect.x + rect.width * 0.37f, rect.y + rect.height * 0.13f, rect.width * 0.26f, rect.height * 0.70f);
         GUI.color = new Color(0.02f, 0.025f, 0.03f, 0.94f);
         GUI.DrawTexture(inner, whiteTexture);
 
         float fill = inner.height * Mathf.Clamp01(viewerRating / 100f);
         GUI.color = RatingColor();
-        GUI.DrawTexture(new Rect(inner.x + 3f, inner.yMax - fill + 3f, inner.width - 6f, Mathf.Max(0f, fill - 6f)), whiteTexture);
+        GUI.DrawTexture(new Rect(inner.x + 2f, inner.yMax - fill + 2f, inner.width - 4f, Mathf.Max(0f, fill - 4f)), whiteTexture);
 
         GUI.color = new Color(0.72f, 0.78f, 0.84f, 0.42f);
         for (int i = 0; i < 6; i++)
@@ -350,10 +368,32 @@ public sealed class PrototypeGame : MonoBehaviour
             GUI.DrawTexture(new Rect(rect.x + 6f, y, rect.width - 12f, 1f), whiteTexture);
         }
 
-        GUI.color = new Color(0.70f, 0.76f, 0.82f, 0.58f);
-        GUI.DrawTexture(new Rect(rect.x + 4f, rect.y + 4f, rect.width - 8f, 2f), whiteTexture);
-        GUI.DrawTexture(new Rect(rect.x + 4f, rect.yMax - 6f, rect.width - 8f, 2f), whiteTexture);
+        if (frame != null)
+        {
+            GUI.color = Color.white;
+            GUI.DrawTexture(rect, frame, ScaleMode.StretchToFill, true);
+        }
+        else
+        {
+            GUI.color = new Color(0.70f, 0.76f, 0.82f, 0.58f);
+            GUI.DrawTexture(new Rect(rect.x + 4f, rect.y + 4f, rect.width - 8f, 2f), whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x + 4f, rect.yMax - 6f, rect.width - 8f, 2f), whiteTexture);
+        }
+
         GUI.color = Color.white;
+    }
+
+    private Texture2D RatingFrameTexture()
+    {
+        if (viewerRating <= RatingCritical)
+            return ratingFrameCriticalTexture ?? ratingFrameCombatTexture ?? ratingFrameNeutralTexture;
+
+        return NarrativeRunState.Branch switch
+        {
+            BranchChoice.Puzzle => ratingFramePuzzleTexture ?? ratingFrameNeutralTexture,
+            BranchChoice.Combat => ratingFrameCombatTexture ?? ratingFrameNeutralTexture,
+            _ => ratingFrameNeutralTexture,
+        };
     }
 
     private Color RatingColor()
@@ -400,15 +440,16 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void ReadMoveInput()
     {
+        Keyboard keyboard = Keyboard.current;
         float x = 0f;
         float y = 0f;
-        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+        if (Held(keyboard?.aKey) || Held(keyboard?.leftArrowKey))
             x -= 1f;
-        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+        if (Held(keyboard?.dKey) || Held(keyboard?.rightArrowKey))
             x += 1f;
-        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow))
+        if (Held(keyboard?.sKey) || Held(keyboard?.downArrowKey))
             y -= 1f;
-        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow))
+        if (Held(keyboard?.wKey) || Held(keyboard?.upArrowKey))
             y += 1f;
 
         moveInput = new Vector2(x, y);
@@ -420,6 +461,16 @@ public sealed class PrototypeGame : MonoBehaviour
             lastAim = moveInput.normalized;
             MarkActivity();
         }
+    }
+
+    private static bool Pressed(ButtonControl control)
+    {
+        return control != null && control.wasPressedThisFrame;
+    }
+
+    private static bool Held(ButtonControl control)
+    {
+        return control != null && control.isPressed;
     }
 
     private void MarkActivity()
@@ -591,6 +642,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (target == null)
         {
+            if (TryBreakTrap(player))
+                return;
+
             message = "Удар достаёт только дикторов рядом и примерно перед вами.";
             return;
         }
@@ -608,6 +662,47 @@ public sealed class PrototypeGame : MonoBehaviour
             enemies.Remove(target);
             UpdateBranchObjective();
         }
+    }
+
+    private bool TryBreakTrap(Vector2 player)
+    {
+        Vector2Int playerCell = PlayerCell();
+        Vector2Int bestCell = Vector2Int.zero;
+        float best = PlayerAttackRange;
+        bool found = false;
+
+        for (int dx = -2; dx <= 2; dx++)
+        {
+            for (int dy = -2; dy <= 2; dy++)
+            {
+                Vector2Int cell = playerCell + new Vector2Int(dx, dy);
+                if (!Inside(cell) || tiles[cell.x, cell.y] != Tile.Trap)
+                    continue;
+
+                Vector2 target = ToWorld(cell);
+                float distance = Vector2.Distance(player, target);
+                if (distance > best)
+                    continue;
+
+                Vector2 toTrap = (target - player).normalized;
+                if (Vector2.Dot(lastAim, toTrap) < PlayerAttackConeMinDot)
+                    continue;
+
+                found = true;
+                best = distance;
+                bestCell = cell;
+            }
+        }
+
+        if (!found)
+            return false;
+
+        tiles[bestCell.x, bestCell.y] = Tile.Floor;
+        NarrativeRunState.RecordSignalInsight();
+        RestoreRating(8f);
+        RedrawTile(bestCell);
+        message = "Камера хрустит и гаснет. Эфир на секунду теряет взгляд.";
+        return true;
     }
 
     private void DamagePlayer(int amount, string text)
@@ -713,6 +808,7 @@ public sealed class PrototypeGame : MonoBehaviour
             RestoreRating(28f);
             message = "Смысл и сигнал совпали. Белая дверь перестаёт быть декорацией.";
             RedrawTile(new Vector2Int(34, 12));
+            RedrawTile(exitPosition);
         }
     }
 
@@ -745,6 +841,7 @@ public sealed class PrototypeGame : MonoBehaviour
         RestoreRating(24f);
         message = "Боевой эфир стихает. Нижний выход открывается, но шум уже похож на вас.";
         RedrawTile(new Vector2Int(34, 8));
+        RedrawTile(exitPosition);
     }
 
     private void UpdateEnemies(float dt)
@@ -989,6 +1086,25 @@ public sealed class PrototypeGame : MonoBehaviour
         tiles[gate.x, gate.y] = Tile.Gate;
         SetWall(gate + sideA);
         SetWall(gate + sideB);
+        SealGateCorners(gate, sideA, sideB);
+    }
+
+    private void SealGateCorners(Vector2Int gate, Vector2Int sideA, Vector2Int sideB)
+    {
+        if (sideA.x == 0 && sideB.x == 0)
+        {
+            SetWall(gate + Vector2Int.left + sideA);
+            SetWall(gate + Vector2Int.left + sideB);
+            SetWall(gate + Vector2Int.right + sideA);
+            SetWall(gate + Vector2Int.right + sideB);
+        }
+        else
+        {
+            SetWall(gate + Vector2Int.up + sideA);
+            SetWall(gate + Vector2Int.up + sideB);
+            SetWall(gate + Vector2Int.down + sideA);
+            SetWall(gate + Vector2Int.down + sideB);
+        }
     }
 
     private void SetWall(Vector2Int cell)
@@ -1151,6 +1267,7 @@ public sealed class PrototypeGame : MonoBehaviour
         tileViews[cell.x, cell.y].transform.localRotation = Quaternion.identity;
         tileViews[cell.x, cell.y].transform.localScale = OverlayScaleFor(tiles[cell.x, cell.y]);
         renderer.sprite = OverlaySpriteFor(tiles[cell.x, cell.y], cell);
+        renderer.color = OverlayColorFor(tiles[cell.x, cell.y], cell);
         if (tiles[cell.x, cell.y] == Tile.Wall)
             ApplyWallTransform(cell, tileViews[cell.x, cell.y].transform);
         renderer.sortingOrder = tiles[cell.x, cell.y] == Tile.Rubble ? 3 : tiles[cell.x, cell.y] == Tile.Wall ? 1 : 2;
@@ -1244,9 +1361,20 @@ public sealed class PrototypeGame : MonoBehaviour
             Tile.Trap => trapSprite,
             Tile.Remote => remoteSprite,
             Tile.Story => storySprite,
-            Tile.Exit => exitSprite,
+            Tile.Exit => CanUseExit() ? openExitSprite ?? exitSprite : exitSprite,
             _ => null,
         };
+    }
+
+    private Color OverlayColorFor(Tile tile, Vector2Int cell)
+    {
+        if (tile == Tile.Exit)
+            return CanUseExit() ? Color.white : new Color(0.48f, 0.55f, 0.62f, 0.72f);
+
+        if (tile == Tile.Gate && GateOpenForCell(cell))
+            return new Color(0.78f, 0.96f, 1.00f, 0.88f);
+
+        return Color.white;
     }
 
     private static Vector3 OverlayScaleFor(Tile tile)
@@ -1274,7 +1402,9 @@ public sealed class PrototypeGame : MonoBehaviour
         if (openCount == 2 && HasCornerOpenPattern(up, down, left, right))
             return wallCornerSprite ?? wallSprite;
 
-        return wallSprite;
+        int verticalWeight = BoolCount(left, right);
+        int horizontalWeight = BoolCount(up, down);
+        return verticalWeight > horizontalWeight ? wallVerticalSprite ?? wallSprite : wallSprite;
     }
 
     private void ApplyWallTransform(Vector2Int cell, Transform target)
@@ -1298,7 +1428,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (left && up && !right && !down)
             return 270f;
 
-        return left || right ? 90f : 0f;
+        return 0f;
     }
 
     private static bool HasCornerOpenPattern(bool up, bool down, bool left, bool right)
@@ -1364,25 +1494,31 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         try
         {
-            floorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 0, "floor_base");
+            floorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 5, 4, "floor_base");
             floorSprites = new[] { floorSprite };
 
-            floorDecalSprites = new Sprite[7];
-            for (int i = 0; i < floorDecalSprites.Length; i++)
-                floorDecalSprites[i] = CreateFixedAtlasSprite(EnvironmentAtlas, 1, i, $"floor_decal_{i}");
+            floorDecalSprites = new[]
+            {
+                CreateFixedAtlasSprite(EnvironmentAtlas, 5, 5, "floor_crack_a", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 6, 5, "floor_crack_b", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 6, 4, "floor_panel_detail", true),
+                CreateFixedAtlasSprite(EnvironmentAtlas, 7, 0, "floor_cable_detail", true),
+            };
 
-            wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "wall_straight");
-            wallCornerSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 1, "wall_corner");
-            gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "signal_gate_closed", true);
-            openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 1, "signal_gate_open", true);
-            exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 6, "tv_exit", true);
-            plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 0, "pressure_plate", true);
-            pressedPlateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 1, "pressure_plate_pressed", true);
-            stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 2, "signal_blocker", true);
-            remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 3, "remote", true);
-            storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note", true);
-            trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap", true);
-            rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble", true);
+            wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 0, "wall_horizontal");
+            wallVerticalSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 1, "wall_vertical");
+            wallCornerSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 0, 2, "wall_corner");
+            gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 1, 4, "signal_gate_closed", true);
+            openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 1, 5, "signal_gate_open", true);
+            exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "tv_exit_locked", true);
+            openExitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 1, "tv_exit_open", true);
+            plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 7, "pressure_plate", true);
+            pressedPlateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 7, "pressure_plate_pressed", true);
+            stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 5, "signal_blocker", true);
+            remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 7, "remote", true);
+            storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 7, "story_note", true);
+            trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "camera_trap", true);
+            rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 6, 5, "rubble", true);
             return true;
         }
         catch (Exception ex)
@@ -1423,6 +1559,39 @@ public sealed class PrototypeGame : MonoBehaviour
         int sourceX = column * cellWidth;
         int sourceY = atlas.height - (row + 1) * cellHeight;
         return CreateSpriteFromAtlasPixels(atlas, sourceX, sourceY, cellWidth, cellHeight, spriteName, cellWidth, removeCellBackground);
+    }
+
+    private Texture2D CreateHudAtlasTexture(int row, int column, string textureName, bool removeCellBackground)
+    {
+        if (HudAtlas == null)
+            throw new InvalidOperationException("HUD atlas texture is not assigned.");
+        if (row < 0 || row >= HudAtlasRows || column < 0 || column >= HudAtlasColumns)
+            throw new InvalidOperationException($"HUD atlas cell {column},{row} is outside 4x4 grid.");
+
+        int cellWidth = HudAtlas.width / HudAtlasColumns;
+        int cellHeight = HudAtlas.height / HudAtlasRows;
+        int sourceX = column * cellWidth;
+        int sourceY = HudAtlas.height - (row + 1) * cellHeight;
+        Color[] pixels = HudAtlas.GetPixels(sourceX, sourceY, cellWidth, cellHeight);
+        Color background = removeCellBackground ? SampleCellBackground(pixels, cellWidth, cellHeight) : Color.clear;
+        var texture = new Texture2D(cellWidth, cellHeight, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = textureName,
+        };
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            int x = i % cellWidth;
+            int y = i / cellWidth;
+            bool atlasEdge = x <= 1 || y <= 1 || x >= cellWidth - 2 || y >= cellHeight - 2;
+            if (atlasEdge || IsChromaGreen(pixels[i]) || removeCellBackground && SimilarToBackground(pixels[i], background))
+                pixels[i] = new Color(0f, 0f, 0f, 0f);
+        }
+
+        texture.SetPixels(pixels);
+        texture.Apply(false, false);
+        return texture;
     }
 
     private static Sprite CreateSpriteFromAtlasPixels(Texture2D atlas, int sourceX, int sourceY, int width, int height, string spriteName, float pixelsPerUnit, bool removeCellBackground)
@@ -1564,12 +1733,14 @@ public sealed class PrototypeGame : MonoBehaviour
             CreateDecalSprite(new Color(0.80f, 0.18f, 0.22f, 0.58f), SpriteMark.Trap),
         };
         wallSprite = CreateSprite(new Color(0.22f, 0.24f, 0.27f), new Color(0.12f, 0.13f, 0.15f), new Color(0.52f, 0.56f, 0.60f), SpriteMark.None);
+        wallVerticalSprite = wallSprite;
         wallCornerSprite = wallSprite;
         plateSprite = CreateSprite(new Color(0.28f, 0.25f, 0.18f), new Color(0.11f, 0.10f, 0.08f), new Color(0.95f, 0.82f, 0.36f), SpriteMark.Plate);
         pressedPlateSprite = CreateSprite(new Color(0.12f, 0.24f, 0.26f), new Color(0.04f, 0.10f, 0.12f), new Color(0.66f, 0.92f, 1.00f), SpriteMark.Plate);
         gateSprite = CreateSprite(new Color(0.34f, 0.10f, 0.14f), new Color(0.12f, 0.05f, 0.06f), new Color(0.90f, 0.18f, 0.24f), SpriteMark.Gate);
         openGateSprite = CreateSprite(new Color(0.10f, 0.30f, 0.28f), new Color(0.04f, 0.12f, 0.13f), new Color(0.66f, 0.92f, 1.00f), SpriteMark.Gate);
         exitSprite = CreateSprite(new Color(0.82f, 0.88f, 0.92f), new Color(0.56f, 0.66f, 0.72f), new Color(0.12f, 0.18f, 0.22f), SpriteMark.Exit);
+        openExitSprite = exitSprite;
         rubbleSprite = CreateSprite(new Color(0.18f, 0.18f, 0.20f), new Color(0.08f, 0.08f, 0.09f), new Color(0.72f, 0.76f, 0.82f), SpriteMark.Rubble);
         trapSprite = CreateSprite(new Color(0.18f, 0.10f, 0.13f), new Color(0.08f, 0.05f, 0.06f), new Color(0.94f, 0.18f, 0.28f), SpriteMark.Trap);
         remoteSprite = CreateSprite(new Color(0.12f, 0.13f, 0.14f), new Color(0.05f, 0.05f, 0.05f), new Color(1.00f, 0.86f, 0.25f), SpriteMark.Remote);
@@ -1763,12 +1934,9 @@ public sealed class PrototypeGame : MonoBehaviour
         if (floorDecalSprites.Length == 0 || DecalSuppressed(cell))
             return null;
 
-        int adjacentWalls = AdjacentWallCount(cell);
-        if (adjacentWalls == 0)
-            return null;
-
+        int adjacentWalls = NearbyWallWeight(cell);
         int roll = CellHash(cell, 29) % 100;
-        int chance = adjacentWalls >= 2 ? 18 : 6;
+        int chance = adjacentWalls >= 4 ? 20 : adjacentWalls >= 2 ? 9 : 2;
         if (roll >= chance)
             return null;
 
@@ -1803,16 +1971,24 @@ public sealed class PrototypeGame : MonoBehaviour
                tile == Tile.Exit;
     }
 
-    private int AdjacentWallCount(Vector2Int cell)
+    private int NearbyWallWeight(Vector2Int cell)
     {
         int count = 0;
         if (ClosedWallAdjacent(cell + Vector2Int.up))
-            count++;
+            count += 2;
         if (ClosedWallAdjacent(cell + Vector2Int.down))
-            count++;
+            count += 2;
         if (ClosedWallAdjacent(cell + Vector2Int.left))
-            count++;
+            count += 2;
         if (ClosedWallAdjacent(cell + Vector2Int.right))
+            count += 2;
+        if (ClosedWallAdjacent(cell + new Vector2Int(1, 1)))
+            count++;
+        if (ClosedWallAdjacent(cell + new Vector2Int(1, -1)))
+            count++;
+        if (ClosedWallAdjacent(cell + new Vector2Int(-1, 1)))
+            count++;
+        if (ClosedWallAdjacent(cell + new Vector2Int(-1, -1)))
             count++;
 
         return count;
@@ -1839,6 +2015,23 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void EnsureHudTextures()
     {
+        if (HudAtlas != null && ratingFrameNeutralTexture == null)
+        {
+            try
+            {
+                ratingFrameNeutralTexture = CreateHudAtlasTexture(0, 0, "rating_frame_neutral", true);
+                ratingFramePuzzleTexture = CreateHudAtlasTexture(0, 1, "rating_frame_puzzle", true);
+                ratingFrameCombatTexture = CreateHudAtlasTexture(0, 2, "rating_frame_combat", true);
+                ratingFrameCriticalTexture = CreateHudAtlasTexture(0, 3, "rating_frame_critical", true);
+                hudPanelTexture = CreateHudAtlasTexture(1, 0, "hud_panel", false);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"HUD atlas could not be sliced, keeping fallback HUD: {ex.Message}");
+                ratingFrameNeutralTexture = Texture2D.whiteTexture;
+            }
+        }
+
         if (hudTexture == null)
         {
             hudTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);

@@ -81,27 +81,28 @@ public sealed class MainMenu : MonoBehaviour
 
         titleStyle ??= new GUIStyle(GUI.skin.label)
         {
-            fontSize = 38,
-            fontStyle = FontStyle.Bold,
+            fontSize = Screen.width < 760 ? 25 : 34,
             normal = { textColor = Color.white },
         };
+        PixelGui.Apply(titleStyle);
         labelStyle ??= new GUIStyle(GUI.skin.label)
         {
-            fontSize = 16,
-            fontStyle = FontStyle.Bold,
+            fontSize = Screen.width < 760 ? 13 : 15,
             normal = { textColor = new Color(0.86f, 0.88f, 0.90f) },
         };
+        PixelGui.Apply(labelStyle);
         hintStyle ??= new GUIStyle(GUI.skin.label)
         {
-            fontSize = 14,
+            fontSize = Screen.width < 760 ? 11 : 13,
             wordWrap = true,
             normal = { textColor = new Color(0.68f, 0.72f, 0.76f) },
         };
+        PixelGui.Apply(hintStyle);
         buttonStyle ??= new GUIStyle(GUI.skin.button)
         {
-            fontSize = 16,
-            fontStyle = FontStyle.Bold,
+            fontSize = Screen.width < 760 ? 13 : 15,
         };
+        PixelGui.Apply(buttonStyle);
     }
 
     private void DrawBackground()

@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
@@ -34,13 +35,14 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
         {
             SceneManager.LoadScene("MainMenu");
             return;
         }
 
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return) || Time.time - startedAt >= Duration)
+        if (keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame) || Time.time - startedAt >= Duration)
             SceneManager.LoadScene("Prototype");
 
         AnimateScene();
@@ -66,6 +68,7 @@ public sealed class IntroCutscene : MonoBehaviour
                 wordWrap = true,
                 normal = { textColor = new Color(0.86f, 0.90f, 0.94f) },
             };
+            PixelGui.Apply(style);
             GUI.Label(new Rect(panel.x + 18f, panel.y + 14f, panel.width - 36f, panel.height - 22f), thought, style);
             GUI.color = Color.white;
         }
@@ -76,6 +79,7 @@ public sealed class IntroCutscene : MonoBehaviour
             fontSize = Screen.width < 760 ? 12 : 14,
             normal = { textColor = new Color(0.62f, 0.66f, 0.72f, 0.82f) },
         };
+        PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(12, Screen.height - 36, Screen.width - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
     }
 
