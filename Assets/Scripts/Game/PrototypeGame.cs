@@ -12,7 +12,10 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float PlayerAcceleration = 24f;
     private const float PlayerDeceleration = 18f;
     private const float RatingCritical = 15f;
-    private const float GameplayCameraSize = 6.0f;
+    private const float GameplayCameraSize = 4.8f;
+    private const float PlayerAttackRange = 1.85f;
+    private const float PlayerAttackConeMinDot = -0.05f;
+    private const float EnemyAttackCooldown = 1.75f;
     private const int FixedAtlasColumns = 8;
     private const int FixedAtlasRows = 8;
 
@@ -94,7 +97,13 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Sprite floorSprite;
     private Sprite wallSprite;
+    private Sprite wallCornerSprite;
+    private Sprite wallCrackedSprite;
+    private Sprite wallMonitorSprite;
+    private Sprite wallDoorFrameSprite;
+    private Sprite wallBrokenSprite;
     private Sprite plateSprite;
+    private Sprite pressedPlateSprite;
     private Sprite gateSprite;
     private Sprite openGateSprite;
     private Sprite exitSprite;
@@ -433,9 +442,12 @@ public sealed class PrototypeGame : MonoBehaviour
             return true;
         }
 
+        Vector2Int previous = stone.Cell;
         stone.Cell = destination;
         stone.Target = ToWorld(destination);
         stone.Moving = true;
+        RedrawTile(previous);
+        RedrawTile(destination);
         MakeNoise(PlayerCell(), 5);
         RestoreRating(3f);
         message = "Заглушка скользит на соседнюю метку.";
@@ -455,7 +467,7 @@ public sealed class PrototypeGame : MonoBehaviour
         RestoreRating(NarrativeRunState.IsAggressive() ? 6f : 3f);
 
         Enemy target = null;
-        float best = 1.35f;
+        float best = PlayerAttackRange;
         Vector2 player = playerView.transform.position;
         foreach (Enemy enemy in enemies)
         {
@@ -464,7 +476,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 continue;
 
             Vector2 toEnemy = (enemy.Position - player).normalized;
-            if (Vector2.Dot(lastAim, toEnemy) < 0.2f)
+            if (Vector2.Dot(lastAim, toEnemy) < PlayerAttackConeMinDot)
                 continue;
 
             target = enemy;
@@ -473,7 +485,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (target == null)
         {
-            message = "Удар рассыпался в пустом эфире.";
+            message = "Удар достаёт только дикторов рядом и примерно перед вами.";
             return;
         }
 
@@ -581,7 +593,6 @@ public sealed class PrototypeGame : MonoBehaviour
         if (startSolved && !startGateOpen)
         {
             startGateOpen = true;
-            tiles[12, 10] = Tile.Floor;
             NarrativeRunState.RecordPuzzleSolved();
             RestoreRating(22f);
             message = "Стартовый сигнал собран. Два прохода раскрываются одновременно.";
@@ -592,7 +603,6 @@ public sealed class PrototypeGame : MonoBehaviour
         if (NarrativeRunState.Branch == BranchChoice.Puzzle && puzzleSolved && storyRead && !puzzleExitOpen)
         {
             puzzleExitOpen = true;
-            tiles[34, 12] = Tile.Floor;
             NarrativeRunState.RecordPuzzleSolved();
             RestoreRating(28f);
             message = "Смысл и сигнал совпали. Белая дверь перестаёт быть декорацией.";
@@ -626,7 +636,6 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         combatExitOpen = true;
-        tiles[34, 8] = Tile.Floor;
         RestoreRating(24f);
         message = "Боевой эфир стихает. Нижний выход открывается, но шум уже похож на вас.";
         RedrawTile(new Vector2Int(34, 8));
@@ -652,7 +661,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
             if (Vector2.Distance(enemy.Position, playerView.transform.position) <= 0.72f && enemy.AttackCooldown <= 0f)
             {
-                enemy.AttackCooldown = 1.05f;
+                enemy.AttackCooldown = EnemyAttackCooldown;
                 DamagePlayer(1, enemy.Mode == EnemyMode.Hunt ? "Диктор догоняет вас и срывает дыхание." : "Диктор бьёт микрофоном.");
             }
         }
@@ -706,7 +715,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private bool CanEnemyOccupy(Vector2 position, Enemy self)
     {
         Vector2Int cell = WorldToCell(position);
-        if (!Inside(cell) || IsSolid(tiles[cell.x, cell.y]) || StoneAt(cell) != null)
+        if (!Inside(cell) || IsSolidCell(cell) || StoneAt(cell) != null)
             return false;
 
         foreach (Enemy enemy in enemies)
@@ -754,7 +763,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (!Inside(cell))
             return true;
 
-        return IsSolid(tiles[cell.x, cell.y]) || StoneAt(cell) != null;
+        return IsSolidCell(cell) || StoneAt(cell) != null;
     }
 
     private void MakeNoise(Vector2Int cell, int power)
@@ -783,7 +792,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool CanStoneEnter(Vector2Int cell)
     {
-        return Inside(cell) && !IsSolid(tiles[cell.x, cell.y]) && StoneAt(cell) == null && EnemyAt(cell) == null;
+        return Inside(cell) && !IsSolidCell(cell) && StoneAt(cell) == null && EnemyAt(cell) == null;
     }
 
     private void BuildLevel()
@@ -807,9 +816,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
         exitPosition = new Vector2Int(36, 10);
         tiles[exitPosition.x, exitPosition.y] = Tile.Exit;
-        tiles[12, 10] = Tile.Gate;
-        tiles[34, 12] = Tile.Gate;
-        tiles[34, 8] = Tile.Gate;
+        AddGateWithFrame(new Vector2Int(12, 10), Vector2Int.up, Vector2Int.down);
+        AddGateWithFrame(new Vector2Int(34, 12), Vector2Int.left, Vector2Int.right);
+        AddGateWithFrame(new Vector2Int(34, 8), Vector2Int.left, Vector2Int.right);
         tiles[4, 7] = Tile.Remote;
         tiles[7, 13] = Tile.Trap;
         tiles[15, 9] = Tile.Trap;
@@ -856,6 +865,19 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         list.Add(cell);
         tiles[cell.x, cell.y] = Tile.Plate;
+    }
+
+    private void AddGateWithFrame(Vector2Int gate, Vector2Int sideA, Vector2Int sideB)
+    {
+        tiles[gate.x, gate.y] = Tile.Gate;
+        SetWall(gate + sideA);
+        SetWall(gate + sideB);
+    }
+
+    private void SetWall(Vector2Int cell)
+    {
+        if (Inside(cell))
+            tiles[cell.x, cell.y] = Tile.Wall;
     }
 
     private void AddStone(Vector2Int cell)
@@ -943,12 +965,13 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             GameObject view = new GameObject("Signal Blocker");
             view.transform.position = ToWorld(stone.Cell);
+            view.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
             var renderer = view.AddComponent<SpriteRenderer>();
             renderer.sprite = stoneSprite;
             SetLitMaterial(renderer);
             renderer.sortingOrder = 12;
             var collider = view.AddComponent<BoxCollider2D>();
-            collider.size = new Vector2(0.82f, 0.82f);
+            collider.size = new Vector2(0.95f, 0.95f);
             stone.View = view;
         }
 
@@ -1008,11 +1031,15 @@ public sealed class PrototypeGame : MonoBehaviour
         floorRenderer.sprite = hasFloor ? FloorSpriteFor(cell) : null;
         decalRenderer.sprite = hasFloor && tiles[cell.x, cell.y] == Tile.Floor ? FloorDecalFor(cell) : null;
 
+        tileViews[cell.x, cell.y].transform.localRotation = Quaternion.identity;
+        tileViews[cell.x, cell.y].transform.localScale = OverlayScaleFor(tiles[cell.x, cell.y]);
         renderer.sprite = OverlaySpriteFor(tiles[cell.x, cell.y], cell);
+        if (tiles[cell.x, cell.y] == Tile.Wall)
+            ApplyWallTransform(cell, tileViews[cell.x, cell.y].transform);
         renderer.sortingOrder = tiles[cell.x, cell.y] == Tile.Rubble ? 3 : tiles[cell.x, cell.y] == Tile.Wall ? 1 : 2;
 
         BoxCollider2D collider = tileViews[cell.x, cell.y].GetComponent<BoxCollider2D>();
-        bool shouldCollide = IsSolid(tiles[cell.x, cell.y]);
+        bool shouldCollide = IsSolidCell(cell);
         if (shouldCollide && collider == null)
         {
             collider = tileViews[cell.x, cell.y].AddComponent<BoxCollider2D>();
@@ -1093,8 +1120,8 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         return tile switch
         {
-            Tile.Wall => WallVisibleFor(cell) ? wallSprite : null,
-            Tile.Plate => plateSprite,
+            Tile.Wall => WallSpriteFor(cell),
+            Tile.Plate => StoneAt(cell) != null ? pressedPlateSprite : plateSprite,
             Tile.Gate => GateOpenForCell(cell) ? openGateSprite : gateSprite,
             Tile.Rubble => rubbleSprite,
             Tile.Trap => trapSprite,
@@ -1103,6 +1130,85 @@ public sealed class PrototypeGame : MonoBehaviour
             Tile.Exit => exitSprite,
             _ => null,
         };
+    }
+
+    private static Vector3 OverlayScaleFor(Tile tile)
+    {
+        return tile switch
+        {
+            Tile.Remote => new Vector3(1.25f, 1.25f, 1f),
+            Tile.Story => new Vector3(1.15f, 1.15f, 1f),
+            Tile.Exit => new Vector3(1.10f, 1.10f, 1f),
+            _ => Vector3.one,
+        };
+    }
+
+    private Sprite WallSpriteFor(Vector2Int cell)
+    {
+        if (!WallVisibleFor(cell))
+            return null;
+
+        bool up = OpenTileAdjacent(cell + Vector2Int.up);
+        bool down = OpenTileAdjacent(cell + Vector2Int.down);
+        bool left = OpenTileAdjacent(cell + Vector2Int.left);
+        bool right = OpenTileAdjacent(cell + Vector2Int.right);
+        int openCount = BoolCount(up, down, left, right);
+
+        if (openCount == 2 && HasCornerOpenPattern(up, down, left, right))
+            return wallCornerSprite ?? wallSprite;
+
+        int hash = CellHash(cell, 83) % 100;
+        if (hash < 5)
+            return wallBrokenSprite ?? wallSprite;
+        if (hash < 10)
+            return wallMonitorSprite ?? wallSprite;
+        if (hash < 22)
+            return wallCrackedSprite ?? wallSprite;
+        if (openCount == 2 && ((up && down) || (left && right)))
+            return wallDoorFrameSprite ?? wallSprite;
+
+        return wallSprite;
+    }
+
+    private void ApplyWallTransform(Vector2Int cell, Transform target)
+    {
+        target.localRotation = Quaternion.Euler(0f, 0f, WallRotationFor(cell));
+    }
+
+    private float WallRotationFor(Vector2Int cell)
+    {
+        bool up = OpenTileAdjacent(cell + Vector2Int.up);
+        bool down = OpenTileAdjacent(cell + Vector2Int.down);
+        bool left = OpenTileAdjacent(cell + Vector2Int.left);
+        bool right = OpenTileAdjacent(cell + Vector2Int.right);
+
+        if (up && right && !down && !left)
+            return 0f;
+        if (right && down && !left && !up)
+            return 90f;
+        if (down && left && !up && !right)
+            return 180f;
+        if (left && up && !right && !down)
+            return 270f;
+
+        return left || right ? 90f : 0f;
+    }
+
+    private static bool HasCornerOpenPattern(bool up, bool down, bool left, bool right)
+    {
+        return (up && right) || (right && down) || (down && left) || (left && up);
+    }
+
+    private static int BoolCount(params bool[] values)
+    {
+        int count = 0;
+        foreach (bool value in values)
+        {
+            if (value)
+                count++;
+        }
+
+        return count;
     }
 
     private bool GateOpenForCell(Vector2Int cell)
@@ -1159,10 +1265,16 @@ public sealed class PrototypeGame : MonoBehaviour
                 floorDecalSprites[i] = CreateFixedAtlasSprite(EnvironmentAtlas, 1, i, $"floor_decal_{i}");
 
             wallSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 0, "wall_straight");
+            wallCornerSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 1, "wall_corner");
+            wallCrackedSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 2, "wall_cracked");
+            wallMonitorSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 3, "wall_monitor");
+            wallDoorFrameSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 5, "wall_door_frame");
+            wallBrokenSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 2, 6, "wall_broken");
             gateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 0, "signal_gate_closed");
             openGateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 1, "signal_gate_open");
             exitSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 3, 6, "tv_exit");
             plateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 0, "pressure_plate");
+            pressedPlateSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 1, "pressure_plate_pressed");
             stoneSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 2, "signal_blocker");
             remoteSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 3, "remote");
             storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note");
@@ -1316,7 +1428,13 @@ public sealed class PrototypeGame : MonoBehaviour
             CreateDecalSprite(new Color(0.80f, 0.18f, 0.22f, 0.58f), SpriteMark.Trap),
         };
         wallSprite = CreateSprite(new Color(0.22f, 0.24f, 0.27f), new Color(0.12f, 0.13f, 0.15f), new Color(0.52f, 0.56f, 0.60f), SpriteMark.None);
+        wallCornerSprite = wallSprite;
+        wallCrackedSprite = wallSprite;
+        wallMonitorSprite = wallSprite;
+        wallDoorFrameSprite = wallSprite;
+        wallBrokenSprite = wallSprite;
         plateSprite = CreateSprite(new Color(0.28f, 0.25f, 0.18f), new Color(0.11f, 0.10f, 0.08f), new Color(0.95f, 0.82f, 0.36f), SpriteMark.Plate);
+        pressedPlateSprite = CreateSprite(new Color(0.12f, 0.24f, 0.26f), new Color(0.04f, 0.10f, 0.12f), new Color(0.66f, 0.92f, 1.00f), SpriteMark.Plate);
         gateSprite = CreateSprite(new Color(0.34f, 0.10f, 0.14f), new Color(0.12f, 0.05f, 0.06f), new Color(0.90f, 0.18f, 0.24f), SpriteMark.Gate);
         openGateSprite = CreateSprite(new Color(0.10f, 0.30f, 0.28f), new Color(0.04f, 0.12f, 0.13f), new Color(0.66f, 0.92f, 1.00f), SpriteMark.Gate);
         exitSprite = CreateSprite(new Color(0.82f, 0.88f, 0.92f), new Color(0.56f, 0.66f, 0.72f), new Color(0.12f, 0.18f, 0.22f), SpriteMark.Exit);
@@ -1510,10 +1628,67 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Sprite FloorDecalFor(Vector2Int cell)
     {
-        if (floorDecalSprites.Length == 0 || CellHash(cell, 29) % 10 != 0)
+        if (floorDecalSprites.Length == 0 || DecalSuppressed(cell))
+            return null;
+
+        int adjacentWalls = AdjacentWallCount(cell);
+        if (adjacentWalls == 0)
+            return null;
+
+        int roll = CellHash(cell, 29) % 100;
+        int chance = adjacentWalls >= 2 ? 18 : 6;
+        if (roll >= chance)
             return null;
 
         return floorDecalSprites[CellHash(cell, 47) % floorDecalSprites.Length];
+    }
+
+    private bool DecalSuppressed(Vector2Int cell)
+    {
+        if (Manhattan(cell, new Vector2Int(3, 10)) <= 2 || StoneAt(cell) != null || EnemyAt(cell) != null)
+            return true;
+
+        foreach (Vector2Int next in NeighborCells(cell))
+        {
+            if (!Inside(next))
+                continue;
+
+            if (DecalBlockingTile(tiles[next.x, next.y]) || StoneAt(next) != null || EnemyAt(next) != null)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool DecalBlockingTile(Tile tile)
+    {
+        return tile == Tile.Plate ||
+               tile == Tile.Gate ||
+               tile == Tile.Rubble ||
+               tile == Tile.Trap ||
+               tile == Tile.Remote ||
+               tile == Tile.Story ||
+               tile == Tile.Exit;
+    }
+
+    private int AdjacentWallCount(Vector2Int cell)
+    {
+        int count = 0;
+        if (ClosedWallAdjacent(cell + Vector2Int.up))
+            count++;
+        if (ClosedWallAdjacent(cell + Vector2Int.down))
+            count++;
+        if (ClosedWallAdjacent(cell + Vector2Int.left))
+            count++;
+        if (ClosedWallAdjacent(cell + Vector2Int.right))
+            count++;
+
+        return count;
+    }
+
+    private bool ClosedWallAdjacent(Vector2Int cell)
+    {
+        return Inside(cell) && tiles[cell.x, cell.y] == Tile.Wall;
     }
 
     private static int CellHash(Vector2Int cell, int salt)
@@ -1605,9 +1780,10 @@ public sealed class PrototypeGame : MonoBehaviour
         return null;
     }
 
-    private static bool IsSolid(Tile tile)
+    private bool IsSolidCell(Vector2Int cell)
     {
-        return tile == Tile.Wall || tile == Tile.Gate || tile == Tile.Rubble;
+        Tile tile = tiles[cell.x, cell.y];
+        return tile == Tile.Wall || tile == Tile.Rubble || (tile == Tile.Gate && !GateOpenForCell(cell));
     }
 
     private static bool Inside(Vector2Int cell)
