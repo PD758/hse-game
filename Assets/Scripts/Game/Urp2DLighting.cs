@@ -46,6 +46,13 @@ public static class Urp2DLighting
         return light;
     }
 
+    public static Light2D AddConeLight(GameObject owner, Color color, float intensity, float outerRadius, float innerRadius, float outerAngle, float innerAngle, Vector2 direction)
+    {
+        Light2D light = AddPointLight(owner, color, intensity, outerRadius, innerRadius);
+        ConfigureConeLight(light, color, intensity, outerRadius, innerRadius, outerAngle, innerAngle, direction);
+        return light;
+    }
+
     public static ShadowCaster2D AddShadowCaster(GameObject owner)
     {
         ShadowCaster2D caster = owner.GetComponent<ShadowCaster2D>();
@@ -64,6 +71,32 @@ public static class Urp2DLighting
         light.shadowIntensity = Mathf.Clamp01(intensity);
         light.shadowSoftness = Mathf.Max(0f, softness);
         light.shadowSoftnessFalloffIntensity = Mathf.Clamp01(softnessFalloff);
+    }
+
+    public static void ConfigureConeLight(Light2D light, Color color, float intensity, float outerRadius, float innerRadius, float outerAngle, float innerAngle, Vector2 direction)
+    {
+        if (light == null)
+            return;
+
+        light.lightType = Light2D.LightType.Point;
+        light.color = color;
+        light.intensity = intensity;
+        light.pointLightOuterRadius = outerRadius;
+        light.pointLightInnerRadius = innerRadius;
+        light.pointLightOuterAngle = outerAngle;
+        light.pointLightInnerAngle = innerAngle;
+        RotateToward(light.transform, direction);
+    }
+
+    public static void RotateToward(Transform transform, Vector2 direction)
+    {
+        if (transform == null)
+            return;
+        if (direction.sqrMagnitude < 0.001f)
+            direction = Vector2.up;
+
+        direction.Normalize();
+        transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
     }
 
     public static void ConfigureShadowCaster(ShadowCaster2D caster, bool enabled)

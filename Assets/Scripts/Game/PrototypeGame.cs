@@ -36,6 +36,8 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
+    private const string CameraLightName = "Camera Light";
+    private const string EnemyLightName = "Enemy Light";
     private const int FixedAtlasColumns = 8;
     private const int FixedAtlasRows = 8;
     private const int HudAtlasColumns = 4;
@@ -113,9 +115,11 @@ public sealed class PrototypeGame : MonoBehaviour
         public float AttackRecoveryTimer;
         public bool AttackApplied;
         public Vector2 AttackDirection = Vector2.down;
+        public Vector2 LookDirection = Vector2.down;
         public Vector2 KnockbackVelocity;
         public GameObject View;
         public GameObject TelegraphView;
+        public Light2D Light;
     }
 
     private sealed class CombatEffect
@@ -126,6 +130,8 @@ public sealed class PrototypeGame : MonoBehaviour
         public Vector3 StartScale;
         public Vector3 EndScale;
         public Color Color;
+        public Light2D Light;
+        public float LightStartIntensity;
         public float Duration;
         public float Age;
         public float RotationSpeed;
@@ -814,6 +820,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (tile == Tile.Trap)
         {
+            SpawnCameraFlash(ToWorld(playerCell), CameraDirectionForCell(playerCell));
             tiles[playerCell.x, playerCell.y] = Tile.Floor;
             NarrativeRunState.RecordTrapMistake();
             MakeNoise(playerCell, 9);
@@ -961,6 +968,7 @@ public sealed class PrototypeGame : MonoBehaviour
             if (RemoteJamActive())
                 speed *= RemoteEnemySpeedMultiplier;
             Vector2 steeringTarget = EnemySteeringTarget(enemy, target);
+            Vector2 previousPosition = enemy.Position;
             Vector2 next = Vector2.MoveTowards(enemy.Position, steeringTarget, speed * dt);
             if (CanEnemyOccupy(next, enemy))
             {
@@ -973,6 +981,8 @@ public sealed class PrototypeGame : MonoBehaviour
                     enemy.Position = fallback;
             }
 
+            Vector2 movement = enemy.Position - previousPosition;
+            enemy.LookDirection = DirectionOrFallback(movement.sqrMagnitude > 0.001f ? movement : steeringTarget - enemy.Position, enemy.LookDirection);
             enemy.View.transform.position = enemy.Position;
             UpdateEnemyVisual(enemy);
 
@@ -1020,6 +1030,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         if (enemy.AttackWindupTimer > 0f)
         {
+            enemy.LookDirection = DirectionOrFallback(enemy.AttackDirection, enemy.LookDirection);
             enemy.AttackWindupTimer = Mathf.Max(0f, enemy.AttackWindupTimer - dt);
             UpdateEnemyTelegraph(enemy, false);
             if (enemy.AttackWindupTimer <= 0f)
@@ -1034,6 +1045,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (enemy.AttackStrikeTimer > 0f)
         {
+            enemy.LookDirection = DirectionOrFallback(enemy.AttackDirection, enemy.LookDirection);
             enemy.AttackStrikeTimer = Mathf.Max(0f, enemy.AttackStrikeTimer - dt);
             UpdateEnemyTelegraph(enemy, true);
             if (!enemy.AttackApplied)
@@ -1075,6 +1087,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         Vector2 direction = (Vector2)playerView.transform.position - enemy.Position;
         enemy.AttackDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector2.down;
+        enemy.LookDirection = enemy.AttackDirection;
         enemy.AttackWindupTimer = EnemyAttackWindup;
         enemy.AttackStrikeTimer = 0f;
         enemy.AttackRecoveryTimer = 0f;
@@ -1129,6 +1142,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (enemy.AttackWindupTimer > 0f)
             punch += Mathf.PingPong(Time.time * 10f, 0.05f);
         enemy.View.transform.localScale = new Vector3(punch, punch, 1f);
+        ConfigureEnemyLight(enemy);
     }
 
     private void UpdateEnemyTelegraph(Enemy enemy, bool striking)
@@ -1216,6 +1230,23 @@ public sealed class PrototypeGame : MonoBehaviour
         }
     }
 
+    private void SpawnCameraFlash(Vector2 position, Vector2 direction)
+    {
+        direction = DirectionOrFallback(direction, Vector2.up);
+        CombatEffect effect = CreateCombatEffect(
+            "Camera Flash",
+            position + direction * 0.24f,
+            new Vector3(1.35f, 0.62f, 1f),
+            new Color(0.86f, 0.96f, 1f, 0.78f),
+            0.22f,
+            25);
+        effect.EndScale = new Vector3(2.4f, 0.18f, 1f);
+        effect.View.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        effect.Light = Urp2DLighting.AddConeLight(effect.View, new Color(0.78f, 0.93f, 1f), 2.3f, 5.2f, 0.45f, 82f, 42f, direction);
+        effect.LightStartIntensity = effect.Light.intensity;
+        Urp2DLighting.ConfigurePointLightShadows(effect.Light, 0.55f, 0.36f, 0.62f);
+    }
+
     private CombatEffect CreateCombatEffect(string name, Vector2 position, Vector3 scale, Color color, float duration, int sortingOrder)
     {
         GameObject view = new GameObject(name);
@@ -1258,6 +1289,8 @@ public sealed class PrototypeGame : MonoBehaviour
             effect.View.transform.localScale = Vector3.Lerp(effect.StartScale, effect.EndScale, ratio);
             if (Mathf.Abs(effect.RotationSpeed) > 0.01f)
                 effect.View.transform.Rotate(0f, 0f, effect.RotationSpeed * dt);
+            if (effect.Light != null)
+                effect.Light.intensity = Mathf.Lerp(effect.LightStartIntensity, 0f, ratio);
 
             Color color = effect.Color;
             color.a *= 1f - ratio;
@@ -1720,6 +1753,7 @@ public sealed class PrototypeGame : MonoBehaviour
             LastSeen = start,
             Mode = EnemyMode.Patrol,
             Branch = branch,
+            LookDirection = InitialEnemyLookDirection(start, patrol),
         };
         enemy.Patrol.AddRange(patrol);
         enemies.Add(enemy);
@@ -1811,6 +1845,8 @@ public sealed class PrototypeGame : MonoBehaviour
             renderer.sprite = enemySprite;
             SetLitMaterial(renderer);
             renderer.sortingOrder = 15;
+            enemy.Light = EnsureEnemyLight(enemy.View);
+            ConfigureEnemyLight(enemy);
         }
     }
 
@@ -1822,14 +1858,14 @@ public sealed class PrototypeGame : MonoBehaviour
         var channelLightObject = new GameObject("Channel Light");
         channelLightObject.transform.SetParent(transform);
         channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
-        Light2D channelLight = Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.42f, 12.0f, 2.2f);
-        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.48f, 0.38f, 0.58f);
+        Light2D channelLight = Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.20f, 7.0f, 1.4f);
+        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.30f, 0.42f, 0.58f);
 
         var playerLightObject = new GameObject("Player Light");
         playerLightObject.transform.SetParent(playerView != null ? playerView.transform : transform);
         playerLightObject.transform.localPosition = Vector3.zero;
-        playerLight = Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.74f, 5.4f, 1.15f);
-        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.66f, 0.55f, 0.64f);
+        playerLight = Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.38f, 2.2f, 0.45f);
+        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
     }
 
     private bool BindSceneViews()
@@ -1895,6 +1931,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
             enemy.View.transform.position = enemy.Position;
             enemy.View.transform.localScale = Vector3.one;
+            enemy.Light = EnsureEnemyLight(enemy.View);
+            ConfigureEnemyLight(enemy);
             enemy.View.SetActive(true);
         }
 
@@ -1925,13 +1963,13 @@ public sealed class PrototypeGame : MonoBehaviour
         channelLightObject.SetActive(true);
         channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
         Light2D channelLight = channelLightObject.GetComponent<Light2D>() ??
-                               Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.42f, 12.0f, 2.2f);
+                               Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.20f, 7.0f, 1.4f);
         channelLight.lightType = Light2D.LightType.Point;
         channelLight.color = new Color(0.58f, 0.74f, 0.94f);
-        channelLight.intensity = 0.42f;
-        channelLight.pointLightOuterRadius = 12.0f;
-        channelLight.pointLightInnerRadius = 2.2f;
-        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.48f, 0.38f, 0.58f);
+        channelLight.intensity = 0.20f;
+        channelLight.pointLightOuterRadius = 7.0f;
+        channelLight.pointLightInnerRadius = 1.4f;
+        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.30f, 0.42f, 0.58f);
 
         GameObject playerLightObject = FindSceneObjectIncludingInactive("Player Light");
         if (playerLightObject == null)
@@ -1943,13 +1981,13 @@ public sealed class PrototypeGame : MonoBehaviour
             playerLightObject.transform.SetParent(playerView.transform);
         playerLightObject.transform.localPosition = Vector3.zero;
         playerLight = playerLightObject.GetComponent<Light2D>() ??
-                      Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.74f, 5.4f, 1.15f);
+                      Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.38f, 2.2f, 0.45f);
         playerLight.lightType = Light2D.LightType.Point;
         playerLight.color = new Color(0.82f, 0.94f, 1.00f);
-        playerLight.intensity = 0.74f;
-        playerLight.pointLightOuterRadius = 5.4f;
-        playerLight.pointLightInnerRadius = 1.15f;
-        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.66f, 0.55f, 0.64f);
+        playerLight.intensity = 0.38f;
+        playerLight.pointLightOuterRadius = 2.2f;
+        playerLight.pointLightInnerRadius = 0.45f;
+        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
     }
 
     private GameObject FindSceneObjectIncludingInactive(string objectName)
@@ -1967,6 +2005,89 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         Transform child = root.Find(childName);
         return child == null ? null : child.gameObject;
+    }
+
+    private Light2D EnsureEnemyLight(GameObject enemyView)
+    {
+        if (enemyView == null)
+            return null;
+
+        GameObject lightObject = FindChildObject(enemyView.transform, EnemyLightName);
+        if (lightObject == null)
+        {
+            lightObject = new GameObject(EnemyLightName);
+            lightObject.transform.SetParent(enemyView.transform);
+        }
+
+        lightObject.SetActive(true);
+        lightObject.transform.localPosition = Vector3.zero;
+        Light2D light = lightObject.GetComponent<Light2D>();
+        if (light == null)
+            light = Urp2DLighting.AddConeLight(lightObject, Color.white, 0.42f, 3.0f, 0.25f, 62f, 28f, Vector2.down);
+        return light;
+    }
+
+    private void ConfigureEnemyLight(Enemy enemy)
+    {
+        if (enemy == null || enemy.View == null)
+            return;
+
+        if (enemy.Light == null)
+            enemy.Light = EnsureEnemyLight(enemy.View);
+        if (enemy.Light == null)
+            return;
+
+        bool attacking = enemy.AttackWindupTimer > 0f || enemy.AttackStrikeTimer > 0f;
+        bool hunting = enemy.Mode == EnemyMode.Hunt || attacking;
+        Vector2 direction = DirectionOrFallback(attacking ? enemy.AttackDirection : enemy.LookDirection, Vector2.down);
+        Color color = hunting ? new Color(1f, 0.58f, 0.52f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.82f, 0.52f) : new Color(0.82f, 0.92f, 1f);
+        float intensity = hunting ? 0.72f : enemy.Mode == EnemyMode.Investigate ? 0.55f : 0.42f;
+        float radius = hunting ? 3.6f : enemy.Mode == EnemyMode.Investigate ? 3.3f : 3.0f;
+        if (RemoteJamActive())
+        {
+            color = Color.Lerp(color, new Color(0.48f, 0.92f, 1f), 0.72f);
+            intensity *= 0.36f;
+        }
+
+        enemy.Light.transform.localPosition = Vector3.zero;
+        float parentScale = Mathf.Max(0.001f, enemy.View.transform.localScale.x);
+        enemy.Light.transform.localScale = Vector3.one / parentScale;
+        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.25f, 62f, 28f, direction);
+        Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.62f : 0.46f, 0.46f, 0.62f);
+    }
+
+    private static Vector2 CameraDirectionForCell(Vector2Int cell)
+    {
+        if (cell == new Vector2Int(7, 13))
+            return DirectionOrFallback(new Vector2(-1.0f, -0.65f), Vector2.left);
+        if (cell == new Vector2Int(15, 9))
+            return Vector2.left;
+        if (cell == new Vector2Int(24, 15))
+            return DirectionOrFallback(new Vector2(-0.85f, 0.45f), Vector2.left);
+        if (cell == new Vector2Int(27, 5))
+            return Vector2.right;
+        if (cell == new Vector2Int(32, 3))
+            return DirectionOrFallback(new Vector2(-0.8f, 0.5f), Vector2.left);
+
+        return Vector2.down;
+    }
+
+    private static Vector2 InitialEnemyLookDirection(Vector2Int start, Vector2Int[] patrol)
+    {
+        if (patrol != null && patrol.Length > 0)
+            return DirectionOrFallback((Vector2)(patrol[0] - start), Vector2.down);
+
+        return Vector2.down;
+    }
+
+    private static Vector2 DirectionOrFallback(Vector2 direction, Vector2 fallback)
+    {
+        if (direction.sqrMagnitude < 0.001f)
+            direction = fallback;
+        if (direction.sqrMagnitude < 0.001f)
+            direction = Vector2.down;
+
+        return direction.normalized;
     }
 
     private bool HasBakedAssets()
@@ -2071,6 +2192,7 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         ConfigureTileShadowCaster(cell);
+        ConfigureCameraLight(cell);
     }
 
     private void ConfigureTileShadowCaster(Vector2Int cell)
@@ -2091,6 +2213,35 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         Tile tile = tiles[cell.x, cell.y];
         return tile == Tile.Wall || tile == Tile.Rubble || (tile == Tile.Gate && !GateOpenForCell(cell));
+    }
+
+    private void ConfigureCameraLight(Vector2Int cell)
+    {
+        GameObject view = tileViews[cell.x, cell.y];
+        if (view == null)
+            return;
+
+        GameObject lightObject = FindChildObject(view.transform, CameraLightName);
+        if (tiles[cell.x, cell.y] != Tile.Trap)
+        {
+            if (lightObject != null)
+                lightObject.SetActive(false);
+            return;
+        }
+
+        if (lightObject == null)
+        {
+            lightObject = new GameObject(CameraLightName);
+            lightObject.transform.SetParent(view.transform);
+        }
+
+        lightObject.SetActive(true);
+        lightObject.transform.localPosition = Vector3.zero;
+        Vector2 direction = CameraDirectionForCell(cell);
+        Light2D light = lightObject.GetComponent<Light2D>() ??
+                        Urp2DLighting.AddConeLight(lightObject, new Color(0.72f, 0.90f, 1f), 0.9f, 4.4f, 0.35f, 58f, 28f, direction);
+        Urp2DLighting.ConfigureConeLight(light, new Color(0.72f, 0.90f, 1f), 0.9f, 4.4f, 0.35f, 58f, 28f, direction);
+        Urp2DLighting.ConfigurePointLightShadows(light, 0.58f, 0.40f, 0.64f);
     }
 
     private void RebuildTileColliders()
@@ -2566,6 +2717,7 @@ public sealed class PrototypeGame : MonoBehaviour
         DestroySceneObject("Tiles");
         DestroySceneObject("Player");
         DestroySceneObject("Channel Light");
+        DestroySceneObject("Player Light");
 
         foreach (Light2D light in GetComponents<Light2D>())
             DestroyImmediate(light);
