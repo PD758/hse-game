@@ -1,0 +1,40 @@
+#!/bin/sh
+set -eu
+
+blocked_staged_paths=""
+
+while IFS= read -r path; do
+  case "$path" in
+    ProjectSettings/AI.Assistant/*|ProjectSettings/Packages/*|UserSettings/*|Library/*|Temp/*|Obj/*|Logs/*|.vs/*|.idea/*|.vscode/*)
+      blocked_staged_paths="${blocked_staged_paths}${path}
+"
+      ;;
+  esac
+done <<EOF
+$(git diff --cached --name-only --diff-filter=ACMRT)
+EOF
+
+if [ -n "$blocked_staged_paths" ]; then
+  echo "Blocked commit: staged developer-local Unity/editor config:" >&2
+  echo "$blocked_staged_paths" >&2
+  echo "Remove these files from the index with: git rm --cached <path>" >&2
+  exit 1
+fi
+
+blocked_project_settings=""
+
+while IFS= read -r line; do
+  case "$line" in
+    +*cloudProjectId:*|+*organizationId:*|+*C:*Users*|+*/Users/*|+*/home/*)
+      blocked_project_settings=1
+      ;;
+  esac
+done <<EOF
+$(git diff --cached -U0 -- ProjectSettings/ProjectSettings.asset)
+EOF
+
+if [ -n "$blocked_project_settings" ]; then
+  echo "Blocked commit: ProjectSettings.asset contains developer-specific data." >&2
+  echo "Remove cloudProjectId, organizationId, and local absolute paths before committing." >&2
+  exit 1
+fi

@@ -1,9 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public sealed class PrototypeGame : MonoBehaviour
 {
@@ -141,8 +146,11 @@ public sealed class PrototypeGame : MonoBehaviour
         SetupCamera();
         CreateOnePixelSprites();
         BuildLevel();
-        CreateViews();
-        CreateLighting();
+        if (!BindSceneViews())
+        {
+            CreateViews();
+            CreateLighting();
+        }
         RedrawAll();
     }
 
@@ -1215,7 +1223,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         foreach (Stone stone in stones)
         {
-            GameObject view = new GameObject("Signal Blocker");
+            GameObject view = new GameObject($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
             view.transform.position = ToWorld(stone.Cell);
             view.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
             var renderer = view.AddComponent<SpriteRenderer>();
@@ -1227,9 +1235,10 @@ public sealed class PrototypeGame : MonoBehaviour
             stone.View = view;
         }
 
-        foreach (Enemy enemy in enemies)
+        for (int i = 0; i < enemies.Count; i++)
         {
-            enemy.View = new GameObject("Enemy");
+            Enemy enemy = enemies[i];
+            enemy.View = new GameObject($"Enemy {i}");
             enemy.View.transform.position = enemy.Position;
             var renderer = enemy.View.AddComponent<SpriteRenderer>();
             renderer.sprite = enemySprite;
@@ -1523,6 +1532,251 @@ public sealed class PrototypeGame : MonoBehaviour
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
     }
+
+    private bool BindSceneViews()
+    {
+        Transform tileRoot = GameObject.Find("Tiles")?.transform;
+        if (tileRoot == null)
+            return false;
+
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                floorViews[x, y] = FindChildObject(tileRoot, $"Floor {x},{y}");
+                floorDecalViews[x, y] = FindChildObject(tileRoot, $"Floor Decal {x},{y}");
+                tileViews[x, y] = FindChildObject(tileRoot, $"Tile {x},{y}");
+                if (floorViews[x, y] == null || floorDecalViews[x, y] == null || tileViews[x, y] == null)
+                    return false;
+            }
+        }
+
+        playerView = GameObject.Find("Player");
+        if (playerView == null)
+            return false;
+
+        playerBody = playerView.GetComponent<Rigidbody2D>();
+        if (playerBody == null)
+            return false;
+
+        playerBody.bodyType = RigidbodyType2D.Dynamic;
+        playerBody.simulated = true;
+        playerBody.gravityScale = 0f;
+        playerBody.freezeRotation = true;
+        playerBody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        playerBody.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+        if (playerView.TryGetComponent(out CircleCollider2D playerCollider))
+            playerCollider.enabled = true;
+
+        playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        playerBody.linearVelocity = Vector2.zero;
+
+        for (int i = 0; i < stones.Count; i++)
+        {
+            Stone stone = stones[i];
+            stone.View = GameObject.Find($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
+            if (stone.View == null)
+                return false;
+
+            stone.View.transform.position = ToWorld(stone.Cell);
+            stone.View.SetActive(true);
+        }
+
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            Enemy enemy = enemies[i];
+            enemy.View = GameObject.Find($"Enemy {i}");
+            if (enemy.View == null)
+                return false;
+
+            enemy.View.transform.position = enemy.Position;
+            enemy.View.SetActive(true);
+        }
+
+        return true;
+    }
+
+    private static GameObject FindChildObject(Transform root, string childName)
+    {
+        Transform child = root.Find(childName);
+        return child == null ? null : child.gameObject;
+    }
+
+#if UNITY_EDITOR
+    public void BakeSceneForEditor()
+    {
+        ClearBakedSceneObjects();
+        SetupCamera();
+        CreateOnePixelSprites();
+        PersistGeneratedSpritesForEditor();
+        EnsureHudTextures();
+        PersistHudTexturesForEditor();
+        BuildLevel();
+        CreateViews();
+        CreateLighting();
+        RedrawAll();
+        EditorUtility.SetDirty(this);
+    }
+
+    private void ClearBakedSceneObjects()
+    {
+        DestroySceneObject("Tiles");
+        DestroySceneObject("Player");
+        DestroySceneObject("Channel Light");
+
+        foreach (Light2D light in GetComponents<Light2D>())
+            DestroyImmediate(light);
+
+        foreach (GameObject obj in FindObjectsByType<GameObject>(FindObjectsInactive.Include))
+        {
+            if (obj.scene != gameObject.scene)
+                continue;
+
+            if (obj.name.StartsWith("Signal Blocker ", StringComparison.Ordinal) ||
+                obj.name.StartsWith("Enemy ", StringComparison.Ordinal))
+            {
+                DestroyImmediate(obj);
+            }
+        }
+    }
+
+    private static void DestroySceneObject(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        if (obj != null)
+            DestroyImmediate(obj);
+    }
+
+    private void PersistGeneratedSpritesForEditor()
+    {
+        const string folder = "Assets/Generated/Prototype/Sprites";
+        floorSprite = PersistSpriteForEditor(folder, "floor_base", floorSprite);
+        wallSprite = PersistSpriteForEditor(folder, "wall_horizontal", wallSprite);
+        wallVerticalSprite = PersistSpriteForEditor(folder, "wall_vertical", wallVerticalSprite);
+        wallCornerSprite = PersistSpriteForEditor(folder, "wall_corner", wallCornerSprite);
+        plateSprite = PersistSpriteForEditor(folder, "pressure_plate", plateSprite);
+        pressedPlateSprite = PersistSpriteForEditor(folder, "pressure_plate_pressed", pressedPlateSprite);
+        gateSprite = PersistSpriteForEditor(folder, "signal_gate_closed", gateSprite);
+        openGateSprite = PersistSpriteForEditor(folder, "signal_gate_open", openGateSprite);
+        exitSprite = PersistSpriteForEditor(folder, "tv_exit", exitSprite);
+        openExitSprite = PersistSpriteForEditor(folder, "tv_exit_open", openExitSprite);
+        rubbleSprite = PersistSpriteForEditor(folder, "rubble", rubbleSprite);
+        trapSprite = PersistSpriteForEditor(folder, "camera_trap", trapSprite);
+        remoteSprite = PersistSpriteForEditor(folder, "remote", remoteSprite);
+        storySprite = PersistSpriteForEditor(folder, "story_note", storySprite);
+        playerSprite = PersistSpriteForEditor(folder, "player_base", playerSprite);
+        stoneSprite = PersistSpriteForEditor(folder, "signal_blocker", stoneSprite);
+        enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);
+        enemyInvestigateSprite = PersistSpriteForEditor(folder, "enemy_investigate", enemyInvestigateSprite);
+        enemyHuntSprite = PersistSpriteForEditor(folder, "enemy_hunt", enemyHuntSprite);
+        floorSprites = PersistSpriteArrayForEditor(folder, "floor", floorSprites);
+        floorDecalSprites = PersistSpriteArrayForEditor(folder, "floor_decal", floorDecalSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_idle", playerIdleSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_walk_1", playerWalkOneSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_walk_2", playerWalkTwoSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_attack", playerAttackSprites);
+    }
+
+    private void PersistHudTexturesForEditor()
+    {
+        whiteTexture = PersistTextureForEditor("Assets/Generated/Prototype/HUD", "white", whiteTexture);
+    }
+
+    private static Sprite[] PersistSpriteArrayForEditor(string folder, string prefix, Sprite[] sprites)
+    {
+        if (sprites == null)
+            return Array.Empty<Sprite>();
+
+        var persisted = new Sprite[sprites.Length];
+        for (int i = 0; i < sprites.Length; i++)
+            persisted[i] = PersistSpriteForEditor(folder, $"{prefix}_{i}", sprites[i]);
+
+        return persisted;
+    }
+
+    private static void PersistPlayerSpriteArrayForEditor(string folder, string prefix, Sprite[] sprites)
+    {
+        if (sprites == null)
+            return;
+
+        for (int i = 0; i < sprites.Length; i++)
+            sprites[i] = PersistSpriteForEditor(folder, $"{prefix}_{i}", sprites[i]);
+    }
+
+    private static Sprite PersistSpriteForEditor(string folder, string assetName, Sprite sprite)
+    {
+        if (sprite == null || AssetDatabase.Contains(sprite))
+            return sprite;
+
+        Texture2D texture = CopySpriteTexture(sprite);
+        Texture2D importedTexture = PersistTextureForEditor(folder, assetName, texture);
+        DestroyImmediate(texture);
+
+        string path = $"{folder}/{assetName}.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path) ??
+               Sprite.Create(importedTexture, new Rect(0, 0, importedTexture.width, importedTexture.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+    }
+
+    private static Texture2D PersistTextureForEditor(string folder, string assetName, Texture2D texture)
+    {
+        if (texture == null || AssetDatabase.Contains(texture))
+            return texture;
+
+        EnsureAssetFolder(folder);
+        string path = $"{folder}/{assetName}.png";
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Texture2D CopySpriteTexture(Sprite sprite)
+    {
+        Rect rect = sprite.rect;
+        var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = sprite.name,
+        };
+        texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        string[] parts = folder.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+                AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
+    }
+#endif
 
     private void SetupCamera()
     {

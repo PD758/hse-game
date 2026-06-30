@@ -1,5 +1,9 @@
+using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public sealed class MainMenu : MonoBehaviour
 {
@@ -7,18 +11,26 @@ public sealed class MainMenu : MonoBehaviour
     private GUIStyle labelStyle;
     private GUIStyle hintStyle;
     private GUIStyle buttonStyle;
-    private Texture2D panelTexture;
-    private Texture2D backgroundTexture;
+    [SerializeField] private Texture2D panelTexture;
+    [SerializeField] private Texture2D backgroundTexture;
 
     private void Awake()
     {
         Application.targetFrameRate = 60;
         SetupCamera();
+        if (Application.isPlaying && (panelTexture == null || backgroundTexture == null))
+        {
+            Debug.LogError("Main menu scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
+            enabled = false;
+        }
     }
 
     private void OnGUI()
     {
         EnsureStyles();
+        if (panelTexture == null || backgroundTexture == null || titleStyle == null || buttonStyle == null)
+            return;
+
         DrawBackground();
 
         float panelWidth = Mathf.Min(580f, Screen.width - 32f);
@@ -50,22 +62,13 @@ public sealed class MainMenu : MonoBehaviour
 
     private void EnsureStyles()
     {
-        if (panelTexture == null)
-        {
-            panelTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            panelTexture.SetPixel(0, 0, new Color(0.07f, 0.08f, 0.10f, 0.97f));
-            panelTexture.Apply();
-        }
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+            EnsureMenuTexturesForEditor();
+#endif
 
-        if (backgroundTexture == null)
-        {
-            backgroundTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
-            {
-                filterMode = FilterMode.Point,
-            };
-            backgroundTexture.SetPixel(0, 0, new Color(0.04f, 0.05f, 0.06f));
-            backgroundTexture.Apply();
-        }
+        if (panelTexture == null || backgroundTexture == null)
+            return;
 
         titleStyle ??= new GUIStyle(GUI.skin.label)
         {
@@ -93,6 +96,28 @@ public sealed class MainMenu : MonoBehaviour
         PixelGui.Apply(buttonStyle);
     }
 
+#if UNITY_EDITOR
+    private void EnsureMenuTexturesForEditor()
+    {
+        if (panelTexture == null)
+        {
+            panelTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+            panelTexture.SetPixel(0, 0, new Color(0.07f, 0.08f, 0.10f, 0.97f));
+            panelTexture.Apply();
+        }
+
+        if (backgroundTexture == null)
+        {
+            backgroundTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+            };
+            backgroundTexture.SetPixel(0, 0, new Color(0.04f, 0.05f, 0.06f));
+            backgroundTexture.Apply();
+        }
+    }
+#endif
+
     private void DrawBackground()
     {
         GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), backgroundTexture);
@@ -103,6 +128,12 @@ public sealed class MainMenu : MonoBehaviour
         Camera camera = Camera.main;
         if (camera == null)
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("Main menu scene is missing a baked Main Camera.");
+                return;
+            }
+
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
             camera = cameraObject.AddComponent<Camera>();
@@ -111,4 +142,47 @@ public sealed class MainMenu : MonoBehaviour
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.05f, 0.06f, 0.07f);
     }
+
+#if UNITY_EDITOR
+    public void BakeSceneForEditor()
+    {
+        EnsureMenuTexturesForEditor();
+        panelTexture = PersistTextureForEditor("Assets/Generated/MainMenu", "menu_panel", panelTexture);
+        backgroundTexture = PersistTextureForEditor("Assets/Generated/MainMenu", "menu_background", backgroundTexture);
+        EditorUtility.SetDirty(this);
+    }
+
+    private static Texture2D PersistTextureForEditor(string folder, string assetName, Texture2D texture)
+    {
+        EnsureAssetFolder(folder);
+        string path = $"{folder}/{assetName}.png";
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        string[] parts = folder.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+                AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
+    }
+#endif
 }

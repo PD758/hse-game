@@ -9,6 +9,10 @@ using UnityEngine.SceneManagement;
 
 public static class ProjectBootstrap
 {
+    private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
+    private const string IntroScenePath = "Assets/Scenes/Intro.unity";
+    private const string PrototypeScenePath = "Assets/Scenes/Prototype.unity";
+
     [MenuItem("Rogue/Bootstrap All Scenes")]
     public static void CreateAllScenes()
     {
@@ -18,12 +22,19 @@ public static class ProjectBootstrap
         CreatePrototypeScene();
         EditorBuildSettings.scenes = new[]
         {
-            new EditorBuildSettingsScene("Assets/Scenes/MainMenu.unity", true),
-            new EditorBuildSettingsScene("Assets/Scenes/Intro.unity", true),
-            new EditorBuildSettingsScene("Assets/Scenes/Prototype.unity", true),
+            new EditorBuildSettingsScene(MainMenuScenePath, true),
+            new EditorBuildSettingsScene(IntroScenePath, true),
+            new EditorBuildSettingsScene(PrototypeScenePath, true),
         };
+        SetPlayModeStartScene(MainMenuScenePath);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
+    }
+
+    [MenuItem("Rogue/Use Main Menu As Play Start")]
+    public static void UseMainMenuAsPlayStart()
+    {
+        SetPlayModeStartScene(MainMenuScenePath);
     }
 
     [MenuItem("Rogue/Configure URP 2D")]
@@ -69,10 +80,10 @@ public static class ProjectBootstrap
         camera.backgroundColor = new Color(0.05f, 0.06f, 0.07f);
 
         var gameObject = new GameObject("Main Menu");
-        gameObject.AddComponent<MainMenu>();
+        MainMenu menu = gameObject.AddComponent<MainMenu>();
+        menu.BakeSceneForEditor();
 
-        const string scenePath = "Assets/Scenes/MainMenu.unity";
-        EditorSceneManager.SaveScene(scene, scenePath);
+        EditorSceneManager.SaveScene(scene, MainMenuScenePath);
     }
 
     [MenuItem("Rogue/Bootstrap Intro Scene")]
@@ -87,10 +98,10 @@ public static class ProjectBootstrap
         camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
 
         var gameObject = new GameObject("Intro Cutscene");
-        gameObject.AddComponent<IntroCutscene>();
+        IntroCutscene intro = gameObject.AddComponent<IntroCutscene>();
+        intro.BakeSceneForEditor();
 
-        const string scenePath = "Assets/Scenes/Intro.unity";
-        EditorSceneManager.SaveScene(scene, scenePath);
+        EditorSceneManager.SaveScene(scene, IntroScenePath);
     }
 
     [MenuItem("Rogue/Bootstrap Prototype Scene")]
@@ -108,10 +119,23 @@ public static class ProjectBootstrap
         camera.transform.position = new Vector3(8f, 10f, -10f);
 
         var gameObject = new GameObject("Prototype Game");
-        gameObject.AddComponent<PrototypeGame>();
+        PrototypeGame game = gameObject.AddComponent<PrototypeGame>();
+        game.BakeSceneForEditor();
 
-        const string scenePath = "Assets/Scenes/Prototype.unity";
-        EditorSceneManager.SaveScene(scene, scenePath);
+        EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+    }
+
+    private static void SetPlayModeStartScene(string scenePath)
+    {
+        var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath);
+        if (sceneAsset == null)
+        {
+            Debug.LogWarning($"Play Mode start scene was not set because {scenePath} was not found.");
+            return;
+        }
+
+        if (EditorSceneManager.playModeStartScene != sceneAsset)
+            EditorSceneManager.playModeStartScene = sceneAsset;
     }
 
     private static void EnsureFolder(string parent, string child)

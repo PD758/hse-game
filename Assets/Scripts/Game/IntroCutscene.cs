@@ -1,7 +1,11 @@
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public sealed class IntroCutscene : MonoBehaviour
 {
@@ -22,7 +26,8 @@ public sealed class IntroCutscene : MonoBehaviour
         Application.targetFrameRate = 60;
         SetupCamera();
         NarrativeRunState.Reset();
-        BuildScene();
+        if (!BindSceneReferences())
+            BuildScene();
         startedAt = Time.time;
     }
 
@@ -81,6 +86,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void BuildScene()
     {
+        var root = new GameObject("Intro Art");
         CreateSpriteObject("Room Floor", CreateRoomFloorSprite(), Vector3.zero, OnePixelScale(25f, 10.4f), -10);
         CreateSpriteObject("Window Shadow", CreateSoftRectSprite(new Color(0.015f, 0.018f, 0.022f, 0.46f)), new Vector3(-3.8f, 2.3f, 0f), OnePixelScale(8f, 1f), -8);
         CreateSpriteObject("TV Cabinet", CreateRectSprite(new Color(0.13f, 0.115f, 0.108f)), new Vector3(0f, 1.82f, 0f), OnePixelScale(3.75f, 0.82f), -3);
@@ -107,6 +113,54 @@ public sealed class IntroCutscene : MonoBehaviour
         Urp2DLighting.AddShadowCaster(couch.gameObject);
         Urp2DLighting.AddShadowCaster(tvBody.gameObject);
         Urp2DLighting.AddShadowCaster(viewerRenderer.gameObject);
+
+        foreach (Transform child in Object.FindObjectsByType<Transform>(FindObjectsInactive.Exclude))
+        {
+            if (child.gameObject.scene == root.scene && IsIntroArtObject(child.gameObject.name))
+                child.SetParent(root.transform);
+        }
+    }
+
+    private bool BindSceneReferences()
+    {
+        screenRenderer = FindRenderer("TV Screen");
+        glowRenderer = FindRenderer("TV Glow");
+        beamRenderer = FindRenderer("Pull Beam");
+        fadeRenderer = FindRenderer("Fade");
+        viewerRenderer = FindRenderer("Viewer");
+        viewerCastShadowRenderer = FindRenderer("Viewer Cast Shadow");
+        tvLight = screenRenderer == null ? null : screenRenderer.GetComponent<Light2D>();
+        pullLight = beamRenderer == null ? null : beamRenderer.GetComponent<Light2D>();
+
+        return screenRenderer != null &&
+               glowRenderer != null &&
+               beamRenderer != null &&
+               fadeRenderer != null &&
+               viewerRenderer != null &&
+               viewerCastShadowRenderer != null;
+    }
+
+    private static SpriteRenderer FindRenderer(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        return obj == null ? null : obj.GetComponent<SpriteRenderer>();
+    }
+
+    private static bool IsIntroArtObject(string objectName)
+    {
+        return objectName is "Room Floor" or
+            "Window Shadow" or
+            "TV Cabinet" or
+            "Couch Shadow" or
+            "Couch" or
+            "Viewer" or
+            "Viewer Cast Shadow" or
+            "Viewer Shadow" or
+            "TV Body" or
+            "TV Screen" or
+            "TV Glow" or
+            "Pull Beam" or
+            "Fade";
     }
 
     private static SpriteRenderer CreateSpriteObject(string name, Sprite sprite, Vector3 position, Vector3 scale, int sortingOrder)
@@ -207,6 +261,105 @@ public sealed class IntroCutscene : MonoBehaviour
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), pixelsPerUnit, 0, SpriteMeshType.FullRect);
     }
+
+#if UNITY_EDITOR
+    public void BakeSceneForEditor()
+    {
+        DestroySceneObject("Intro Art");
+        foreach (Light2D light in GetComponents<Light2D>())
+            DestroyImmediate(light);
+
+        SetupCamera();
+        BuildScene();
+        PersistGeneratedSpritesForEditor();
+        BindSceneReferences();
+        EditorUtility.SetDirty(this);
+    }
+
+    private static void DestroySceneObject(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        if (obj != null)
+            DestroyImmediate(obj);
+    }
+
+    private static void PersistGeneratedSpritesForEditor()
+    {
+        const string folder = "Assets/Generated/Intro/Sprites";
+        foreach (SpriteRenderer renderer in FindObjectsByType<SpriteRenderer>(FindObjectsInactive.Exclude))
+        {
+            if (renderer.sprite != null && !AssetDatabase.Contains(renderer.sprite))
+                renderer.sprite = PersistSpriteForEditor(folder, renderer.gameObject.name, renderer.sprite);
+        }
+    }
+
+    private static Sprite PersistSpriteForEditor(string folder, string assetName, Sprite sprite)
+    {
+        Texture2D texture = CopySpriteTexture(sprite);
+        Texture2D importedTexture = PersistTextureForEditor(folder, assetName, texture);
+        DestroyImmediate(texture);
+
+        string path = $"{folder}/{assetName}.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path) ??
+               Sprite.Create(importedTexture, new Rect(0, 0, importedTexture.width, importedTexture.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+    }
+
+    private static Texture2D PersistTextureForEditor(string folder, string assetName, Texture2D texture)
+    {
+        EnsureAssetFolder(folder);
+        string path = $"{folder}/{assetName}.png";
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Texture2D CopySpriteTexture(Sprite sprite)
+    {
+        Rect rect = sprite.rect;
+        var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = sprite.name,
+        };
+        texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        string[] parts = folder.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+                AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
+    }
+#endif
 
     private static void SetupCamera()
     {
