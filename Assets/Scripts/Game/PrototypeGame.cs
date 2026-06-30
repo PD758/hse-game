@@ -2396,15 +2396,17 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
 
         FacingDirection direction = FacingFromAim(lastAim);
-        renderer.flipX = direction == FacingDirection.Left;
+        bool walking = moveInput.sqrMagnitude > 0.01f;
+        bool attacking = attackCooldown > 0.18f;
+        renderer.flipX = walking || attacking ? direction == FacingDirection.Right : direction == FacingDirection.Left;
         int index = (int)direction;
-        if (attackCooldown > 0.18f)
+        if (attacking)
         {
             renderer.sprite = playerAttackSprites[index] ?? playerSprite;
             return;
         }
 
-        if (moveInput.sqrMagnitude > 0.01f)
+        if (walking)
         {
             bool first = Mathf.FloorToInt(Time.time * 8f) % 2 == 0;
             renderer.sprite = (first ? playerWalkOneSprites[index] : playerWalkTwoSprites[index]) ?? playerSprite;
