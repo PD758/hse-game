@@ -30,7 +30,12 @@ or project settings automatically.
 
 ## Editor-first structure
 
-The bootstrap command bakes generated art into `Assets/Generated` and writes scene
+`Rogue > Bootstrap All Scenes` is intentionally idempotent: it creates missing scenes,
+updates project scene settings, and leaves already-baked scenes untouched. Use
+`Rogue > Force Rebuild All Scenes` only when you intentionally want to regenerate
+`Assets/Generated` and the baked scene objects.
+
+The force rebuild command bakes generated art into `Assets/Generated` and writes scene
 objects into `Assets/Scenes`. Runtime scripts bind those existing objects by name and
 serialized references.
 

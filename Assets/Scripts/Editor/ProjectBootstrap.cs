@@ -12,6 +12,7 @@ public static class ProjectBootstrap
     private const string MainMenuScenePath = "Assets/Scenes/MainMenu.unity";
     private const string IntroScenePath = "Assets/Scenes/Intro.unity";
     private const string PrototypeScenePath = "Assets/Scenes/Prototype.unity";
+    private delegate void SceneBuildAction();
 
     [MenuItem("Rogue/Bootstrap All Scenes")]
     public static void CreateAllScenes()
@@ -21,15 +22,18 @@ public static class ProjectBootstrap
         CreateMainMenuScene();
         CreateIntroScene();
         CreatePrototypeScene();
-        EditorBuildSettings.scenes = new[]
-        {
-            new EditorBuildSettingsScene(MainMenuScenePath, true),
-            new EditorBuildSettingsScene(IntroScenePath, true),
-            new EditorBuildSettingsScene(PrototypeScenePath, true),
-        };
-        SetPlayModeStartScene(MainMenuScenePath);
-        AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
+        SaveProjectSceneSettings();
+    }
+
+    [MenuItem("Rogue/Force Rebuild All Scenes")]
+    public static void ForceRebuildAllScenes()
+    {
+        ConfigureUrp2D();
+        ConfigureTextureImports();
+        RebuildMainMenuScene();
+        RebuildIntroScene();
+        RebuildPrototypeScene();
+        SaveProjectSceneSettings();
     }
 
     [MenuItem("Rogue/Use Main Menu As Play Start")]
@@ -72,6 +76,12 @@ public static class ProjectBootstrap
     [MenuItem("Rogue/Bootstrap Main Menu Scene")]
     public static void CreateMainMenuScene()
     {
+        EnsureSceneExists(MainMenuScenePath, RebuildMainMenuScene);
+    }
+
+    [MenuItem("Rogue/Force Rebuild/Main Menu Scene")]
+    public static void RebuildMainMenuScene()
+    {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
         var cameraObject = new GameObject("Main Camera");
@@ -89,6 +99,12 @@ public static class ProjectBootstrap
 
     [MenuItem("Rogue/Bootstrap Intro Scene")]
     public static void CreateIntroScene()
+    {
+        EnsureSceneExists(IntroScenePath, RebuildIntroScene);
+    }
+
+    [MenuItem("Rogue/Force Rebuild/Intro Scene")]
+    public static void RebuildIntroScene()
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -108,6 +124,12 @@ public static class ProjectBootstrap
 
     [MenuItem("Rogue/Bootstrap Prototype Scene")]
     public static void CreatePrototypeScene()
+    {
+        EnsureSceneExists(PrototypeScenePath, RebuildPrototypeScene);
+    }
+
+    [MenuItem("Rogue/Force Rebuild/Prototype Scene")]
+    public static void RebuildPrototypeScene()
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -129,6 +151,27 @@ public static class ProjectBootstrap
         game.BakeSceneForEditor();
 
         EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+    }
+
+    private static void EnsureSceneExists(string scenePath, SceneBuildAction buildScene)
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(scenePath) != null)
+            return;
+
+        buildScene();
+    }
+
+    private static void SaveProjectSceneSettings()
+    {
+        EditorBuildSettings.scenes = new[]
+        {
+            new EditorBuildSettingsScene(MainMenuScenePath, true),
+            new EditorBuildSettingsScene(IntroScenePath, true),
+            new EditorBuildSettingsScene(PrototypeScenePath, true),
+        };
+        SetPlayModeStartScene(MainMenuScenePath);
+        AssetDatabase.SaveAssets();
+        AssetDatabase.Refresh();
     }
 
     private static void SetPlayModeStartScene(string scenePath)

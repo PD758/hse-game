@@ -1273,7 +1273,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (combatVfxRoot != null)
             return combatVfxRoot;
 
-        GameObject root = GameObject.Find("Combat VFX");
+        GameObject root = FindSceneObjectIncludingInactive("Combat VFX");
         if (root == null)
             root = new GameObject("Combat VFX");
         combatVfxRoot = root.transform;
@@ -1309,7 +1309,7 @@ public sealed class PrototypeGame : MonoBehaviour
             combatVfxRoot = null;
         }
 
-        GameObject staleRoot = GameObject.Find("Combat VFX");
+        GameObject staleRoot = FindSceneObjectIncludingInactive("Combat VFX");
         if (staleRoot != null)
             Destroy(staleRoot);
     }
@@ -1822,7 +1822,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool BindSceneViews()
     {
-        Transform tileRoot = GameObject.Find("Tiles")?.transform;
+        Transform tileRoot = FindSceneObjectIncludingInactive("Tiles")?.transform;
         if (tileRoot == null)
             return false;
 
@@ -1838,7 +1838,7 @@ public sealed class PrototypeGame : MonoBehaviour
             }
         }
 
-        playerView = GameObject.Find("Player");
+        playerView = FindSceneObjectIncludingInactive("Player");
         if (playerView == null)
             return false;
 
@@ -1862,26 +1862,39 @@ public sealed class PrototypeGame : MonoBehaviour
         for (int i = 0; i < stones.Count; i++)
         {
             Stone stone = stones[i];
-            stone.View = GameObject.Find($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
+            stone.View = FindSceneObjectIncludingInactive($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
             if (stone.View == null)
                 return false;
 
             stone.View.transform.position = ToWorld(stone.Cell);
+            stone.View.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
             stone.View.SetActive(true);
         }
 
         for (int i = 0; i < enemies.Count; i++)
         {
             Enemy enemy = enemies[i];
-            enemy.View = GameObject.Find($"Enemy {i}");
+            enemy.View = FindSceneObjectIncludingInactive($"Enemy {i}");
             if (enemy.View == null)
                 return false;
 
             enemy.View.transform.position = enemy.Position;
+            enemy.View.transform.localScale = Vector3.one;
             enemy.View.SetActive(true);
         }
 
         return true;
+    }
+
+    private GameObject FindSceneObjectIncludingInactive(string objectName)
+    {
+        foreach (GameObject obj in FindObjectsByType<GameObject>(FindObjectsInactive.Include))
+        {
+            if (obj.scene == gameObject.scene && obj.name == objectName)
+                return obj;
+        }
+
+        return null;
     }
 
     private static GameObject FindChildObject(Transform root, string childName)
