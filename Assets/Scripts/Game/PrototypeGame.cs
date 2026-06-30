@@ -207,6 +207,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private ChromaticAberration postProcessChromaticAberration;
     private FilmGrain postProcessFilmGrain;
     private LensDistortion postProcessLensDistortion;
+    private Bloom postProcessBloom;
     private Vector2 moveInput;
     private Vector2 currentVelocity;
     private Vector2 lastAim = Vector2.right;
@@ -2497,10 +2498,13 @@ public sealed class PrototypeGame : MonoBehaviour
     private Color OverlayColorFor(Tile tile, Vector2Int cell)
     {
         if (tile == Tile.Exit)
-            return CanUseExit() ? Color.white : new Color(0.48f, 0.55f, 0.62f, 0.72f);
+            return CanUseExit() ? new Color(1.35f, 1.58f, 1.74f, 1f) : new Color(0.48f, 0.55f, 0.62f, 0.72f);
 
         if (tile == Tile.Gate && GateOpenForCell(cell))
-            return new Color(0.78f, 0.96f, 1.00f, 0.88f);
+            return new Color(1.18f, 1.38f, 1.52f, 1f);
+
+        if (tile == Tile.Plate && StoneAt(cell) != null)
+            return new Color(1.05f, 1.34f, 1.44f, 1f);
 
         return Color.white;
     }
@@ -3324,6 +3328,16 @@ public sealed class PrototypeGame : MonoBehaviour
         postProcessLensDistortion.yMultiplier.Override(1f);
         postProcessLensDistortion.center.Override(new Vector2(0.5f, 0.5f));
         postProcessLensDistortion.scale.Override(1.012f);
+
+        postProcessBloom = postProcessProfile.Add<Bloom>(true);
+        postProcessBloom.threshold.Override(0.96f);
+        postProcessBloom.intensity.Override(0.22f);
+        postProcessBloom.scatter.Override(0.52f);
+        postProcessBloom.tint.Override(new Color(0.82f, 0.94f, 1f));
+        postProcessBloom.highQualityFiltering.Override(false);
+        postProcessBloom.filter.Override(BloomFilterMode.Kawase);
+        postProcessBloom.downscale.Override(BloomDownscaleMode.Quarter);
+        postProcessBloom.maxIterations.Override(4);
 
         postProcessVolume.isGlobal = true;
         postProcessVolume.priority = 0f;
