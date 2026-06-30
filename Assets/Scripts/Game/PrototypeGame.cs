@@ -1,9 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public sealed class PrototypeGame : MonoBehaviour
 {
@@ -108,40 +113,40 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly List<Stone> stones = new List<Stone>();
     private readonly List<Enemy> enemies = new List<Enemy>();
 
-    private Sprite floorSprite;
-    private Sprite wallSprite;
-    private Sprite wallVerticalSprite;
-    private Sprite wallCornerSprite;
-    private Sprite plateSprite;
-    private Sprite pressedPlateSprite;
-    private Sprite gateSprite;
-    private Sprite openGateSprite;
-    private Sprite exitSprite;
-    private Sprite openExitSprite;
-    private Sprite rubbleSprite;
-    private Sprite trapSprite;
-    private Sprite remoteSprite;
-    private Sprite storySprite;
-    private Sprite playerSprite;
-    private readonly Sprite[] playerIdleSprites = new Sprite[4];
-    private readonly Sprite[] playerWalkOneSprites = new Sprite[4];
-    private readonly Sprite[] playerWalkTwoSprites = new Sprite[4];
-    private readonly Sprite[] playerAttackSprites = new Sprite[4];
-    private Sprite stoneSprite;
-    private Sprite enemySprite;
-    private Sprite enemyInvestigateSprite;
-    private Sprite enemyHuntSprite;
-    private Texture2D hudTexture;
-    private Texture2D hudPanelTexture;
-    private Texture2D ratingFrameNeutralTexture;
-    private Texture2D ratingFramePuzzleTexture;
-    private Texture2D ratingFrameCombatTexture;
-    private Texture2D ratingFrameCriticalTexture;
-    private Texture2D whiteTexture;
-    private Sprite[] floorSprites = Array.Empty<Sprite>();
-    private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
+    [SerializeField] private Sprite floorSprite;
+    [SerializeField] private Sprite wallSprite;
+    [SerializeField] private Sprite wallVerticalSprite;
+    [SerializeField] private Sprite wallCornerSprite;
+    [SerializeField] private Sprite plateSprite;
+    [SerializeField] private Sprite pressedPlateSprite;
+    [SerializeField] private Sprite gateSprite;
+    [SerializeField] private Sprite openGateSprite;
+    [SerializeField] private Sprite exitSprite;
+    [SerializeField] private Sprite openExitSprite;
+    [SerializeField] private Sprite rubbleSprite;
+    [SerializeField] private Sprite trapSprite;
+    [SerializeField] private Sprite remoteSprite;
+    [SerializeField] private Sprite storySprite;
+    [SerializeField] private Sprite playerSprite;
+    [SerializeField] private Sprite[] playerIdleSprites = new Sprite[4];
+    [SerializeField] private Sprite[] playerWalkOneSprites = new Sprite[4];
+    [SerializeField] private Sprite[] playerWalkTwoSprites = new Sprite[4];
+    [SerializeField] private Sprite[] playerAttackSprites = new Sprite[4];
+    [SerializeField] private Sprite stoneSprite;
+    [SerializeField] private Sprite enemySprite;
+    [SerializeField] private Sprite enemyInvestigateSprite;
+    [SerializeField] private Sprite enemyHuntSprite;
+    [SerializeField] private Texture2D hudTexture;
+    [SerializeField] private Texture2D hudPanelTexture;
+    [SerializeField] private Texture2D ratingFrameNeutralTexture;
+    [SerializeField] private Texture2D ratingFramePuzzleTexture;
+    [SerializeField] private Texture2D ratingFrameCombatTexture;
+    [SerializeField] private Texture2D ratingFrameCriticalTexture;
+    [SerializeField] private Texture2D whiteTexture;
+    [SerializeField] private Sprite[] floorSprites = Array.Empty<Sprite>();
+    [SerializeField] private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
 
-    private GameObject playerView;
+    [SerializeField] private GameObject playerView;
     private Rigidbody2D playerBody;
     private Vector2 moveInput;
     private Vector2 currentVelocity;
@@ -169,10 +174,15 @@ public sealed class PrototypeGame : MonoBehaviour
         Application.targetFrameRate = 60;
         Physics2D.gravity = Vector2.zero;
         SetupCamera();
-        CreateSprites();
         BuildLevel();
-        CreateViews();
-        CreateLighting();
+
+        if (!HasBakedAssets() || !BindSceneViews())
+        {
+            Debug.LogError("Prototype scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
+            enabled = false;
+            return;
+        }
+
         RedrawAll();
     }
 
@@ -251,6 +261,9 @@ public sealed class PrototypeGame : MonoBehaviour
     private void OnGUI()
     {
         EnsureHudTextures();
+        if (hudTexture == null || whiteTexture == null)
+            return;
+
         GUI.color = Color.white;
         float meterWidth = Screen.width < 760 ? 44f : 54f;
         float hudWidth = Mathf.Min(900f, Screen.width - meterWidth - 28f);
@@ -415,11 +428,6 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         NarrativeRunState.Reset();
 
-        foreach (Enemy enemy in enemies)
-            Destroy(enemy.View);
-        foreach (Stone stone in stones)
-            Destroy(stone.View);
-
         enemies.Clear();
         stones.Clear();
         startPlates.Clear();
@@ -442,7 +450,13 @@ public sealed class PrototypeGame : MonoBehaviour
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
-        CreateEntityViews();
+        if (!BindSceneViews())
+        {
+            Debug.LogError("Prototype scene lost baked references. Run Rogue > Bootstrap All Scenes.");
+            enabled = false;
+            return;
+        }
+
         RedrawAll();
         RebuildTileColliders();
     }
@@ -623,6 +637,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void TryAttack()
     {
+        if (playerView == null)
+            return;
+
         MarkActivity();
         if (attackCooldown > 0f)
             return;
@@ -667,7 +684,8 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             NarrativeRunState.RecordKill();
             RestoreRating(12f);
-            Destroy(target.View);
+            if (target.View != null)
+                target.View.SetActive(false);
             enemies.Remove(target);
             UpdateBranchObjective();
         }
@@ -675,6 +693,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool TryBreakTrap(Vector2 player)
     {
+        if (playerView == null)
+            return false;
+
         Vector2Int playerCell = PlayerCell();
         Vector2Int bestCell = Vector2Int.zero;
         float best = PlayerAttackRange;
@@ -856,8 +877,14 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void UpdateEnemies(float dt)
     {
+        if (playerView == null)
+            return;
+
         foreach (Enemy enemy in enemies.ToArray())
         {
+            if (enemy.View == null)
+                continue;
+
             enemy.AttackCooldown = Mathf.Max(0f, enemy.AttackCooldown - dt);
             UpdateEnemyState(enemy);
 
@@ -880,6 +907,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
             enemy.View.transform.position = enemy.Position;
             SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
+            if (enemyRenderer == null)
+                continue;
+
             enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
             enemyRenderer.color = EnemyColor(enemy.Mode);
             if (RemoteJamActive())
@@ -925,7 +955,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2 ChooseEnemyTarget(Enemy enemy)
     {
         if (enemy.Mode == EnemyMode.Hunt)
-            return playerView.transform.position;
+            return playerView != null ? playerView.transform.position : enemy.Position;
 
         if (enemy.Mode == EnemyMode.Investigate)
             return ToWorld(enemy.LastSeen);
@@ -1076,7 +1106,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool CanEnemyEnterCell(Vector2Int cell, Enemy self)
     {
-        if (!EnemyPathPassable(cell, WorldToCell(playerView.transform.position)))
+        Vector2Int playerCell = playerView != null ? WorldToCell(playerView.transform.position) : new Vector2Int(3, 10);
+        if (!EnemyPathPassable(cell, playerCell))
             return false;
 
         Enemy occupant = EnemyAt(cell);
@@ -1143,6 +1174,9 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         foreach (Stone stone in stones)
         {
+            if (stone.View == null)
+                continue;
+
             if (!stone.Moving)
                 continue;
 
@@ -1163,6 +1197,11 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void BuildLevel()
     {
+        startPlates.Clear();
+        puzzlePlates.Clear();
+        stones.Clear();
+        enemies.Clear();
+
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Height; y++)
@@ -1210,11 +1249,17 @@ public sealed class PrototypeGame : MonoBehaviour
         AddEnemy(BranchChoice.Combat, new Vector2Int(31, 7), new Vector2Int(31, 7), new Vector2Int(21, 7), new Vector2Int(21, 3));
         AddEnemy(BranchChoice.Combat, new Vector2Int(35, 3), new Vector2Int(35, 3), new Vector2Int(28, 3));
 
-        if (playerView != null)
-        {
-            playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        ResetPlayerTransformIfBound();
+    }
+
+    private void ResetPlayerTransformIfBound()
+    {
+        if (playerView == null)
+            return;
+
+        playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        if (playerBody != null)
             playerBody.linearVelocity = Vector2.zero;
-        }
     }
 
     private void CarveRoom(int minX, int minY, int maxX, int maxY)
@@ -1291,6 +1336,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateViews()
     {
+        ThrowIfPlayingBake("CreateViews");
         var tileRoot = new GameObject("Tiles");
         for (int x = 0; x < Width; x++)
         {
@@ -1327,6 +1373,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateEntityViews()
     {
+        ThrowIfPlayingBake("CreateEntityViews");
         if (playerView == null)
         {
             playerView = new GameObject("Player");
@@ -1350,7 +1397,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         foreach (Stone stone in stones)
         {
-            GameObject view = new GameObject("Signal Blocker");
+            GameObject view = new GameObject($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
             view.transform.position = ToWorld(stone.Cell);
             view.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
             var renderer = view.AddComponent<SpriteRenderer>();
@@ -1362,9 +1409,10 @@ public sealed class PrototypeGame : MonoBehaviour
             stone.View = view;
         }
 
-        foreach (Enemy enemy in enemies)
+        for (int i = 0; i < enemies.Count; i++)
         {
-            enemy.View = new GameObject("Enemy");
+            Enemy enemy = enemies[i];
+            enemy.View = new GameObject($"Enemy {i}");
             enemy.View.transform.position = enemy.Position;
             var renderer = enemy.View.AddComponent<SpriteRenderer>();
             renderer.sprite = enemySprite;
@@ -1375,12 +1423,115 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateLighting()
     {
+        ThrowIfPlayingBake("CreateLighting");
         Urp2DLighting.AddGlobalLight(gameObject, new Color(0.64f, 0.67f, 0.70f), 0.92f);
 
         var channelLightObject = new GameObject("Channel Light");
         channelLightObject.transform.SetParent(transform);
         channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
         Urp2DLighting.AddPointLight(channelLightObject, new Color(0.62f, 0.78f, 0.94f), 0.28f, 10.0f, 1.5f);
+    }
+
+    private bool BindSceneViews()
+    {
+        Transform tileRoot = GameObject.Find("Tiles")?.transform;
+        if (tileRoot == null)
+            return false;
+
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                floorViews[x, y] = FindChildObject(tileRoot, $"Floor {x},{y}");
+                floorDecalViews[x, y] = FindChildObject(tileRoot, $"Floor Decal {x},{y}");
+                tileViews[x, y] = FindChildObject(tileRoot, $"Tile {x},{y}");
+                if (floorViews[x, y] == null || floorDecalViews[x, y] == null || tileViews[x, y] == null)
+                    return false;
+            }
+        }
+
+        playerView = GameObject.Find("Player");
+        if (playerView == null)
+            return false;
+
+        playerBody = playerView.GetComponent<Rigidbody2D>();
+        if (playerBody == null)
+            return false;
+
+        playerBody.bodyType = RigidbodyType2D.Dynamic;
+        playerBody.simulated = true;
+        playerBody.gravityScale = 0f;
+        playerBody.freezeRotation = true;
+        playerBody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+        playerBody.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+        if (playerView.TryGetComponent(out CircleCollider2D playerCollider))
+            playerCollider.enabled = true;
+
+        playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        playerBody.linearVelocity = Vector2.zero;
+
+        for (int i = 0; i < stones.Count; i++)
+        {
+            Stone stone = stones[i];
+            stone.View = GameObject.Find($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
+            if (stone.View == null)
+                return false;
+
+            stone.View.transform.position = ToWorld(stone.Cell);
+            stone.View.SetActive(true);
+        }
+
+        for (int i = 0; i < enemies.Count; i++)
+        {
+            Enemy enemy = enemies[i];
+            enemy.View = GameObject.Find($"Enemy {i}");
+            if (enemy.View == null)
+                return false;
+
+            enemy.View.transform.position = enemy.Position;
+            enemy.View.SetActive(true);
+        }
+
+        return true;
+    }
+
+    private static GameObject FindChildObject(Transform root, string childName)
+    {
+        Transform child = root.Find(childName);
+        return child == null ? null : child.gameObject;
+    }
+
+    private bool HasBakedAssets()
+    {
+        return floorSprite != null &&
+               wallSprite != null &&
+               plateSprite != null &&
+               pressedPlateSprite != null &&
+               gateSprite != null &&
+               openGateSprite != null &&
+               exitSprite != null &&
+               rubbleSprite != null &&
+               trapSprite != null &&
+               remoteSprite != null &&
+               storySprite != null &&
+               playerSprite != null &&
+               stoneSprite != null &&
+               enemySprite != null &&
+               enemyInvestigateSprite != null &&
+               enemyHuntSprite != null &&
+               hudTexture != null &&
+               whiteTexture != null &&
+               floorSprites != null &&
+               floorSprites.Length > 0 &&
+               playerIdleSprites != null &&
+               playerIdleSprites.Length == 4 &&
+               playerWalkOneSprites != null &&
+               playerWalkOneSprites.Length == 4 &&
+               playerWalkTwoSprites != null &&
+               playerWalkTwoSprites.Length == 4 &&
+               playerAttackSprites != null &&
+               playerAttackSprites.Length == 4;
     }
 
     private static void SetLitMaterial(SpriteRenderer renderer)
@@ -1399,8 +1550,14 @@ public sealed class PrototypeGame : MonoBehaviour
 
         foreach (Enemy enemy in enemies)
         {
+            if (enemy.View == null)
+                continue;
+
             enemy.View.transform.position = enemy.Position;
             SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
+            if (enemyRenderer == null)
+                continue;
+
             enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
             enemyRenderer.color = EnemyColor(enemy.Mode);
         }
@@ -1428,14 +1585,27 @@ public sealed class PrototypeGame : MonoBehaviour
 
         BoxCollider2D collider = tileViews[cell.x, cell.y].GetComponent<BoxCollider2D>();
         bool shouldCollide = IsSolidCell(cell);
-        if (shouldCollide && collider == null)
+        if (collider == null)
         {
-            collider = tileViews[cell.x, cell.y].AddComponent<BoxCollider2D>();
-            collider.size = Vector2.one;
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                collider = tileViews[cell.x, cell.y].AddComponent<BoxCollider2D>();
+                collider.size = Vector2.one;
+            }
+            else
+#endif
+            if (shouldCollide)
+            {
+                Debug.LogError($"Missing baked collider on solid tile {cell.x},{cell.y}.");
+                return;
+            }
         }
-        else if (!shouldCollide && collider != null)
+
+        if (collider != null)
         {
-            Destroy(collider);
+            collider.size = Vector2.one;
+            collider.enabled = shouldCollide;
         }
     }
 
@@ -1724,6 +1894,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Sprite CreateFixedAtlasSprite(Texture2D atlas, int row, int column, string spriteName, bool removeCellBackground = false)
     {
+        ThrowIfPlayingBake("CreateFixedAtlasSprite");
         if (atlas == null)
             throw new InvalidOperationException("Atlas texture is not assigned.");
         if (row < 0 || row >= FixedAtlasRows || column < 0 || column >= FixedAtlasColumns)
@@ -1738,6 +1909,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Texture2D CreateHudAtlasTexture(int row, int column, string textureName, bool removeCellBackground)
     {
+        ThrowIfPlayingBake("CreateHudAtlasTexture");
         if (HudAtlas == null)
             throw new InvalidOperationException("HUD atlas texture is not assigned.");
         if (row < 0 || row >= HudAtlasRows || column < 0 || column >= HudAtlasColumns)
@@ -1771,6 +1943,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private static Sprite CreateSpriteFromAtlasPixels(Texture2D atlas, int sourceX, int sourceY, int width, int height, string spriteName, float pixelsPerUnit, bool removeCellBackground)
     {
+        ThrowIfPlayingBake("CreateSpriteFromAtlasPixels");
         Color[] pixels = atlas.GetPixels(sourceX, sourceY, width, height);
         Color background = removeCellBackground ? SampleCellBackground(pixels, width, height) : Color.clear;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
@@ -1838,6 +2011,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private static Sprite CreateQuietFloorSprite()
     {
+        ThrowIfPlayingBake("CreateQuietFloorSprite");
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
@@ -1863,6 +2037,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private static Sprite CreateQuietWallSprite()
     {
+        ThrowIfPlayingBake("CreateQuietWallSprite");
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
@@ -1887,8 +2062,190 @@ public sealed class PrototypeGame : MonoBehaviour
         return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size, 0, SpriteMeshType.FullRect);
     }
 
+#if UNITY_EDITOR
+    public void BakeSceneForEditor()
+    {
+        ClearBakedSceneObjects();
+        SetupCamera();
+        CreateSprites();
+        PersistGeneratedSpritesForEditor();
+        EnsureHudTextures();
+        PersistHudTexturesForEditor();
+        BuildLevel();
+        CreateViews();
+        CreateLighting();
+        RedrawAll();
+        EditorUtility.SetDirty(this);
+    }
+
+    private void ClearBakedSceneObjects()
+    {
+        DestroySceneObject("Tiles");
+        DestroySceneObject("Player");
+        DestroySceneObject("Channel Light");
+
+        foreach (Light2D light in GetComponents<Light2D>())
+            DestroyImmediate(light);
+
+        foreach (GameObject obj in FindObjectsByType<GameObject>(FindObjectsInactive.Include))
+        {
+            if (obj.scene != gameObject.scene)
+                continue;
+
+            if (obj.name.StartsWith("Signal Blocker ", StringComparison.Ordinal) ||
+                obj.name.StartsWith("Enemy ", StringComparison.Ordinal))
+            {
+                DestroyImmediate(obj);
+            }
+        }
+    }
+
+    private static void DestroySceneObject(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        if (obj != null)
+            DestroyImmediate(obj);
+    }
+
+    private void PersistGeneratedSpritesForEditor()
+    {
+        const string folder = "Assets/Generated/Prototype/Sprites";
+        floorSprite = PersistSpriteForEditor(folder, "floor_base", floorSprite);
+        wallSprite = PersistSpriteForEditor(folder, "wall_horizontal", wallSprite);
+        wallVerticalSprite = PersistSpriteForEditor(folder, "wall_vertical", wallVerticalSprite);
+        wallCornerSprite = PersistSpriteForEditor(folder, "wall_corner", wallCornerSprite);
+        plateSprite = PersistSpriteForEditor(folder, "pressure_plate", plateSprite);
+        pressedPlateSprite = PersistSpriteForEditor(folder, "pressure_plate_pressed", pressedPlateSprite);
+        gateSprite = PersistSpriteForEditor(folder, "signal_gate_closed", gateSprite);
+        openGateSprite = PersistSpriteForEditor(folder, "signal_gate_open", openGateSprite);
+        exitSprite = PersistSpriteForEditor(folder, "tv_exit", exitSprite);
+        openExitSprite = PersistSpriteForEditor(folder, "tv_exit_open", openExitSprite);
+        rubbleSprite = PersistSpriteForEditor(folder, "rubble", rubbleSprite);
+        trapSprite = PersistSpriteForEditor(folder, "camera_trap", trapSprite);
+        remoteSprite = PersistSpriteForEditor(folder, "remote", remoteSprite);
+        storySprite = PersistSpriteForEditor(folder, "story_note", storySprite);
+        playerSprite = PersistSpriteForEditor(folder, "player_base", playerSprite);
+        stoneSprite = PersistSpriteForEditor(folder, "signal_blocker", stoneSprite);
+        enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);
+        enemyInvestigateSprite = PersistSpriteForEditor(folder, "enemy_investigate", enemyInvestigateSprite);
+        enemyHuntSprite = PersistSpriteForEditor(folder, "enemy_hunt", enemyHuntSprite);
+        floorSprites = PersistSpriteArrayForEditor(folder, "floor", floorSprites);
+        floorDecalSprites = PersistSpriteArrayForEditor(folder, "floor_decal", floorDecalSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_idle", playerIdleSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_walk_1", playerWalkOneSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_walk_2", playerWalkTwoSprites);
+        PersistPlayerSpriteArrayForEditor(folder, "player_attack", playerAttackSprites);
+    }
+
+    private void PersistHudTexturesForEditor()
+    {
+        const string folder = "Assets/Generated/Prototype/HUD";
+        hudTexture = PersistTextureForEditor(folder, "hud_fill", hudTexture);
+        hudPanelTexture = PersistTextureForEditor(folder, "hud_panel", hudPanelTexture);
+        ratingFrameNeutralTexture = PersistTextureForEditor(folder, "rating_frame_neutral", ratingFrameNeutralTexture);
+        ratingFramePuzzleTexture = PersistTextureForEditor(folder, "rating_frame_puzzle", ratingFramePuzzleTexture);
+        ratingFrameCombatTexture = PersistTextureForEditor(folder, "rating_frame_combat", ratingFrameCombatTexture);
+        ratingFrameCriticalTexture = PersistTextureForEditor(folder, "rating_frame_critical", ratingFrameCriticalTexture);
+        whiteTexture = PersistTextureForEditor(folder, "white", whiteTexture);
+    }
+
+    private static Sprite[] PersistSpriteArrayForEditor(string folder, string prefix, Sprite[] sprites)
+    {
+        if (sprites == null)
+            return Array.Empty<Sprite>();
+
+        var persisted = new Sprite[sprites.Length];
+        for (int i = 0; i < sprites.Length; i++)
+            persisted[i] = PersistSpriteForEditor(folder, $"{prefix}_{i}", sprites[i]);
+
+        return persisted;
+    }
+
+    private static void PersistPlayerSpriteArrayForEditor(string folder, string prefix, Sprite[] sprites)
+    {
+        if (sprites == null)
+            return;
+
+        for (int i = 0; i < sprites.Length; i++)
+            sprites[i] = PersistSpriteForEditor(folder, $"{prefix}_{i}", sprites[i]);
+    }
+
+    private static Sprite PersistSpriteForEditor(string folder, string assetName, Sprite sprite)
+    {
+        if (sprite == null || AssetDatabase.Contains(sprite))
+            return sprite;
+
+        Texture2D texture = CopySpriteTexture(sprite);
+        Texture2D importedTexture = PersistTextureForEditor(folder, assetName, texture);
+        UnityEngine.Object.DestroyImmediate(texture);
+
+        string path = $"{folder}/{assetName}.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path) ?? Sprite.Create(importedTexture, new Rect(0, 0, importedTexture.width, importedTexture.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+    }
+
+    private static Texture2D PersistTextureForEditor(string folder, string assetName, Texture2D texture)
+    {
+        if (texture == null || AssetDatabase.Contains(texture))
+            return texture;
+
+        EnsureAssetFolder(folder);
+        string path = $"{folder}/{assetName}.png";
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Texture2D CopySpriteTexture(Sprite sprite)
+    {
+        Rect rect = sprite.rect;
+        var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = sprite.name,
+        };
+        texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        string[] parts = folder.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+                AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
+    }
+#endif
+
     private void CreateSprites()
     {
+        ThrowIfPlayingBake("CreateSprites");
         CreateFallbackSprites();
 
         if (EnvironmentAtlas != null)
@@ -1899,6 +2256,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateFallbackSprites()
     {
+        ThrowIfPlayingBake("CreateFallbackSprites");
         floorSprite = CreateSprite(new Color(0.09f, 0.10f, 0.11f), new Color(0.15f, 0.16f, 0.18f), new Color(0.18f, 0.22f, 0.25f), SpriteMark.None);
         floorSprites = new[] { floorSprite };
         floorDecalSprites = new[]
@@ -1936,6 +2294,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private static Sprite CreateDecalSprite(Color color, SpriteMark mark)
     {
+        ThrowIfPlayingBake("CreateDecalSprite");
         const int size = 16;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
@@ -1958,6 +2317,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private static Sprite CreateSprite(Color baseColor, Color edgeColor, Color markColor, SpriteMark mark)
     {
+        ThrowIfPlayingBake("CreateSprite");
         const int size = 16;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
@@ -2085,6 +2445,12 @@ public sealed class PrototypeGame : MonoBehaviour
         Camera camera = Camera.main;
         if (camera == null)
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("Prototype scene is missing a baked Main Camera.");
+                return;
+            }
+
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
             camera = cameraObject.AddComponent<Camera>();
@@ -2190,6 +2556,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void EnsureHudTextures()
     {
+#if UNITY_EDITOR
+        if (Application.isPlaying)
+            return;
+
         if (HudAtlas != null && ratingFrameNeutralTexture == null)
         {
             try
@@ -2224,6 +2594,13 @@ public sealed class PrototypeGame : MonoBehaviour
             whiteTexture.SetPixel(0, 0, Color.white);
             whiteTexture.Apply();
         }
+#endif
+    }
+
+    private static void ThrowIfPlayingBake(string method)
+    {
+        if (Application.isPlaying)
+            throw new InvalidOperationException($"{method} is editor-bake only and must not run in Play Mode.");
     }
 
     private static void CutRatingFrameGaugeSlot(Texture2D texture)
@@ -2247,6 +2624,9 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Vector2Int PlayerCell()
     {
+        if (playerView == null)
+            return new Vector2Int(3, 10);
+
         return WorldToCell(playerView.transform.position);
     }
 
