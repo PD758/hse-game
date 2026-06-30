@@ -1,8 +1,12 @@
 using System;
+using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public sealed class IntroCutscene : MonoBehaviour
 {
@@ -13,15 +17,15 @@ public sealed class IntroCutscene : MonoBehaviour
 
     public Texture2D IntroAtlas;
 
-    private SpriteRenderer screenRenderer;
-    private SpriteRenderer glowRenderer;
-    private SpriteRenderer beamRenderer;
-    private SpriteRenderer fadeRenderer;
-    private SpriteRenderer viewerRenderer;
-    private SpriteRenderer viewerCastShadowRenderer;
-    private Light2D tvLight;
-    private Light2D pullLight;
-    private Texture2D hudTexture;
+    [SerializeField] private SpriteRenderer screenRenderer;
+    [SerializeField] private SpriteRenderer glowRenderer;
+    [SerializeField] private SpriteRenderer beamRenderer;
+    [SerializeField] private SpriteRenderer fadeRenderer;
+    [SerializeField] private SpriteRenderer viewerRenderer;
+    [SerializeField] private SpriteRenderer viewerCastShadowRenderer;
+    [SerializeField] private Light2D tvLight;
+    [SerializeField] private Light2D pullLight;
+    [SerializeField] private Texture2D hudTexture;
     private float startedAt;
 
     private void Awake()
@@ -29,7 +33,13 @@ public sealed class IntroCutscene : MonoBehaviour
         Application.targetFrameRate = 60;
         SetupCamera();
         NarrativeRunState.Reset();
-        BuildScene();
+        if (!BindSceneReferences())
+        {
+            Debug.LogError("Intro scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
+            enabled = false;
+            return;
+        }
+
         startedAt = Time.time;
     }
 
@@ -109,9 +119,14 @@ public sealed class IntroCutscene : MonoBehaviour
         float castShadow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.58f) / 0.30f));
         viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 0.42f, castShadow));
         viewerCastShadowRenderer.transform.localScale = new Vector3(1f + castShadow * 0.22f, 1f + castShadow * 0.30f, 1f);
-        tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
-        tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
-        pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
+        if (tvLight != null)
+        {
+            tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
+            tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
+        }
+
+        if (pullLight != null)
+            pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
         viewerRenderer.transform.position = Vector3.Lerp(new Vector3(0f, -1.82f, 0f), new Vector3(0f, -1.52f, 0f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.55f) / 0.35f)));
         fadeRenderer.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, 0.96f, Mathf.Clamp01((t - 0.72f) / 0.28f)));
 
@@ -122,6 +137,8 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void BuildScene()
     {
+        ThrowIfPlayingBake("BuildScene");
+        new GameObject("Intro Art");
         CreateSpriteObject("Room Floor", IntroSpriteOrFallback(0, 3, "intro_floor", CreateRoomFloorSprite()), Vector3.zero, new Vector3(2.5f, 1.6f, 1f), -10);
         CreateSpriteObject("Window Shadow", IntroSpriteOrFallback(3, 0, "intro_window_shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f))), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
         CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
@@ -148,11 +165,142 @@ public sealed class IntroCutscene : MonoBehaviour
         Urp2DLighting.AddShadowCaster(couch.gameObject);
         Urp2DLighting.AddShadowCaster(tvBody.gameObject);
         Urp2DLighting.AddShadowCaster(viewerRenderer.gameObject);
+
     }
 
-    private static SpriteRenderer CreateSpriteObject(string name, Sprite sprite, Vector3 position, Vector3 scale, int sortingOrder)
+    private bool BindSceneReferences()
     {
+        screenRenderer = FindRenderer("TV Screen");
+        glowRenderer = FindRenderer("TV Glow");
+        beamRenderer = FindRenderer("Pull Beam");
+        fadeRenderer = FindRenderer("Fade");
+        viewerRenderer = FindRenderer("Viewer");
+        viewerCastShadowRenderer = FindRenderer("Viewer Cast Shadow");
+        tvLight = screenRenderer == null ? null : screenRenderer.GetComponent<Light2D>();
+        pullLight = beamRenderer == null ? null : beamRenderer.GetComponent<Light2D>();
+
+        return screenRenderer != null &&
+               glowRenderer != null &&
+               beamRenderer != null &&
+               fadeRenderer != null &&
+               viewerRenderer != null &&
+               viewerCastShadowRenderer != null &&
+               hudTexture != null;
+    }
+
+    private static SpriteRenderer FindRenderer(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        return obj == null ? null : obj.GetComponent<SpriteRenderer>();
+    }
+
+#if UNITY_EDITOR
+    public void BakeSceneForEditor()
+    {
+        DestroySceneObject("Intro Art");
+        foreach (Light2D light in GetComponents<Light2D>())
+            DestroyImmediate(light);
+
+        SetupCamera();
+        BuildScene();
+        EnsureHudTexture();
+        PersistGeneratedSpritesForEditor();
+        hudTexture = PersistTextureForEditor("Assets/Generated/Intro/HUD", "intro_hud_panel", hudTexture);
+        BindSceneReferences();
+        EditorUtility.SetDirty(this);
+    }
+
+    private static void DestroySceneObject(string objectName)
+    {
+        GameObject obj = GameObject.Find(objectName);
+        if (obj != null)
+            DestroyImmediate(obj);
+    }
+
+    private static void PersistGeneratedSpritesForEditor()
+    {
+        const string folder = "Assets/Generated/Intro/Sprites";
+        foreach (SpriteRenderer renderer in FindObjectsByType<SpriteRenderer>(FindObjectsInactive.Exclude))
+        {
+            if (renderer.sprite != null && !AssetDatabase.Contains(renderer.sprite))
+                renderer.sprite = PersistSpriteForEditor(folder, renderer.gameObject.name, renderer.sprite);
+        }
+    }
+
+    private static Sprite PersistSpriteForEditor(string folder, string assetName, Sprite sprite)
+    {
+        Texture2D texture = CopySpriteTexture(sprite);
+        Texture2D importedTexture = PersistTextureForEditor(folder, assetName, texture);
+        DestroyImmediate(texture);
+
+        string path = $"{folder}/{assetName}.png";
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Sprite;
+            importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path) ?? Sprite.Create(importedTexture, new Rect(0, 0, importedTexture.width, importedTexture.height), new Vector2(0.5f, 0.5f), sprite.pixelsPerUnit);
+    }
+
+    private static Texture2D PersistTextureForEditor(string folder, string assetName, Texture2D texture)
+    {
+        EnsureAssetFolder(folder);
+        string path = $"{folder}/{assetName}.png";
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+
+        if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+        {
+            importer.textureType = TextureImporterType.Default;
+            importer.isReadable = true;
+            importer.mipmapEnabled = false;
+            importer.filterMode = FilterMode.Point;
+            importer.textureCompression = TextureImporterCompression.Uncompressed;
+            importer.SaveAndReimport();
+        }
+
+        return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+    }
+
+    private static Texture2D CopySpriteTexture(Sprite sprite)
+    {
+        Rect rect = sprite.rect;
+        var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            name = sprite.name,
+        };
+        texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    private static void EnsureAssetFolder(string folder)
+    {
+        string[] parts = folder.Split('/');
+        string current = parts[0];
+        for (int i = 1; i < parts.Length; i++)
+        {
+            string next = $"{current}/{parts[i]}";
+            if (!AssetDatabase.IsValidFolder(next))
+                AssetDatabase.CreateFolder(current, parts[i]);
+            current = next;
+        }
+    }
+#endif
+
+    private SpriteRenderer CreateSpriteObject(string name, Sprite sprite, Vector3 position, Vector3 scale, int sortingOrder)
+    {
+        ThrowIfPlayingBake("CreateSpriteObject");
         var obj = new GameObject(name);
+        Transform root = GameObject.Find("Intro Art")?.transform;
+        if (root != null)
+            obj.transform.SetParent(root);
         obj.transform.position = position;
         obj.transform.localScale = scale;
         var renderer = obj.AddComponent<SpriteRenderer>();
@@ -191,6 +339,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private Sprite CreateIntroAtlasSprite(int row, int column, string spriteName)
     {
+        ThrowIfPlayingBake("CreateIntroAtlasSprite");
         if (row < 0 || row >= IntroAtlasRows || column < 0 || column >= IntroAtlasColumns)
             throw new InvalidOperationException($"Intro atlas cell {column},{row} is outside 4x8 grid.");
 
@@ -232,6 +381,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateRoomFloorSprite()
     {
+        ThrowIfPlayingBake("CreateRoomFloorSprite");
         const int width = 320;
         const int height = 208;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
@@ -255,6 +405,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateCouchSprite()
     {
+        ThrowIfPlayingBake("CreateCouchSprite");
         var texture = new Texture2D(160, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         DrawRect(texture, 10, 16, 140, 34, new Color(0.230f, 0.200f, 0.214f), true);
@@ -269,6 +420,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateViewerSprite()
     {
+        ThrowIfPlayingBake("CreateViewerSprite");
         var texture = new Texture2D(48, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         Color hair = new Color(0.015f, 0.014f, 0.015f);
@@ -289,6 +441,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateTvBodySprite()
     {
+        ThrowIfPlayingBake("CreateTvBodySprite");
         var texture = new Texture2D(112, 72, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         DrawRect(texture, 10, 10, 92, 52, new Color(0.075f, 0.082f, 0.090f), true);
@@ -304,6 +457,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateStaticScreenSprite()
     {
+        ThrowIfPlayingBake("CreateStaticScreenSprite");
         const int width = 70;
         const int height = 38;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
@@ -324,6 +478,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateGlowConeSprite()
     {
+        ThrowIfPlayingBake("CreateGlowConeSprite");
         const int width = 192;
         const int height = 176;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
@@ -344,6 +499,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateBeamSprite()
     {
+        ThrowIfPlayingBake("CreateBeamSprite");
         const int width = 96;
         const int height = 160;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
@@ -365,6 +521,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateHumanCastShadowSprite()
     {
+        ThrowIfPlayingBake("CreateHumanCastShadowSprite");
         const int width = 92;
         const int height = 138;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
@@ -389,6 +546,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateSoftRectSprite(int width, int height, Color color)
     {
+        ThrowIfPlayingBake("CreateSoftRectSprite");
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         for (int x = 0; x < width; x++)
         {
@@ -405,6 +563,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateEllipseSprite(int width, int height, Color color)
     {
+        ThrowIfPlayingBake("CreateEllipseSprite");
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         for (int x = 0; x < width; x++)
         {
@@ -424,6 +583,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateRectSprite(int width, int height, Color fill, Color edge)
     {
+        ThrowIfPlayingBake("CreateRectSprite");
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, fill);
         DrawRect(texture, 0, 0, width, height, edge, false);
@@ -433,6 +593,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private static Sprite CreateSolidSprite(Color color, int worldWidth, int worldHeight)
     {
+        ThrowIfPlayingBake("CreateSolidSprite");
         var texture = new Texture2D(worldWidth * 32, worldHeight * 32, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
         Fill(texture, color);
         texture.Apply(false, false);
@@ -441,12 +602,23 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void EnsureHudTexture()
     {
+#if UNITY_EDITOR
+        if (Application.isPlaying)
+            return;
+
         if (hudTexture != null)
             return;
 
         hudTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
         hudTexture.SetPixel(0, 0, new Color(0.025f, 0.030f, 0.038f, 0.78f));
         hudTexture.Apply();
+#endif
+    }
+
+    private static void ThrowIfPlayingBake(string method)
+    {
+        if (Application.isPlaying)
+            throw new InvalidOperationException($"{method} is editor-bake only and must not run in Play Mode.");
     }
 
     private static void Fill(Texture2D texture, Color color)
@@ -509,6 +681,12 @@ public sealed class IntroCutscene : MonoBehaviour
         Camera camera = Camera.main;
         if (camera == null)
         {
+            if (Application.isPlaying)
+            {
+                Debug.LogError("Intro scene is missing a baked Main Camera.");
+                return;
+            }
+
             var cameraObject = new GameObject("Main Camera");
             cameraObject.tag = "MainCamera";
             camera = cameraObject.AddComponent<Camera>();
