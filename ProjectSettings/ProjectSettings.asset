@@ -693,11 +693,9 @@ PlayerSettings:
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
   enableDirectStorage: 0
-  cloudProjectId: 88ddf577-14de-416f-8c2f-1fcec5f874cd
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
   projectName: game
-  organizationId: hexsd83
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0
   hmiLoadingImage: {fileID: 0}
