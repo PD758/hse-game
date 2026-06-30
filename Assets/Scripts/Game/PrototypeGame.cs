@@ -36,6 +36,10 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float EnemyAggroResetDistance = 9.0f;
     private const float EnemyAggroResetDelay = 2.8f;
     private const float EnemyDirectChaseGrace = 0.55f;
+    private const float EnemyForwardSightRange = 11.5f;
+    private const float EnemySideSightRange = 4.5f;
+    private const float EnemyBackSightRange = 2.5f;
+    private const float EnemyCloseDetectionRange = 4.0f;
     private const float RemoteCooldown = 18f;
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
@@ -1409,7 +1413,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private void UpdateEnemyState(Enemy enemy, float dt)
     {
         Vector2Int enemyCell = WorldToCell(enemy.Position);
-        if (CanSeePlayer(enemyCell))
+        if (CanSeePlayer(enemy))
         {
             enemy.Mode = EnemyMode.Hunt;
             enemy.LastSeen = PlayerCell();
@@ -1620,35 +1624,68 @@ public sealed class PrototypeGame : MonoBehaviour
         return !IsSolidCell(cell) && StoneAt(cell) == null;
     }
 
-    private bool CanSeePlayer(Vector2Int from)
+    private bool CanSeePlayer(Enemy enemy)
     {
-        Vector2Int player = PlayerCell();
-        if (Manhattan(from, player) > 10)
+        if (enemy == null || playerView == null)
             return false;
 
-        if (from.x == player.x)
-        {
-            int step = Math.Sign(player.y - from.y);
-            for (int y = from.y + step; y != player.y; y += step)
-            {
-                if (BlocksSight(new Vector2Int(from.x, y)))
-                    return false;
-            }
+        Vector2 toPlayer = (Vector2)playerView.transform.position - enemy.Position;
+        float distance = toPlayer.magnitude;
+        if (distance <= 0.05f)
             return true;
+        if (distance > EnemyForwardSightRange)
+            return false;
+
+        Vector2Int enemyCell = WorldToCell(enemy.Position);
+        Vector2Int playerCell = PlayerCell();
+        if (!HasSightLine(enemyCell, playerCell))
+            return false;
+
+        if (distance <= EnemyCloseDetectionRange)
+            return true;
+
+        Vector2 look = DirectionOrFallback(enemy.LookDirection, Vector2.down);
+        float forward = Vector2.Dot(toPlayer, look);
+        Vector2 sideAxis = new Vector2(-look.y, look.x);
+        float side = Mathf.Abs(Vector2.Dot(toPlayer, sideAxis));
+        float forwardRange = forward >= 0f ? EnemyForwardSightRange : EnemyBackSightRange;
+        float forwardRatio = forward / forwardRange;
+        float sideRatio = side / EnemySideSightRange;
+        return forwardRatio * forwardRatio + sideRatio * sideRatio <= 1f;
+    }
+
+    private bool HasSightLine(Vector2Int from, Vector2Int to)
+    {
+        int x0 = from.x;
+        int y0 = from.y;
+        int x1 = to.x;
+        int y1 = to.y;
+        int dx = Mathf.Abs(x1 - x0);
+        int dy = Mathf.Abs(y1 - y0);
+        int sx = x0 < x1 ? 1 : -1;
+        int sy = y0 < y1 ? 1 : -1;
+        int error = dx - dy;
+
+        while (x0 != x1 || y0 != y1)
+        {
+            int e2 = 2 * error;
+            if (e2 > -dy)
+            {
+                error -= dy;
+                x0 += sx;
+            }
+            if (e2 < dx)
+            {
+                error += dx;
+                y0 += sy;
+            }
+
+            Vector2Int current = new Vector2Int(x0, y0);
+            if (current != to && BlocksSight(current))
+                return false;
         }
 
-        if (from.y == player.y)
-        {
-            int step = Math.Sign(player.x - from.x);
-            for (int x = from.x + step; x != player.x; x += step)
-            {
-                if (BlocksSight(new Vector2Int(x, from.y)))
-                    return false;
-            }
-            return true;
-        }
-
-        return Manhattan(from, player) <= 4;
+        return true;
     }
 
     private bool BlocksSight(Vector2Int cell)
