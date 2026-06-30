@@ -6,6 +6,7 @@
 [Bb]uilds/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+[Mm]emory[Cc]aptures/
 
 # Unity generated files
 *.csproj
@@ -13,19 +14,33 @@
 *.user
 mono_crash.mem.*.blob
 unity_bootstrap.log
+*.userprefs
 *.pidb
+*.pidb.meta
 *.booproj
 *.svd
 *.pdb
 *.mdb
 *.opendb
 *.VC.db
+*.suo
+*.tmp
+*.log
+sysinfo.txt
+crashlytics-build.properties
+
+# Unity local/developer configuration
+[Pp]roject[Ss]ettings/[Pp]ackages/
+[Pp]roject[Ss]ettings/AI.Assistant/
+[Aa]ssets/AssetStoreTools*
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+.vs/
+.fleet/
 
 # Local review captures
 gameplay_screenshots/
