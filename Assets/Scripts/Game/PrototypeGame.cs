@@ -48,6 +48,14 @@ public sealed class PrototypeGame : MonoBehaviour
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
 
+    private static readonly Vector3[] EnemyLightShape =
+    {
+        new Vector3(-0.75f, 0.35f, 0f),
+        new Vector3(0.75f, 0.35f, 0f),
+        new Vector3(1.65f, 3.8f, 0f),
+        new Vector3(-1.65f, 3.8f, 0f),
+    };
+
     private enum Tile
     {
         Floor,
@@ -1233,18 +1241,21 @@ public sealed class PrototypeGame : MonoBehaviour
     private void SpawnCameraFlash(Vector2 position, Vector2 direction)
     {
         direction = DirectionOrFallback(direction, Vector2.up);
-        CombatEffect effect = CreateCombatEffect(
-            "Camera Flash",
-            position + direction * 0.24f,
-            new Vector3(1.35f, 0.62f, 1f),
-            new Color(0.86f, 0.96f, 1f, 0.78f),
-            0.22f,
-            25);
-        effect.EndScale = new Vector3(2.4f, 0.18f, 1f);
-        effect.View.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        GameObject view = new GameObject("Camera Flash Light");
+        view.transform.SetParent(EnsureCombatVfxRoot());
+        view.transform.position = position + direction * 0.24f;
+
+        var effect = new CombatEffect
+        {
+            View = view,
+            StartScale = Vector3.one,
+            EndScale = Vector3.one,
+            Duration = 0.20f,
+        };
         effect.Light = Urp2DLighting.AddConeLight(effect.View, new Color(0.78f, 0.93f, 1f), 2.3f, 5.2f, 0.45f, 82f, 42f, direction);
         effect.LightStartIntensity = effect.Light.intensity;
         Urp2DLighting.ConfigurePointLightShadows(effect.Light, 0.55f, 0.36f, 0.62f);
+        combatEffects.Add(effect);
     }
 
     private CombatEffect CreateCombatEffect(string name, Vector2 position, Vector3 scale, Color color, float duration, int sortingOrder)
@@ -1277,7 +1288,7 @@ public sealed class PrototypeGame : MonoBehaviour
         for (int i = combatEffects.Count - 1; i >= 0; i--)
         {
             CombatEffect effect = combatEffects[i];
-            if (effect.View == null || effect.Renderer == null)
+            if (effect.View == null || (effect.Renderer == null && effect.Light == null))
             {
                 combatEffects.RemoveAt(i);
                 continue;
@@ -1292,9 +1303,12 @@ public sealed class PrototypeGame : MonoBehaviour
             if (effect.Light != null)
                 effect.Light.intensity = Mathf.Lerp(effect.LightStartIntensity, 0f, ratio);
 
-            Color color = effect.Color;
-            color.a *= 1f - ratio;
-            effect.Renderer.color = color;
+            if (effect.Renderer != null)
+            {
+                Color color = effect.Color;
+                color.a *= 1f - ratio;
+                effect.Renderer.color = color;
+            }
 
             if (ratio < 1f)
                 continue;
@@ -1864,7 +1878,7 @@ public sealed class PrototypeGame : MonoBehaviour
         var playerLightObject = new GameObject("Player Light");
         playerLightObject.transform.SetParent(playerView != null ? playerView.transform : transform);
         playerLightObject.transform.localPosition = Vector3.zero;
-        playerLight = Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.38f, 2.2f, 0.45f);
+        playerLight = Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.44f, 2.5f, 0.55f);
         Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
     }
 
@@ -1981,12 +1995,12 @@ public sealed class PrototypeGame : MonoBehaviour
             playerLightObject.transform.SetParent(playerView.transform);
         playerLightObject.transform.localPosition = Vector3.zero;
         playerLight = playerLightObject.GetComponent<Light2D>() ??
-                      Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.38f, 2.2f, 0.45f);
+                      Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.44f, 2.5f, 0.55f);
         playerLight.lightType = Light2D.LightType.Point;
         playerLight.color = new Color(0.82f, 0.94f, 1.00f);
-        playerLight.intensity = 0.38f;
-        playerLight.pointLightOuterRadius = 2.2f;
-        playerLight.pointLightInnerRadius = 0.45f;
+        playerLight.intensity = 0.44f;
+        playerLight.pointLightOuterRadius = 2.5f;
+        playerLight.pointLightInnerRadius = 0.55f;
         Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
     }
 
@@ -2023,7 +2037,7 @@ public sealed class PrototypeGame : MonoBehaviour
         lightObject.transform.localPosition = Vector3.zero;
         Light2D light = lightObject.GetComponent<Light2D>();
         if (light == null)
-            light = Urp2DLighting.AddConeLight(lightObject, Color.white, 0.42f, 3.0f, 0.25f, 62f, 28f, Vector2.down);
+            light = Urp2DLighting.AddFreeformLight(lightObject, Color.white, 0.42f, EnemyLightShape, 0.95f, Vector2.down);
         return light;
     }
 
@@ -2042,7 +2056,6 @@ public sealed class PrototypeGame : MonoBehaviour
         Vector2 direction = DirectionOrFallback(attacking ? enemy.AttackDirection : enemy.LookDirection, Vector2.down);
         Color color = hunting ? new Color(1f, 0.58f, 0.52f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.82f, 0.52f) : new Color(0.82f, 0.92f, 1f);
         float intensity = hunting ? 0.72f : enemy.Mode == EnemyMode.Investigate ? 0.55f : 0.42f;
-        float radius = hunting ? 3.6f : enemy.Mode == EnemyMode.Investigate ? 3.3f : 3.0f;
         if (RemoteJamActive())
         {
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1f), 0.72f);
@@ -2052,7 +2065,7 @@ public sealed class PrototypeGame : MonoBehaviour
         enemy.Light.transform.localPosition = Vector3.zero;
         float parentScale = Mathf.Max(0.001f, enemy.View.transform.localScale.x);
         enemy.Light.transform.localScale = Vector3.one / parentScale;
-        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.25f, 62f, 28f, direction);
+        Urp2DLighting.ConfigureFreeformLight(enemy.Light, color, intensity, EnemyLightShape, 0.95f, direction);
         Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.62f : 0.46f, 0.46f, 0.62f);
     }
 

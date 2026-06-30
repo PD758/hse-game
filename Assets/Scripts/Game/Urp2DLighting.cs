@@ -53,6 +53,13 @@ public static class Urp2DLighting
         return light;
     }
 
+    public static Light2D AddFreeformLight(GameObject owner, Color color, float intensity, Vector3[] shapePath, float falloffSize, Vector2 direction)
+    {
+        var light = owner.AddComponent<Light2D>();
+        ConfigureFreeformLight(light, color, intensity, shapePath, falloffSize, direction);
+        return light;
+    }
+
     public static ShadowCaster2D AddShadowCaster(GameObject owner)
     {
         ShadowCaster2D caster = owner.GetComponent<ShadowCaster2D>();
@@ -85,6 +92,19 @@ public static class Urp2DLighting
         light.pointLightInnerRadius = innerRadius;
         light.pointLightOuterAngle = outerAngle;
         light.pointLightInnerAngle = innerAngle;
+        RotateToward(light.transform, direction);
+    }
+
+    public static void ConfigureFreeformLight(Light2D light, Color color, float intensity, Vector3[] shapePath, float falloffSize, Vector2 direction)
+    {
+        if (light == null)
+            return;
+
+        light.lightType = Light2D.LightType.Freeform;
+        light.color = color;
+        light.intensity = intensity;
+        light.shapeLightFalloffSize = falloffSize;
+        light.SetShapePath(shapePath);
         RotateToward(light.transform, direction);
     }
 
