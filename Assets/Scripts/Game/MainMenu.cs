@@ -27,15 +27,20 @@ public sealed class MainMenu : MonoBehaviour
 
     private void OnGUI()
     {
-        EnsureStyles();
+        Vector2 guiSize = PixelGui.LogicalSize;
+        float screenWidth = guiSize.x;
+        float screenHeight = guiSize.y;
+        EnsureStyles(screenWidth);
         if (panelTexture == null || backgroundTexture == null || titleStyle == null || buttonStyle == null)
             return;
 
-        DrawBackground();
+        Matrix4x4 previousMatrix = GUI.matrix;
+        GUI.matrix = PixelGui.ScaledMatrix;
+        DrawBackground(screenWidth, screenHeight);
 
-        float panelWidth = Mathf.Min(580f, Screen.width - 32f);
+        float panelWidth = Mathf.Min(580f, screenWidth - 32f);
         float panelHeight = 500f;
-        var panel = new Rect((Screen.width - panelWidth) * 0.5f, (Screen.height - panelHeight) * 0.5f, panelWidth, panelHeight);
+        var panel = new Rect((screenWidth - panelWidth) * 0.5f, (screenHeight - panelHeight) * 0.5f, panelWidth, panelHeight);
 
         GUI.DrawTexture(panel, panelTexture);
         GUILayout.BeginArea(new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, panel.height - 48f));
@@ -53,6 +58,7 @@ public sealed class MainMenu : MonoBehaviour
         GUILayout.Space(12f);
         GUILayout.Label("В игре: WASD/стрелки движение, Space/ЛКМ атака, E взаимодействие, R перезапуск, Esc меню.", hintStyle);
         GUILayout.EndArea();
+        GUI.matrix = previousMatrix;
     }
 
     private void StartGame()
@@ -60,7 +66,7 @@ public sealed class MainMenu : MonoBehaviour
         SceneManager.LoadScene("Intro");
     }
 
-    private void EnsureStyles()
+    private void EnsureStyles(float screenWidth)
     {
 #if UNITY_EDITOR
         if (!Application.isPlaying)
@@ -70,29 +76,24 @@ public sealed class MainMenu : MonoBehaviour
         if (panelTexture == null || backgroundTexture == null)
             return;
 
-        titleStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontSize = Screen.width < 760 ? 25 : 34,
-            normal = { textColor = Color.white },
-        };
+        titleStyle ??= new GUIStyle(GUI.skin.label);
+        titleStyle.fontSize = screenWidth < 760 ? 25 : 34;
+        titleStyle.normal.textColor = Color.white;
         PixelGui.Apply(titleStyle);
-        labelStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontSize = Screen.width < 760 ? 13 : 15,
-            normal = { textColor = new Color(0.86f, 0.88f, 0.90f) },
-        };
+
+        labelStyle ??= new GUIStyle(GUI.skin.label);
+        labelStyle.fontSize = screenWidth < 760 ? 13 : 15;
+        labelStyle.normal.textColor = new Color(0.86f, 0.88f, 0.90f);
         PixelGui.Apply(labelStyle);
-        hintStyle ??= new GUIStyle(GUI.skin.label)
-        {
-            fontSize = Screen.width < 760 ? 11 : 13,
-            wordWrap = true,
-            normal = { textColor = new Color(0.68f, 0.72f, 0.76f) },
-        };
+
+        hintStyle ??= new GUIStyle(GUI.skin.label);
+        hintStyle.fontSize = screenWidth < 760 ? 11 : 13;
+        hintStyle.wordWrap = true;
+        hintStyle.normal.textColor = new Color(0.68f, 0.72f, 0.76f);
         PixelGui.Apply(hintStyle);
-        buttonStyle ??= new GUIStyle(GUI.skin.button)
-        {
-            fontSize = Screen.width < 760 ? 13 : 15,
-        };
+
+        buttonStyle ??= new GUIStyle(GUI.skin.button);
+        buttonStyle.fontSize = screenWidth < 760 ? 13 : 15;
         PixelGui.Apply(buttonStyle);
     }
 
@@ -130,11 +131,11 @@ public sealed class MainMenu : MonoBehaviour
     }
 #endif
 
-    private void DrawBackground()
+    private void DrawBackground(float screenWidth, float screenHeight)
     {
-        for (int x = 0; x < Screen.width; x += backgroundTexture.width)
+        for (int x = 0; x < screenWidth; x += backgroundTexture.width)
         {
-            for (int y = 0; y < Screen.height; y += backgroundTexture.height)
+            for (int y = 0; y < screenHeight; y += backgroundTexture.height)
                 GUI.DrawTexture(new Rect(x, y, backgroundTexture.width, backgroundTexture.height), backgroundTexture);
         }
     }

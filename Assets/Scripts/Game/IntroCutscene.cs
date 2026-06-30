@@ -68,18 +68,23 @@ public sealed class IntroCutscene : MonoBehaviour
         EnsureHudTexture();
         float t = Mathf.Clamp01((Time.time - startedAt) / Duration);
         string thought = ThoughtLine(t);
+        Matrix4x4 previousMatrix = GUI.matrix;
+        GUI.matrix = PixelGui.ScaledMatrix;
+        Vector2 guiSize = PixelGui.LogicalSize;
+        float screenWidth = guiSize.x;
+        float screenHeight = guiSize.y;
 
         if (!string.IsNullOrEmpty(thought))
         {
-            float width = Mathf.Min(760f, Screen.width - 40f);
-            var panel = new Rect((Screen.width - width) * 0.5f, 22f, width, 86f);
+            float width = Mathf.Min(760f, screenWidth - 40f);
+            var panel = new Rect((screenWidth - width) * 0.5f, 22f, width, 86f);
             GUI.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 8f, 1f)));
             GUI.DrawTexture(panel, hudTexture);
 
             var style = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = Screen.width < 760 ? 15 : 18,
+                fontSize = screenWidth < 760 ? 15 : 18,
                 wordWrap = true,
                 normal = { textColor = new Color(0.86f, 0.90f, 0.94f) },
             };
@@ -91,11 +96,12 @@ public sealed class IntroCutscene : MonoBehaviour
         var hintStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleCenter,
-            fontSize = Screen.width < 760 ? 12 : 14,
+            fontSize = screenWidth < 760 ? 12 : 14,
             normal = { textColor = new Color(0.62f, 0.66f, 0.72f, 0.82f) },
         };
         PixelGui.Apply(hintStyle);
-        GUI.Label(new Rect(12, Screen.height - 36, Screen.width - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
+        GUI.Label(new Rect(12, screenHeight - 36, screenWidth - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
+        GUI.matrix = previousMatrix;
     }
 
     private static string ThoughtLine(float t)

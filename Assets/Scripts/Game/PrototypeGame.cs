@@ -327,15 +327,21 @@ public sealed class PrototypeGame : MonoBehaviour
         if (hudTexture == null || whiteTexture == null)
             return;
 
+        Matrix4x4 previousMatrix = GUI.matrix;
+        GUI.matrix = PixelGui.ScaledMatrix;
+        Vector2 guiSize = PixelGui.LogicalSize;
+        float screenWidth = guiSize.x;
+        float screenHeight = guiSize.y;
+
         GUI.color = Color.white;
-        float meterWidth = Screen.width < 760 ? 44f : 54f;
-        float hudWidth = Mathf.Min(900f, Screen.width - meterWidth - 28f);
-        float hudHeight = Screen.width < 760 ? 118f : 104f;
+        float meterWidth = screenWidth < 760 ? 44f : 54f;
+        float hudWidth = Mathf.Min(900f, screenWidth - meterWidth - 28f);
+        float hudHeight = screenWidth < 760 ? 118f : 104f;
         GUI.DrawTexture(new Rect(10, 10, hudWidth, hudHeight), hudPanelTexture ?? hudTexture, ScaleMode.StretchToFill, true);
 
         var style = new GUIStyle(GUI.skin.label)
         {
-            fontSize = Screen.width < 760 ? 13 : 16,
+            fontSize = screenWidth < 760 ? 13 : 16,
             wordWrap = true,
             normal = { textColor = Color.white },
         };
@@ -346,17 +352,18 @@ public sealed class PrototypeGame : MonoBehaviour
 
         var hintStyle = new GUIStyle(style)
         {
-            fontSize = Screen.width < 760 ? 12 : 14,
+            fontSize = screenWidth < 760 ? 12 : 14,
             normal = { textColor = new Color(0.74f, 0.78f, 0.82f) },
         };
         PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(210, 56, hudWidth - 226f, 32), NarrativeRunState.SignalHint(), hintStyle);
 
-        string controls = Screen.width < 900
+        string controls = screenWidth < 900
             ? "WASD/стрелки: движение | Space/ЛКМ: атака | E: действие | Q: пульт | R: рестарт | Esc: меню"
             : "WASD/стрелки: двигаться | Space/ЛКМ: атаковать | E: взаимодействовать/толкать | Q: пульт | R: перезапуск | Esc: меню";
-        GUI.Label(new Rect(16, Screen.height - 50, Screen.width - 32, 44), controls, hintStyle);
-        DrawVerticalRatingMeter(new Rect(Screen.width - meterWidth - 16f, 78f, meterWidth, Mathf.Min(300f, Screen.height - 156f)));
+        GUI.Label(new Rect(16, screenHeight - 50, screenWidth - 32, 44), controls, hintStyle);
+        DrawVerticalRatingMeter(new Rect(screenWidth - meterWidth - 16f, 78f, meterWidth, Mathf.Min(300f, screenHeight - 156f)));
+        GUI.matrix = previousMatrix;
     }
 
     private void DrawStatusIcons(Rect rect)
