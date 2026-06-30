@@ -2552,13 +2552,13 @@ public sealed class PrototypeGame : MonoBehaviour
         bool right = OpenTileAdjacent(cell + Vector2Int.right);
 
         if (up && right && !down && !left)
-            return 90f;
-        if (right && down && !left && !up)
-            return 0f;
-        if (down && left && !up && !right)
-            return 270f;
-        if (left && up && !right && !down)
             return 180f;
+        if (left && up && !right && !down)
+            return 270f;
+        if (down && left && !up && !right)
+            return 0f;
+        if (right && down && !left && !up)
+            return 90f;
 
         return 0f;
     }
@@ -2684,10 +2684,13 @@ public sealed class PrototypeGame : MonoBehaviour
     private void SetPlayerSpritesFromFixedAtlas(FacingDirection direction, int row)
     {
         int index = (int)direction;
+        int walkTwoCol = direction == FacingDirection.Down ? 5 : 2;
+        int attackCol = direction == FacingDirection.Down ? 6 : 3;
+
         playerIdleSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 0, $"player_{direction}_idle");
         playerWalkOneSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 1, $"player_{direction}_walk_1");
-        playerWalkTwoSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 2, $"player_{direction}_walk_2");
-        playerAttackSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, 3, $"player_{direction}_attack");
+        playerWalkTwoSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, walkTwoCol, $"player_{direction}_walk_2");
+        playerAttackSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, attackCol, $"player_{direction}_attack");
     }
 
     private void CopyPlayerSprites(FacingDirection target, FacingDirection source)
