@@ -20,9 +20,18 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float PlayerDeceleration = 18f;
     private const float RatingCritical = 15f;
     private const float GameplayCameraSize = 4.8f;
-    private const float PlayerAttackRange = 1.85f;
-    private const float PlayerAttackConeMinDot = -0.05f;
-    private const float EnemyAttackCooldown = 1.75f;
+    private const float PlayerAttackRange = 1.75f;
+    private const float PlayerAttackConeMinDot = 0.08f;
+    private const float PlayerAttackCooldown = 0.42f;
+    private const float EnemyAttackRange = 0.96f;
+    private const float EnemyAttackConeMinDot = 0.12f;
+    private const float EnemyAttackWindup = 0.45f;
+    private const float EnemyAttackStrike = 0.12f;
+    private const float EnemyAttackRecovery = 0.76f;
+    private const float EnemyStunDuration = 0.24f;
+    private const float EnemyHitFlashDuration = 0.18f;
+    private const float EnemyKnockbackSpeed = 4.8f;
+    private const float EnemyKnockbackDamping = 14f;
     private const float RemoteCooldown = 18f;
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
@@ -97,8 +106,29 @@ public sealed class PrototypeGame : MonoBehaviour
         public Vector2Int LastSeen;
         public BranchChoice Branch;
         public int Hp = 2;
-        public float AttackCooldown;
+        public float StunTimer;
+        public float HitFlashTimer;
+        public float AttackWindupTimer;
+        public float AttackStrikeTimer;
+        public float AttackRecoveryTimer;
+        public bool AttackApplied;
+        public Vector2 AttackDirection = Vector2.down;
+        public Vector2 KnockbackVelocity;
         public GameObject View;
+        public GameObject TelegraphView;
+    }
+
+    private sealed class CombatEffect
+    {
+        public GameObject View;
+        public SpriteRenderer Renderer;
+        public Vector2 Velocity;
+        public Vector3 StartScale;
+        public Vector3 EndScale;
+        public Color Color;
+        public float Duration;
+        public float Age;
+        public float RotationSpeed;
     }
 
     private readonly Tile[,] tiles = new Tile[Width, Height];
@@ -112,6 +142,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly Queue<Vector2Int> pathQueue = new Queue<Vector2Int>();
     private readonly List<Stone> stones = new List<Stone>();
     private readonly List<Enemy> enemies = new List<Enemy>();
+    private readonly List<CombatEffect> combatEffects = new List<CombatEffect>();
 
     [SerializeField] private Sprite floorSprite;
     [SerializeField] private Sprite wallSprite;
@@ -147,6 +178,8 @@ public sealed class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
 
     [SerializeField] private GameObject playerView;
+    private Transform combatVfxRoot;
+    private Sprite effectSprite;
     private Rigidbody2D playerBody;
     private Vector2 moveInput;
     private Vector2 currentVelocity;
@@ -216,6 +249,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         UpdateStoneMotion(Time.deltaTime);
         UpdateEnemies(Time.deltaTime);
+        UpdateCombatEffects(Time.deltaTime);
         UpdateWorldInteractions();
 
         if (attackCooldown > 0f)
@@ -427,6 +461,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private void Restart()
     {
         NarrativeRunState.Reset();
+        ClearCombatRuntimeObjects();
 
         enemies.Clear();
         stones.Clear();
@@ -644,10 +679,11 @@ public sealed class PrototypeGame : MonoBehaviour
         if (attackCooldown > 0f)
             return;
 
-        attackCooldown = 0.34f;
+        attackCooldown = PlayerAttackCooldown;
         MakeNoise(PlayerCell(), 8);
         NarrativeRunState.RecordAttack();
         RestoreRating(NarrativeRunState.IsAggressive() ? 6f : 3f);
+        SpawnAttackSwing(playerView.transform.position, lastAim);
 
         Enemy target = null;
         float best = PlayerAttackRange;
@@ -675,20 +711,36 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
         }
 
+        DamageEnemy(target, player);
+    }
+
+    private void DamageEnemy(Enemy target, Vector2 player)
+    {
+        Vector2 away = target.Position - player;
+        if (away.sqrMagnitude < 0.001f)
+            away = lastAim;
+        away.Normalize();
+
         target.Hp--;
         target.Mode = EnemyMode.Hunt;
         target.LastSeen = PlayerCell();
+        target.StunTimer = EnemyStunDuration;
+        target.HitFlashTimer = EnemyHitFlashDuration;
+        target.KnockbackVelocity = away * EnemyKnockbackSpeed;
+        CancelEnemyAttack(target);
+        SpawnHitBurst(target.Position, target.Hp <= 0);
         message = target.Hp <= 0 ? "Диктор рассыпался в белый шум." : "Диктор сбился с текста.";
 
-        if (target.Hp <= 0)
-        {
-            NarrativeRunState.RecordKill();
-            RestoreRating(12f);
-            if (target.View != null)
-                target.View.SetActive(false);
-            enemies.Remove(target);
-            UpdateBranchObjective();
-        }
+        if (target.Hp > 0)
+            return;
+
+        NarrativeRunState.RecordKill();
+        RestoreRating(12f);
+        DestroyEnemyTelegraph(target);
+        if (target.View != null)
+            target.View.SetActive(false);
+        enemies.Remove(target);
+        UpdateBranchObjective();
     }
 
     private bool TryBreakTrap(Vector2 player)
@@ -731,6 +783,7 @@ public sealed class PrototypeGame : MonoBehaviour
         NarrativeRunState.RecordSignalInsight();
         RestoreRating(8f);
         RedrawTile(bestCell);
+        SpawnHitBurst(ToWorld(bestCell), true);
         message = "Камера хрустит и гаснет. Эфир на секунду теряет взгляд.";
         return true;
     }
@@ -885,7 +938,19 @@ public sealed class PrototypeGame : MonoBehaviour
             if (enemy.View == null)
                 continue;
 
-            enemy.AttackCooldown = Mathf.Max(0f, enemy.AttackCooldown - dt);
+            UpdateEnemyHitTimers(enemy, dt);
+            if (UpdateEnemyAttack(enemy, dt))
+            {
+                UpdateEnemyVisual(enemy);
+                continue;
+            }
+
+            if (UpdateEnemyKnockback(enemy, dt))
+            {
+                UpdateEnemyVisual(enemy);
+                continue;
+            }
+
             UpdateEnemyState(enemy);
 
             Vector2 target = ChooseEnemyTarget(enemy);
@@ -906,24 +971,347 @@ public sealed class PrototypeGame : MonoBehaviour
             }
 
             enemy.View.transform.position = enemy.Position;
-            SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
-            if (enemyRenderer == null)
-                continue;
+            UpdateEnemyVisual(enemy);
 
-            enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
-            enemyRenderer.color = EnemyColor(enemy.Mode);
-            if (RemoteJamActive())
-                enemyRenderer.color = Color.Lerp(enemyRenderer.color, new Color(0.48f, 0.92f, 1.00f), 0.62f);
-
-            if (!RemoteJamActive() && Vector2.Distance(enemy.Position, playerView.transform.position) <= 0.72f && enemy.AttackCooldown <= 0f)
-            {
-                enemy.AttackCooldown = EnemyAttackCooldown;
-                DamagePlayer(1, enemy.Mode == EnemyMode.Hunt ? "Диктор догоняет вас и срывает дыхание." : "Диктор бьёт микрофоном.");
-            }
+            if (!RemoteJamActive() && EnemyCanStartAttack(enemy))
+                StartEnemyAttack(enemy);
         }
 
         if (lastNoisePower > 0)
             lastNoisePower = Mathf.Max(0, lastNoisePower - Mathf.CeilToInt(dt * 2f));
+    }
+
+    private void UpdateEnemyHitTimers(Enemy enemy, float dt)
+    {
+        enemy.HitFlashTimer = Mathf.Max(0f, enemy.HitFlashTimer - dt);
+        enemy.StunTimer = Mathf.Max(0f, enemy.StunTimer - dt);
+    }
+
+    private bool UpdateEnemyKnockback(Enemy enemy, float dt)
+    {
+        bool stunned = enemy.StunTimer > 0f;
+        bool moving = enemy.KnockbackVelocity.sqrMagnitude > 0.01f;
+        if (!stunned && !moving)
+            return false;
+
+        if (moving)
+        {
+            Vector2 next = enemy.Position + enemy.KnockbackVelocity * dt;
+            if (CanEnemyOccupy(next, enemy))
+            {
+                enemy.Position = next;
+                enemy.View.transform.position = enemy.Position;
+            }
+            else
+            {
+                enemy.KnockbackVelocity = Vector2.zero;
+            }
+
+            enemy.KnockbackVelocity = Vector2.MoveTowards(enemy.KnockbackVelocity, Vector2.zero, EnemyKnockbackDamping * dt);
+        }
+
+        return stunned || moving;
+    }
+
+    private bool UpdateEnemyAttack(Enemy enemy, float dt)
+    {
+        if (enemy.AttackWindupTimer > 0f)
+        {
+            enemy.AttackWindupTimer = Mathf.Max(0f, enemy.AttackWindupTimer - dt);
+            UpdateEnemyTelegraph(enemy, false);
+            if (enemy.AttackWindupTimer <= 0f)
+            {
+                enemy.AttackStrikeTimer = EnemyAttackStrike;
+                enemy.AttackApplied = false;
+                UpdateEnemyTelegraph(enemy, true);
+            }
+
+            return true;
+        }
+
+        if (enemy.AttackStrikeTimer > 0f)
+        {
+            enemy.AttackStrikeTimer = Mathf.Max(0f, enemy.AttackStrikeTimer - dt);
+            UpdateEnemyTelegraph(enemy, true);
+            if (!enemy.AttackApplied)
+            {
+                enemy.AttackApplied = true;
+                if (!RemoteJamActive() && PlayerInEnemyAttackZone(enemy))
+                    DamagePlayer(1, enemy.Mode == EnemyMode.Hunt ? "Диктор ловит вас в кадре после замаха." : "Диктор бьёт микрофоном после паузы.");
+            }
+
+            if (enemy.AttackStrikeTimer <= 0f)
+            {
+                enemy.AttackRecoveryTimer = EnemyAttackRecovery;
+                HideEnemyTelegraph(enemy);
+            }
+
+            return true;
+        }
+
+        if (enemy.AttackRecoveryTimer > 0f)
+        {
+            enemy.AttackRecoveryTimer = Mathf.Max(0f, enemy.AttackRecoveryTimer - dt);
+            HideEnemyTelegraph(enemy);
+            return true;
+        }
+
+        HideEnemyTelegraph(enemy);
+        return false;
+    }
+
+    private bool EnemyCanStartAttack(Enemy enemy)
+    {
+        if (enemy.Mode == EnemyMode.Patrol || playerView == null)
+            return false;
+
+        return Vector2.Distance(enemy.Position, playerView.transform.position) <= EnemyAttackRange;
+    }
+
+    private void StartEnemyAttack(Enemy enemy)
+    {
+        Vector2 direction = (Vector2)playerView.transform.position - enemy.Position;
+        enemy.AttackDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector2.down;
+        enemy.AttackWindupTimer = EnemyAttackWindup;
+        enemy.AttackStrikeTimer = 0f;
+        enemy.AttackRecoveryTimer = 0f;
+        enemy.AttackApplied = false;
+        enemy.KnockbackVelocity = Vector2.zero;
+        UpdateEnemyTelegraph(enemy, false);
+    }
+
+    private void CancelEnemyAttack(Enemy enemy)
+    {
+        enemy.AttackWindupTimer = 0f;
+        enemy.AttackStrikeTimer = 0f;
+        enemy.AttackRecoveryTimer = 0f;
+        enemy.AttackApplied = false;
+        HideEnemyTelegraph(enemy);
+    }
+
+    private bool PlayerInEnemyAttackZone(Enemy enemy)
+    {
+        if (playerView == null)
+            return false;
+
+        Vector2 toPlayer = (Vector2)playerView.transform.position - enemy.Position;
+        if (toPlayer.magnitude > EnemyAttackRange)
+            return false;
+        if (toPlayer.sqrMagnitude < 0.001f)
+            return true;
+
+        Vector2 direction = enemy.AttackDirection.sqrMagnitude > 0.001f ? enemy.AttackDirection.normalized : toPlayer.normalized;
+        return Vector2.Dot(direction, toPlayer.normalized) >= EnemyAttackConeMinDot;
+    }
+
+    private void UpdateEnemyVisual(Enemy enemy)
+    {
+        SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
+        if (enemyRenderer == null)
+            return;
+
+        enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
+        Color color = EnemyColor(enemy.Mode);
+        if (RemoteJamActive())
+            color = Color.Lerp(color, new Color(0.48f, 0.92f, 1.00f), 0.62f);
+
+        if (enemy.HitFlashTimer > 0f)
+        {
+            float pulse = Mathf.PingPong(enemy.HitFlashTimer * 34f, 1f);
+            color = Color.Lerp(color, Color.white, 0.55f + pulse * 0.35f);
+        }
+
+        enemyRenderer.color = color;
+        float punch = enemy.HitFlashTimer > 0f ? Mathf.Lerp(1.0f, 1.18f, enemy.HitFlashTimer / EnemyHitFlashDuration) : 1f;
+        if (enemy.AttackWindupTimer > 0f)
+            punch += Mathf.PingPong(Time.time * 10f, 0.05f);
+        enemy.View.transform.localScale = new Vector3(punch, punch, 1f);
+    }
+
+    private void UpdateEnemyTelegraph(Enemy enemy, bool striking)
+    {
+        if (enemy.TelegraphView == null)
+            enemy.TelegraphView = CreateTelegraphView(enemy);
+
+        Vector2 direction = enemy.AttackDirection.sqrMagnitude > 0.001f ? enemy.AttackDirection.normalized : Vector2.down;
+        enemy.TelegraphView.SetActive(true);
+        enemy.TelegraphView.transform.position = enemy.Position + direction * (EnemyAttackRange * 0.48f);
+        enemy.TelegraphView.transform.localScale = new Vector3(0.62f, EnemyAttackRange * 0.92f, 1f);
+        enemy.TelegraphView.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
+
+        SpriteRenderer renderer = enemy.TelegraphView.GetComponent<SpriteRenderer>();
+        if (renderer == null)
+            return;
+
+        float windupRatio = enemy.AttackWindupTimer > 0f ? 1f - enemy.AttackWindupTimer / EnemyAttackWindup : 1f;
+        renderer.color = striking
+            ? new Color(1f, 0.18f, 0.12f, 0.58f)
+            : Color.Lerp(new Color(1f, 0.80f, 0.20f, 0.22f), new Color(1f, 0.28f, 0.14f, 0.46f), windupRatio);
+    }
+
+    private GameObject CreateTelegraphView(Enemy enemy)
+    {
+        GameObject view = new GameObject("Enemy Attack Telegraph");
+        view.transform.SetParent(EnsureCombatVfxRoot());
+        SpriteRenderer renderer = view.AddComponent<SpriteRenderer>();
+        renderer.sprite = EnsureEffectSprite();
+        renderer.sortingOrder = 14;
+        view.SetActive(false);
+        return view;
+    }
+
+    private void HideEnemyTelegraph(Enemy enemy)
+    {
+        if (enemy.TelegraphView != null)
+            enemy.TelegraphView.SetActive(false);
+    }
+
+    private void DestroyEnemyTelegraph(Enemy enemy)
+    {
+        if (enemy.TelegraphView == null)
+            return;
+
+        Destroy(enemy.TelegraphView);
+        enemy.TelegraphView = null;
+    }
+
+    private void SpawnAttackSwing(Vector2 origin, Vector2 direction)
+    {
+        if (direction.sqrMagnitude < 0.001f)
+            direction = Vector2.right;
+        direction.Normalize();
+
+        CombatEffect effect = CreateCombatEffect(
+            "Attack Swing",
+            origin + direction * 0.74f,
+            new Vector3(0.72f, 0.22f, 1f),
+            new Color(0.86f, 0.96f, 1f, 0.54f),
+            0.14f,
+            24);
+        effect.EndScale = new Vector3(1.12f, 0.08f, 1f);
+        effect.View.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+    }
+
+    private void SpawnHitBurst(Vector2 position, bool fatal)
+    {
+        int count = fatal ? 12 : 7;
+        for (int i = 0; i < count; i++)
+        {
+            float angle = (Mathf.PI * 2f) * i / count + UnityEngine.Random.Range(-0.22f, 0.22f);
+            Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            float speed = UnityEngine.Random.Range(fatal ? 1.8f : 1.1f, fatal ? 3.5f : 2.3f);
+            CombatEffect effect = CreateCombatEffect(
+                fatal ? "White Noise Burst" : "Hit Spark",
+                position + direction * UnityEngine.Random.Range(0.02f, 0.18f),
+                Vector3.one * UnityEngine.Random.Range(fatal ? 0.08f : 0.06f, fatal ? 0.18f : 0.13f),
+                fatal ? new Color(0.94f, 0.98f, 1f, 0.78f) : new Color(1f, 0.40f, 0.34f, 0.72f),
+                UnityEngine.Random.Range(fatal ? 0.28f : 0.18f, fatal ? 0.48f : 0.34f),
+                25);
+            effect.Velocity = direction * speed;
+            effect.EndScale = effect.StartScale * UnityEngine.Random.Range(0.25f, 0.55f);
+            effect.RotationSpeed = UnityEngine.Random.Range(-260f, 260f);
+        }
+    }
+
+    private CombatEffect CreateCombatEffect(string name, Vector2 position, Vector3 scale, Color color, float duration, int sortingOrder)
+    {
+        GameObject view = new GameObject(name);
+        view.transform.SetParent(EnsureCombatVfxRoot());
+        view.transform.position = position;
+        view.transform.localScale = scale;
+
+        SpriteRenderer renderer = view.AddComponent<SpriteRenderer>();
+        renderer.sprite = EnsureEffectSprite();
+        renderer.color = color;
+        renderer.sortingOrder = sortingOrder;
+
+        var effect = new CombatEffect
+        {
+            View = view,
+            Renderer = renderer,
+            StartScale = scale,
+            EndScale = scale,
+            Color = color,
+            Duration = duration,
+        };
+        combatEffects.Add(effect);
+        return effect;
+    }
+
+    private void UpdateCombatEffects(float dt)
+    {
+        for (int i = combatEffects.Count - 1; i >= 0; i--)
+        {
+            CombatEffect effect = combatEffects[i];
+            if (effect.View == null || effect.Renderer == null)
+            {
+                combatEffects.RemoveAt(i);
+                continue;
+            }
+
+            effect.Age += dt;
+            float ratio = effect.Duration <= 0f ? 1f : Mathf.Clamp01(effect.Age / effect.Duration);
+            effect.View.transform.position += (Vector3)(effect.Velocity * dt);
+            effect.View.transform.localScale = Vector3.Lerp(effect.StartScale, effect.EndScale, ratio);
+            if (Mathf.Abs(effect.RotationSpeed) > 0.01f)
+                effect.View.transform.Rotate(0f, 0f, effect.RotationSpeed * dt);
+
+            Color color = effect.Color;
+            color.a *= 1f - ratio;
+            effect.Renderer.color = color;
+
+            if (ratio < 1f)
+                continue;
+
+            Destroy(effect.View);
+            combatEffects.RemoveAt(i);
+        }
+    }
+
+    private Transform EnsureCombatVfxRoot()
+    {
+        if (combatVfxRoot != null)
+            return combatVfxRoot;
+
+        GameObject root = GameObject.Find("Combat VFX");
+        if (root == null)
+            root = new GameObject("Combat VFX");
+        combatVfxRoot = root.transform;
+        return combatVfxRoot;
+    }
+
+    private Sprite EnsureEffectSprite()
+    {
+        if (effectSprite != null)
+            return effectSprite;
+
+        EnsureHudTextures();
+        Texture2D texture = whiteTexture != null ? whiteTexture : Texture2D.whiteTexture;
+        effectSprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 1f, 0, SpriteMeshType.FullRect);
+        return effectSprite;
+    }
+
+    private void ClearCombatRuntimeObjects()
+    {
+        foreach (Enemy enemy in enemies)
+            DestroyEnemyTelegraph(enemy);
+
+        for (int i = combatEffects.Count - 1; i >= 0; i--)
+        {
+            if (combatEffects[i].View != null)
+                Destroy(combatEffects[i].View);
+        }
+        combatEffects.Clear();
+
+        if (combatVfxRoot != null)
+        {
+            Destroy(combatVfxRoot.gameObject);
+            combatVfxRoot = null;
+        }
+
+        GameObject staleRoot = GameObject.Find("Combat VFX");
+        if (staleRoot != null)
+            Destroy(staleRoot);
     }
 
     private bool RemoteJamActive()
@@ -1554,12 +1942,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 continue;
 
             enemy.View.transform.position = enemy.Position;
-            SpriteRenderer enemyRenderer = enemy.View.GetComponent<SpriteRenderer>();
-            if (enemyRenderer == null)
-                continue;
-
-            enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
-            enemyRenderer.color = EnemyColor(enemy.Mode);
+            UpdateEnemyVisual(enemy);
         }
     }
 
