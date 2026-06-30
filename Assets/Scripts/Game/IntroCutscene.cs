@@ -124,7 +124,7 @@ public sealed class IntroCutscene : MonoBehaviour
     {
         CreateSpriteObject("Room Floor", IntroSpriteOrFallback(0, 3, "intro_floor", CreateRoomFloorSprite()), Vector3.zero, new Vector3(2.5f, 1.6f, 1f), -10);
         CreateSpriteObject("Window Shadow", IntroSpriteOrFallback(3, 0, "intro_window_shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f))), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
-        CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
+        SpriteRenderer tvCabinet = CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
 
         SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", IntroSpriteOrFallback(0, 1, "intro_couch_shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f))), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
@@ -134,7 +134,7 @@ public sealed class IntroCutscene : MonoBehaviour
         viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, 0f);
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
-        SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroSpriteOrFallback(1, 0, "intro_tv_body", CreateTvBodySprite()), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
+        SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroAtlas != null ? null : CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
         screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
         glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
         beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
@@ -146,7 +146,10 @@ public sealed class IntroCutscene : MonoBehaviour
         tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.58f, 0.84f, 1.00f), 1.15f, 5.2f, 0.25f);
         pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
         Urp2DLighting.AddShadowCaster(couch.gameObject);
-        Urp2DLighting.AddShadowCaster(tvBody.gameObject);
+        if (IntroAtlas != null)
+            Urp2DLighting.AddShadowCaster(tvCabinet.gameObject);
+        else
+            Urp2DLighting.AddShadowCaster(tvBody.gameObject);
         Urp2DLighting.AddShadowCaster(viewerRenderer.gameObject);
     }
 
@@ -224,10 +227,9 @@ public sealed class IntroCutscene : MonoBehaviour
     private static bool IsChromaGreen(Color color)
     {
         float maxOther = Mathf.Max(color.r, color.b);
-        return color.g > 0.22f &&
-               color.g - maxOther > 0.10f &&
-               color.r < 0.50f &&
-               color.b < 0.50f;
+        bool isStandardGreen = color.g > 0.22f && color.g - maxOther > 0.10f && color.r < 0.50f && color.b < 0.50f;
+        bool isLimeGreen = color.g > 0.50f && color.g - color.b > 0.30f && color.r > 0.50f && color.r < 0.85f && color.b < 0.50f;
+        return isStandardGreen || isLimeGreen;
     }
 
     private static Sprite CreateRoomFloorSprite()

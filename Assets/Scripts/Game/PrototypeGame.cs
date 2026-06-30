@@ -1574,13 +1574,13 @@ public sealed class PrototypeGame : MonoBehaviour
         bool right = OpenTileAdjacent(cell + Vector2Int.right);
 
         if (up && right && !down && !left)
-            return 0f;
-        if (right && down && !left && !up)
             return 90f;
+        if (right && down && !left && !up)
+            return 0f;
         if (down && left && !up && !right)
-            return 180f;
-        if (left && up && !right && !down)
             return 270f;
+        if (left && up && !right && !down)
+            return 180f;
 
         return 0f;
     }
@@ -1830,10 +1830,9 @@ public sealed class PrototypeGame : MonoBehaviour
     private static bool IsChromaGreen(Color color)
     {
         float maxOther = Mathf.Max(color.r, color.b);
-        return color.g > 0.22f &&
-               color.g - maxOther > 0.10f &&
-               color.r < 0.50f &&
-               color.b < 0.50f;
+        bool isStandardGreen = color.g > 0.22f && color.g - maxOther > 0.10f && color.r < 0.50f && color.b < 0.50f;
+        bool isLimeGreen = color.g > 0.50f && color.g - color.b > 0.30f && color.r > 0.50f && color.r < 0.85f && color.b < 0.50f;
+        return isStandardGreen || isLimeGreen;
     }
 
     private static Sprite CreateQuietFloorSprite()
@@ -2202,7 +2201,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 CutRatingFrameGaugeSlot(ratingFramePuzzleTexture);
                 CutRatingFrameGaugeSlot(ratingFrameCombatTexture);
                 CutRatingFrameGaugeSlot(ratingFrameCriticalTexture);
-                hudPanelTexture = CreateHudAtlasTexture(1, 0, "hud_panel", false);
+                hudPanelTexture = CreateHudAtlasTexture(1, 0, "hud_panel", true);
             }
             catch (Exception ex)
             {

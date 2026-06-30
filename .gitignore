@@ -11,6 +11,8 @@
 *.csproj
 *.sln
 *.user
+mono_crash.mem.*.blob
+unity_bootstrap.log
 *.pidb
 *.booproj
 *.svd
