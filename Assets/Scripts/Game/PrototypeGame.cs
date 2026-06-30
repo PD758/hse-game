@@ -4,6 +4,7 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
@@ -191,6 +192,13 @@ public sealed class PrototypeGame : MonoBehaviour
     private Sprite effectSprite;
     private Rigidbody2D playerBody;
     private Light2D playerLight;
+    private Volume postProcessVolume;
+    private VolumeProfile postProcessProfile;
+    private Vignette postProcessVignette;
+    private ColorAdjustments postProcessColor;
+    private ChromaticAberration postProcessChromaticAberration;
+    private FilmGrain postProcessFilmGrain;
+    private LensDistortion postProcessLensDistortion;
     private Vector2 moveInput;
     private Vector2 currentVelocity;
     private Vector2 lastAim = Vector2.right;
@@ -217,6 +225,7 @@ public sealed class PrototypeGame : MonoBehaviour
         Application.targetFrameRate = 60;
         Physics2D.gravity = Vector2.zero;
         SetupCamera();
+        EnsurePostProcessing();
         BuildLevel();
 
         if (!HasBakedAssets() || !BindSceneViews())
@@ -227,6 +236,7 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         EnsureGameplayLighting();
+        UpdatePostProcessing();
         RedrawAll();
     }
 
@@ -504,6 +514,8 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         EnsureGameplayLighting();
+        EnsurePostProcessing();
+        UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
     }
@@ -572,11 +584,14 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             criticalDamageTimer = 0f;
         }
+
+        UpdatePostProcessing();
     }
 
     private void RestoreRating(float amount)
     {
         viewerRating = Mathf.Min(100f, viewerRating + amount);
+        UpdatePostProcessing();
     }
 
     private void TryInteract()
@@ -831,6 +846,7 @@ public sealed class PrototypeGame : MonoBehaviour
             MakeNoise(playerCell, 9);
             DamagePlayer(1, "Камера ослепляет вспышкой. Рейтинг вздрагивает.");
             viewerRating = Mathf.Max(0f, viewerRating - 8f);
+            UpdatePostProcessing();
             RedrawTile(playerCell);
         }
 
@@ -2110,11 +2126,11 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         float parentScale = Mathf.Max(0.001f, enemy.View.transform.localScale.x);
-        Vector3 lightOffset = new Vector3(direction.x, direction.y, 0f) * (0.70f / parentScale);
-        Vector3 beamOffset = new Vector3(direction.x, direction.y, 0f) * (0.95f / parentScale);
+        Vector3 lightOffset = new Vector3(direction.x, direction.y, 0f) * (0.45f / parentScale);
+        Vector3 beamOffset = new Vector3(direction.x, direction.y, 0f) * (0.68f / parentScale);
         enemy.Light.transform.localPosition = lightOffset;
         enemy.Light.transform.localScale = Vector3.one / parentScale;
-        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.35f, 118f, 88f, direction);
+        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.35f, 115f, 80f, direction);
         Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.32f : 0.20f, 0.62f, 0.70f);
 
         if (enemy.BeamRenderer == null)
@@ -2773,6 +2789,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         ClearBakedSceneObjects();
         SetupCamera();
+        EnsurePostProcessing();
         CreateSprites();
         PersistGeneratedSpritesForEditor();
         EnsureHudTextures();
@@ -2790,6 +2807,7 @@ public sealed class PrototypeGame : MonoBehaviour
         DestroySceneObject("Player");
         DestroySceneObject("Channel Light");
         DestroySceneObject("Player Light");
+        DestroySceneObject("Post Processing");
 
         foreach (Light2D light in GetComponents<Light2D>())
             DestroyImmediate(light);
@@ -3187,6 +3205,75 @@ public sealed class PrototypeGame : MonoBehaviour
             texture.SetPixel(x, y, color);
     }
 
+    private void EnsurePostProcessing()
+    {
+        GameObject volumeObject = GameObject.Find("Post Processing");
+        if (volumeObject == null)
+            volumeObject = new GameObject("Post Processing");
+
+        postProcessVolume = volumeObject.GetComponent<Volume>();
+        if (postProcessVolume == null)
+            postProcessVolume = volumeObject.AddComponent<Volume>();
+
+        postProcessProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+        postProcessProfile.name = "Prototype Runtime Post Processing";
+
+        postProcessVignette = postProcessProfile.Add<Vignette>(true);
+        postProcessVignette.color.Override(new Color(0.01f, 0.014f, 0.022f));
+        postProcessVignette.center.Override(new Vector2(0.5f, 0.5f));
+        postProcessVignette.rounded.Override(true);
+
+        postProcessColor = postProcessProfile.Add<ColorAdjustments>(true);
+        postProcessColor.postExposure.Override(-0.05f);
+        postProcessColor.contrast.Override(10f);
+        postProcessColor.saturation.Override(-4f);
+        postProcessColor.colorFilter.Override(new Color(0.92f, 0.97f, 1f));
+
+        postProcessChromaticAberration = postProcessProfile.Add<ChromaticAberration>(true);
+        postProcessChromaticAberration.intensity.Override(0.03f);
+
+        postProcessFilmGrain = postProcessProfile.Add<FilmGrain>(true);
+        postProcessFilmGrain.type.Override(FilmGrainLookup.Thin1);
+        postProcessFilmGrain.intensity.Override(0.10f);
+        postProcessFilmGrain.response.Override(0.78f);
+
+        postProcessLensDistortion = postProcessProfile.Add<LensDistortion>(true);
+        postProcessLensDistortion.intensity.Override(-0.025f);
+        postProcessLensDistortion.xMultiplier.Override(1f);
+        postProcessLensDistortion.yMultiplier.Override(1f);
+        postProcessLensDistortion.center.Override(new Vector2(0.5f, 0.5f));
+        postProcessLensDistortion.scale.Override(1.01f);
+
+        postProcessVolume.isGlobal = true;
+        postProcessVolume.priority = 0f;
+        postProcessVolume.weight = 1f;
+        postProcessVolume.sharedProfile = postProcessProfile;
+
+        UpdatePostProcessing();
+    }
+
+    private void UpdatePostProcessing()
+    {
+        if (postProcessVignette == null)
+            return;
+
+        float ratingDanger = 1f - Mathf.Clamp01(viewerRating / 100f);
+        float criticalPressure = viewerRating <= RatingCritical ? Mathf.InverseLerp(RatingCritical, 0f, viewerRating) : 0f;
+        float vignetteIntensity = Mathf.Lerp(0.14f, 0.42f, ratingDanger) + criticalPressure * 0.08f;
+
+        postProcessVignette.intensity.Override(Mathf.Clamp01(vignetteIntensity));
+        postProcessVignette.smoothness.Override(Mathf.Lerp(0.46f, 0.72f, ratingDanger));
+
+        if (postProcessColor != null)
+        {
+            postProcessColor.contrast.Override(Mathf.Lerp(10f, 20f, ratingDanger));
+            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -12f, ratingDanger));
+        }
+
+        if (postProcessChromaticAberration != null)
+            postProcessChromaticAberration.intensity.Override(Mathf.Lerp(0.03f, 0.10f, criticalPressure));
+    }
+
     private void SetupCamera()
     {
         Camera camera = Camera.main;
@@ -3207,6 +3294,11 @@ public sealed class PrototypeGame : MonoBehaviour
         camera.orthographicSize = GameplayCameraSize;
         camera.transform.position = new Vector3(8f, 10f, -10f);
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+
+        UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+        if (cameraData == null)
+            cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+        cameraData.renderPostProcessing = true;
     }
 
     private Sprite FloorSpriteFor(Vector2Int cell)
