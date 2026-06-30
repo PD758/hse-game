@@ -25,8 +25,14 @@ blocked_project_settings=""
 
 while IFS= read -r line; do
   case "$line" in
-    +*cloudProjectId:*|+*organizationId:*|+*C:*Users*|+*/Users/*|+*/home/*)
+    +*C:*Users*|+*/Users/*|+*/home/*)
       blocked_project_settings=1
+      ;;
+    +*cloudProjectId:*|+*organizationId:*)
+      value=$(printf '%s\n' "$line" | sed 's/^[^:]*:[[:space:]]*//')
+      if [ -n "$value" ]; then
+        blocked_project_settings=1
+      fi
       ;;
   esac
 done <<EOF
