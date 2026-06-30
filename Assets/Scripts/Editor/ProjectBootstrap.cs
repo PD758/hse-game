@@ -13,7 +13,6 @@ public static class ProjectBootstrap
     public static void CreateAllScenes()
     {
         ConfigureUrp2D();
-        ConfigureTextureImports();
         CreateMainMenuScene();
         CreateIntroScene();
         CreatePrototypeScene();
@@ -88,8 +87,7 @@ public static class ProjectBootstrap
         camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
 
         var gameObject = new GameObject("Intro Cutscene");
-        IntroCutscene intro = gameObject.AddComponent<IntroCutscene>();
-        intro.IntroAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/intro_wide_1024.jpg");
+        gameObject.AddComponent<IntroCutscene>();
 
         const string scenePath = "Assets/Scenes/Intro.unity";
         EditorSceneManager.SaveScene(scene, scenePath);
@@ -110,23 +108,10 @@ public static class ProjectBootstrap
         camera.transform.position = new Vector3(8f, 10f, -10f);
 
         var gameObject = new GameObject("Prototype Game");
-        PrototypeGame game = gameObject.AddComponent<PrototypeGame>();
-        game.CharacterAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/characters_1024.jpg");
-        game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
-        game.WallAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
-        game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
+        gameObject.AddComponent<PrototypeGame>();
 
         const string scenePath = "Assets/Scenes/Prototype.unity";
         EditorSceneManager.SaveScene(scene, scenePath);
-    }
-
-    private static void ConfigureTextureImports()
-    {
-        ConfigureReadablePointTexture("Assets/Atlases/characters_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/environment_2_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/environment_v2.png");
-        ConfigureReadablePointTexture("Assets/Atlases/hud_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/intro_wide_1024.jpg");
     }
 
     private static void EnsureFolder(string parent, string child)
@@ -163,17 +148,5 @@ public static class ProjectBootstrap
         QualitySettings.SetQualityLevel(current, false);
     }
 
-    private static void ConfigureReadablePointTexture(string path)
-    {
-        if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
-            return;
-
-        importer.textureType = TextureImporterType.Default;
-        importer.isReadable = true;
-        importer.mipmapEnabled = false;
-        importer.filterMode = FilterMode.Point;
-        importer.textureCompression = TextureImporterCompression.Uncompressed;
-        importer.SaveAndReimport();
-    }
 }
 #endif

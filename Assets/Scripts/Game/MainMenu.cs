@@ -59,23 +59,11 @@ public sealed class MainMenu : MonoBehaviour
 
         if (backgroundTexture == null)
         {
-            const int size = 32;
-            backgroundTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            backgroundTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
             };
-
-            for (int x = 0; x < size; x++)
-            {
-                for (int y = 0; y < size; y++)
-                {
-                    bool line = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-                    bool mote = (x * 7 + y * 11) % 31 == 0;
-                    Color color = line ? new Color(0.11f, 0.13f, 0.15f) : mote ? new Color(0.12f, 0.18f, 0.20f) : new Color(0.04f, 0.05f, 0.06f);
-                    backgroundTexture.SetPixel(x, y, color);
-                }
-            }
-
+            backgroundTexture.SetPixel(0, 0, new Color(0.04f, 0.05f, 0.06f));
             backgroundTexture.Apply();
         }
 
@@ -107,11 +95,7 @@ public sealed class MainMenu : MonoBehaviour
 
     private void DrawBackground()
     {
-        for (int x = 0; x < Screen.width; x += backgroundTexture.width)
-        {
-            for (int y = 0; y < Screen.height; y += backgroundTexture.height)
-                GUI.DrawTexture(new Rect(x, y, backgroundTexture.width, backgroundTexture.height), backgroundTexture);
-        }
+        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), backgroundTexture);
     }
 
     private static void SetupCamera()
