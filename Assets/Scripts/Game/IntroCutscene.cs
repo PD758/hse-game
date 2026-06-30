@@ -15,7 +15,6 @@ public sealed class IntroCutscene : MonoBehaviour
     private SpriteRenderer viewerCastShadowRenderer;
     private Light2D tvLight;
     private Light2D pullLight;
-    private Texture2D hudTexture;
     private float startedAt;
 
     private void Awake()
@@ -44,29 +43,6 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void OnGUI()
     {
-        EnsureHudTexture();
-        float t = Mathf.Clamp01((Time.time - startedAt) / Duration);
-        string thought = ThoughtLine(t);
-
-        if (!string.IsNullOrEmpty(thought))
-        {
-            float width = Mathf.Min(760f, Screen.width - 40f);
-            var panel = new Rect((Screen.width - width) * 0.5f, 22f, width, 86f);
-            GUI.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 8f, 1f)));
-            GUI.DrawTexture(panel, hudTexture);
-
-            var style = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = Screen.width < 760 ? 15 : 18,
-                wordWrap = true,
-                normal = { textColor = new Color(0.86f, 0.90f, 0.94f) },
-            };
-            PixelGui.Apply(style);
-            GUI.Label(new Rect(panel.x + 18f, panel.y + 14f, panel.width - 36f, panel.height - 22f), thought, style);
-            GUI.color = Color.white;
-        }
-
         var hintStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleCenter,
@@ -75,19 +51,6 @@ public sealed class IntroCutscene : MonoBehaviour
         };
         PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(12, Screen.height - 36, Screen.width - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
-    }
-
-    private static string ThoughtLine(float t)
-    {
-        if (t < 0.24f)
-            return "Почему все делают вид, что этот канал единственный?";
-        if (t < 0.48f)
-            return "Почему тех, кто не смотрит, будто выносят за дверь?";
-        if (t < 0.72f)
-            return "Экран становится ближе, хотя комната не двигается.";
-        if (t < 0.90f)
-            return "сон проваливается внутрь эфира";
-        return string.Empty;
     }
 
     private void AnimateScene()
@@ -243,16 +206,6 @@ public sealed class IntroCutscene : MonoBehaviour
         texture.SetPixel(0, 0, color);
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), pixelsPerUnit, 0, SpriteMeshType.FullRect);
-    }
-
-    private void EnsureHudTexture()
-    {
-        if (hudTexture != null)
-            return;
-
-        hudTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-        hudTexture.SetPixel(0, 0, new Color(0.025f, 0.030f, 0.038f, 0.78f));
-        hudTexture.Apply();
     }
 
     private static void SetupCamera()
