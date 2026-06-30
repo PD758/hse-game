@@ -2110,11 +2110,11 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         float parentScale = Mathf.Max(0.001f, enemy.View.transform.localScale.x);
-        Vector3 lightOffset = new Vector3(direction.x, direction.y, 0f) * (0.42f / parentScale);
-        Vector3 beamOffset = new Vector3(direction.x, direction.y, 0f) * (0.58f / parentScale);
+        Vector3 lightOffset = new Vector3(direction.x, direction.y, 0f) * (0.70f / parentScale);
+        Vector3 beamOffset = new Vector3(direction.x, direction.y, 0f) * (0.95f / parentScale);
         enemy.Light.transform.localPosition = lightOffset;
         enemy.Light.transform.localScale = Vector3.one / parentScale;
-        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.35f, 126f, 106f, direction);
+        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.35f, 118f, 88f, direction);
         Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.32f : 0.20f, 0.62f, 0.70f);
 
         if (enemy.BeamRenderer == null)
@@ -3016,10 +3016,10 @@ public sealed class PrototypeGame : MonoBehaviour
         for (int y = 0; y < height; y++)
         {
             float t = y / (float)(height - 1);
-            float halfWidth = Mathf.Lerp(4f, 60f, Mathf.SmoothStep(0f, 1f, t));
+            float halfWidth = Mathf.Lerp(1.5f, 60f, Mathf.SmoothStep(0f, 1f, t));
             float center = (width - 1) * 0.5f;
             float distanceFade = Mathf.SmoothStep(1f, 0.08f, t);
-            float originFade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 0.20f));
+            float originFade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.08f) / 0.28f));
             for (int x = 0; x < width; x++)
             {
                 float edge = Mathf.Abs(x - center) / halfWidth;
