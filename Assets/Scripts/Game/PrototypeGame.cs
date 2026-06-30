@@ -33,8 +33,9 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float EnemyHitFlashDuration = 0.18f;
     private const float EnemyKnockbackSpeed = 4.8f;
     private const float EnemyKnockbackDamping = 14f;
-    private const float EnemyAggroResetDistance = 7.0f;
-    private const float EnemyAggroResetDelay = 1.6f;
+    private const float EnemyAggroResetDistance = 9.0f;
+    private const float EnemyAggroResetDelay = 2.8f;
+    private const float EnemyDirectChaseGrace = 0.55f;
     private const float RemoteCooldown = 18f;
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
@@ -1446,7 +1447,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         if (enemy.Mode == EnemyMode.Hunt)
         {
-            if (playerView != null && enemy.LostSightTimer <= 0.20f)
+            if (playerView != null && enemy.LostSightTimer <= EnemyDirectChaseGrace)
                 return playerView.transform.position;
 
             return ToWorld(enemy.LastSeen);
@@ -1622,7 +1623,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private bool CanSeePlayer(Vector2Int from)
     {
         Vector2Int player = PlayerCell();
-        if (Manhattan(from, player) > 8)
+        if (Manhattan(from, player) > 10)
             return false;
 
         if (from.x == player.x)
@@ -1647,7 +1648,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return true;
         }
 
-        return Manhattan(from, player) <= 3;
+        return Manhattan(from, player) <= 4;
     }
 
     private bool BlocksSight(Vector2Int cell)
