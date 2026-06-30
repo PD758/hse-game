@@ -884,14 +884,23 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (branch == BranchChoice.Puzzle)
         {
-            BlockCells(new Vector2Int(18, 7), new Vector2Int(19, 7), new Vector2Int(20, 7), new Vector2Int(18, 8), new Vector2Int(19, 8));
+            BlockRectangle(18, 6, 20, 8);
             message = "Нижний эфир заваливается помехой. Остаётся монтажная, где придётся разбирать себя.";
         }
         else
         {
-            BlockCells(new Vector2Int(18, 13), new Vector2Int(19, 13), new Vector2Int(20, 13), new Vector2Int(18, 12), new Vector2Int(19, 12));
+            BlockRectangle(18, 12, 20, 14);
             message = "Верхний проход тухнет. Дикторы внизу встречают вашу злость аплодисментами.";
             UpdateBranchObjective();
+        }
+    }
+
+    private void BlockRectangle(int minX, int minY, int maxX, int maxY)
+    {
+        for (int x = minX; x <= maxX; x++)
+        {
+            for (int y = minY; y <= maxY; y++)
+                BlockCells(new Vector2Int(x, y));
         }
     }
 
