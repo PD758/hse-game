@@ -40,6 +40,7 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
         }
 
+        EnsureLighting();
         startedAt = Time.time;
     }
 
@@ -162,6 +163,7 @@ public sealed class IntroCutscene : MonoBehaviour
         Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
         tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.58f, 0.84f, 1.00f), 1.15f, 5.2f, 0.25f);
         pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
+        EnsureLighting();
         Urp2DLighting.AddShadowCaster(couch.gameObject);
         if (IntroAtlas != null)
             Urp2DLighting.AddShadowCaster(tvCabinet.gameObject);
@@ -189,6 +191,27 @@ public sealed class IntroCutscene : MonoBehaviour
                viewerRenderer != null &&
                viewerCastShadowRenderer != null &&
                hudTexture != null;
+    }
+
+    private void EnsureLighting()
+    {
+        bool hasGlobalLight = false;
+        foreach (Light2D light in GetComponents<Light2D>())
+        {
+            if (light.lightType == Light2D.LightType.Global)
+            {
+                light.color = new Color(0.58f, 0.62f, 0.68f);
+                light.intensity = 0.52f;
+                hasGlobalLight = true;
+            }
+        }
+        if (!hasGlobalLight)
+            Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
+
+        if (tvLight != null)
+            Urp2DLighting.ConfigurePointLightShadows(tvLight, 0.72f, 0.48f, 0.64f);
+        if (pullLight != null)
+            Urp2DLighting.ConfigurePointLightShadows(pullLight, 0.45f, 0.62f, 0.70f);
     }
 
     private static SpriteRenderer FindRenderer(string objectName)

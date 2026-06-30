@@ -181,6 +181,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Transform combatVfxRoot;
     private Sprite effectSprite;
     private Rigidbody2D playerBody;
+    private Light2D playerLight;
     private Vector2 moveInput;
     private Vector2 currentVelocity;
     private Vector2 lastAim = Vector2.right;
@@ -216,6 +217,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
         }
 
+        EnsureGameplayLighting();
         RedrawAll();
     }
 
@@ -492,6 +494,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
         }
 
+        EnsureGameplayLighting();
         RedrawAll();
         RebuildTileColliders();
     }
@@ -1726,6 +1729,7 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         ThrowIfPlayingBake("CreateViews");
         var tileRoot = new GameObject("Tiles");
+        tileRoot.AddComponent<CompositeShadowCaster2D>();
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Height; y++)
@@ -1794,6 +1798,7 @@ public sealed class PrototypeGame : MonoBehaviour
             renderer.sortingOrder = 12;
             var collider = view.AddComponent<BoxCollider2D>();
             collider.size = new Vector2(0.95f, 0.95f);
+            Urp2DLighting.AddShadowCaster(view);
             stone.View = view;
         }
 
@@ -1812,12 +1817,19 @@ public sealed class PrototypeGame : MonoBehaviour
     private void CreateLighting()
     {
         ThrowIfPlayingBake("CreateLighting");
-        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.64f, 0.67f, 0.70f), 0.92f);
+        Urp2DLighting.AddGlobalLight(gameObject, new Color(0.50f, 0.55f, 0.62f), 0.42f);
 
         var channelLightObject = new GameObject("Channel Light");
         channelLightObject.transform.SetParent(transform);
         channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
-        Urp2DLighting.AddPointLight(channelLightObject, new Color(0.62f, 0.78f, 0.94f), 0.28f, 10.0f, 1.5f);
+        Light2D channelLight = Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.42f, 12.0f, 2.2f);
+        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.48f, 0.38f, 0.58f);
+
+        var playerLightObject = new GameObject("Player Light");
+        playerLightObject.transform.SetParent(playerView != null ? playerView.transform : transform);
+        playerLightObject.transform.localPosition = Vector3.zero;
+        playerLight = Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.74f, 5.4f, 1.15f);
+        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.66f, 0.55f, 0.64f);
     }
 
     private bool BindSceneViews()
@@ -1825,6 +1837,8 @@ public sealed class PrototypeGame : MonoBehaviour
         Transform tileRoot = FindSceneObjectIncludingInactive("Tiles")?.transform;
         if (tileRoot == null)
             return false;
+        if (!tileRoot.TryGetComponent(out CompositeShadowCaster2D _))
+            tileRoot.gameObject.AddComponent<CompositeShadowCaster2D>();
 
         for (int x = 0; x < Width; x++)
         {
@@ -1868,6 +1882,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
             stone.View.transform.position = ToWorld(stone.Cell);
             stone.View.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
+            Urp2DLighting.AddShadowCaster(stone.View);
             stone.View.SetActive(true);
         }
 
@@ -1884,6 +1899,57 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         return true;
+    }
+
+    private void EnsureGameplayLighting()
+    {
+        bool hasGlobalLight = false;
+        foreach (Light2D light in GetComponents<Light2D>())
+        {
+            if (light.lightType == Light2D.LightType.Global)
+            {
+                light.color = new Color(0.50f, 0.55f, 0.62f);
+                light.intensity = 0.42f;
+                hasGlobalLight = true;
+            }
+        }
+        if (!hasGlobalLight)
+            Urp2DLighting.AddGlobalLight(gameObject, new Color(0.50f, 0.55f, 0.62f), 0.42f);
+
+        GameObject channelLightObject = FindSceneObjectIncludingInactive("Channel Light");
+        if (channelLightObject == null)
+        {
+            channelLightObject = new GameObject("Channel Light");
+            channelLightObject.transform.SetParent(transform);
+        }
+        channelLightObject.SetActive(true);
+        channelLightObject.transform.position = new Vector3(14f, 10f, 0f);
+        Light2D channelLight = channelLightObject.GetComponent<Light2D>() ??
+                               Urp2DLighting.AddPointLight(channelLightObject, new Color(0.58f, 0.74f, 0.94f), 0.42f, 12.0f, 2.2f);
+        channelLight.lightType = Light2D.LightType.Point;
+        channelLight.color = new Color(0.58f, 0.74f, 0.94f);
+        channelLight.intensity = 0.42f;
+        channelLight.pointLightOuterRadius = 12.0f;
+        channelLight.pointLightInnerRadius = 2.2f;
+        Urp2DLighting.ConfigurePointLightShadows(channelLight, 0.48f, 0.38f, 0.58f);
+
+        GameObject playerLightObject = FindSceneObjectIncludingInactive("Player Light");
+        if (playerLightObject == null)
+        {
+            playerLightObject = new GameObject("Player Light");
+        }
+        playerLightObject.SetActive(true);
+        if (playerView != null)
+            playerLightObject.transform.SetParent(playerView.transform);
+        playerLightObject.transform.localPosition = Vector3.zero;
+        playerLight = playerLightObject.GetComponent<Light2D>() ??
+                      Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.74f, 5.4f, 1.15f);
+        playerLight.lightType = Light2D.LightType.Point;
+        playerLight.color = new Color(0.82f, 0.94f, 1.00f);
+        playerLight.intensity = 0.74f;
+        playerLight.pointLightOuterRadius = 5.4f;
+        playerLight.pointLightInnerRadius = 1.15f;
+        Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.66f, 0.55f, 0.64f);
     }
 
     private GameObject FindSceneObjectIncludingInactive(string objectName)
@@ -2003,6 +2069,28 @@ public sealed class PrototypeGame : MonoBehaviour
             collider.size = Vector2.one;
             collider.enabled = shouldCollide;
         }
+
+        ConfigureTileShadowCaster(cell);
+    }
+
+    private void ConfigureTileShadowCaster(Vector2Int cell)
+    {
+        GameObject view = tileViews[cell.x, cell.y];
+        if (view == null)
+            return;
+
+        bool blocksLight = TileBlocksLight(cell);
+        ShadowCaster2D caster = view.GetComponent<ShadowCaster2D>();
+        if (caster == null && blocksLight)
+            caster = Urp2DLighting.AddShadowCaster(view);
+        else
+            Urp2DLighting.ConfigureShadowCaster(caster, blocksLight);
+    }
+
+    private bool TileBlocksLight(Vector2Int cell)
+    {
+        Tile tile = tiles[cell.x, cell.y];
+        return tile == Tile.Wall || tile == Tile.Rubble || (tile == Tile.Gate && !GateOpenForCell(cell));
     }
 
     private void RebuildTileColliders()

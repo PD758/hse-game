@@ -48,7 +48,33 @@ public static class Urp2DLighting
 
     public static ShadowCaster2D AddShadowCaster(GameObject owner)
     {
-        return owner.AddComponent<ShadowCaster2D>();
+        ShadowCaster2D caster = owner.GetComponent<ShadowCaster2D>();
+        if (caster == null)
+            caster = owner.AddComponent<ShadowCaster2D>();
+        ConfigureShadowCaster(caster, true);
+        return caster;
+    }
+
+    public static void ConfigurePointLightShadows(Light2D light, float intensity, float softness, float softnessFalloff = 0.5f)
+    {
+        if (light == null)
+            return;
+
+        light.shadowsEnabled = intensity > 0f;
+        light.shadowIntensity = Mathf.Clamp01(intensity);
+        light.shadowSoftness = Mathf.Max(0f, softness);
+        light.shadowSoftnessFalloffIntensity = Mathf.Clamp01(softnessFalloff);
+    }
+
+    public static void ConfigureShadowCaster(ShadowCaster2D caster, bool enabled)
+    {
+        if (caster == null)
+            return;
+
+        caster.castsShadows = enabled;
+        caster.selfShadows = false;
+        caster.alphaCutoff = 0.02f;
+        caster.enabled = enabled;
     }
 
     private static Material CreateMaterial(string shaderName, string materialName)
