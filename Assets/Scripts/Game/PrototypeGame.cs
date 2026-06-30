@@ -33,6 +33,8 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float EnemyHitFlashDuration = 0.18f;
     private const float EnemyKnockbackSpeed = 4.8f;
     private const float EnemyKnockbackDamping = 14f;
+    private const float EnemyAggroResetDistance = 7.0f;
+    private const float EnemyAggroResetDelay = 1.6f;
     private const float RemoteCooldown = 18f;
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
@@ -115,6 +117,7 @@ public sealed class PrototypeGame : MonoBehaviour
         public float AttackWindupTimer;
         public float AttackStrikeTimer;
         public float AttackRecoveryTimer;
+        public float LostSightTimer;
         public bool AttackApplied;
         public Vector2 AttackDirection = Vector2.down;
         public Vector2 LookDirection = Vector2.down;
@@ -751,6 +754,7 @@ public sealed class PrototypeGame : MonoBehaviour
         target.Hp--;
         target.Mode = EnemyMode.Hunt;
         target.LastSeen = PlayerCell();
+        target.LostSightTimer = 0f;
         target.StunTimer = EnemyStunDuration;
         target.HitFlashTimer = EnemyHitFlashDuration;
         target.KnockbackVelocity = away * EnemyKnockbackSpeed;
@@ -982,7 +986,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 continue;
             }
 
-            UpdateEnemyState(enemy);
+            UpdateEnemyState(enemy, dt);
 
             Vector2 target = ChooseEnemyTarget(enemy);
             float speed = enemy.Mode == EnemyMode.Hunt ? 2.55f : enemy.Mode == EnemyMode.Investigate ? 2.1f : 1.55f;
@@ -1401,31 +1405,52 @@ public sealed class PrototypeGame : MonoBehaviour
         return remoteJamTimer > 0f;
     }
 
-    private void UpdateEnemyState(Enemy enemy)
+    private void UpdateEnemyState(Enemy enemy, float dt)
     {
         Vector2Int enemyCell = WorldToCell(enemy.Position);
         if (CanSeePlayer(enemyCell))
         {
             enemy.Mode = EnemyMode.Hunt;
             enemy.LastSeen = PlayerCell();
+            enemy.LostSightTimer = 0f;
             return;
+        }
+
+        if (enemy.Mode == EnemyMode.Hunt)
+        {
+            enemy.LostSightTimer += dt;
+            float playerDistance = playerView != null ? Vector2.Distance(enemy.Position, playerView.transform.position) : float.PositiveInfinity;
+            if (playerDistance > EnemyAggroResetDistance && enemy.LostSightTimer >= EnemyAggroResetDelay)
+            {
+                enemy.Mode = EnemyMode.Investigate;
+                CancelEnemyAttack(enemy);
+            }
         }
 
         if (lastNoisePower > 0 && Manhattan(enemyCell, lastNoiseCell) <= lastNoisePower)
         {
             enemy.Mode = EnemyMode.Investigate;
             enemy.LastSeen = lastNoiseCell;
+            enemy.LostSightTimer = 0f;
             return;
         }
 
         if (enemy.Mode != EnemyMode.Patrol && Vector2.Distance(enemy.Position, ToWorld(enemy.LastSeen)) <= 0.1f)
+        {
             enemy.Mode = EnemyMode.Patrol;
+            enemy.LostSightTimer = 0f;
+        }
     }
 
     private Vector2 ChooseEnemyTarget(Enemy enemy)
     {
         if (enemy.Mode == EnemyMode.Hunt)
-            return playerView != null ? playerView.transform.position : enemy.Position;
+        {
+            if (playerView != null && enemy.LostSightTimer <= 0.20f)
+                return playerView.transform.position;
+
+            return ToWorld(enemy.LastSeen);
+        }
 
         if (enemy.Mode == EnemyMode.Investigate)
             return ToWorld(enemy.LastSeen);
@@ -1502,7 +1527,7 @@ public sealed class PrototypeGame : MonoBehaviour
             if (current == goal)
                 break;
 
-            foreach (Vector2Int next in CardinalCells(current))
+            foreach (Vector2Int next in GoalOrderedCardinalCells(current, goal))
             {
                 if (!Inside(next))
                     continue;
@@ -2371,7 +2396,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
 
         FacingDirection direction = FacingFromAim(lastAim);
-        renderer.flipX = direction == FacingDirection.Right;
+        renderer.flipX = direction == FacingDirection.Left;
         int index = (int)direction;
         if (attackCooldown > 0.18f)
         {
@@ -3224,25 +3249,25 @@ public sealed class PrototypeGame : MonoBehaviour
         postProcessVignette.rounded.Override(true);
 
         postProcessColor = postProcessProfile.Add<ColorAdjustments>(true);
-        postProcessColor.postExposure.Override(-0.05f);
-        postProcessColor.contrast.Override(10f);
+        postProcessColor.postExposure.Override(-0.02f);
+        postProcessColor.contrast.Override(12f);
         postProcessColor.saturation.Override(-4f);
-        postProcessColor.colorFilter.Override(new Color(0.92f, 0.97f, 1f));
+        postProcessColor.colorFilter.Override(new Color(0.90f, 0.97f, 1f));
 
         postProcessChromaticAberration = postProcessProfile.Add<ChromaticAberration>(true);
-        postProcessChromaticAberration.intensity.Override(0.03f);
+        postProcessChromaticAberration.intensity.Override(0.035f);
 
         postProcessFilmGrain = postProcessProfile.Add<FilmGrain>(true);
         postProcessFilmGrain.type.Override(FilmGrainLookup.Thin1);
-        postProcessFilmGrain.intensity.Override(0.10f);
-        postProcessFilmGrain.response.Override(0.78f);
+        postProcessFilmGrain.intensity.Override(0.12f);
+        postProcessFilmGrain.response.Override(0.80f);
 
         postProcessLensDistortion = postProcessProfile.Add<LensDistortion>(true);
-        postProcessLensDistortion.intensity.Override(-0.025f);
+        postProcessLensDistortion.intensity.Override(-0.030f);
         postProcessLensDistortion.xMultiplier.Override(1f);
         postProcessLensDistortion.yMultiplier.Override(1f);
         postProcessLensDistortion.center.Override(new Vector2(0.5f, 0.5f));
-        postProcessLensDistortion.scale.Override(1.01f);
+        postProcessLensDistortion.scale.Override(1.012f);
 
         postProcessVolume.isGlobal = true;
         postProcessVolume.priority = 0f;
@@ -3259,19 +3284,20 @@ public sealed class PrototypeGame : MonoBehaviour
 
         float ratingDanger = 1f - Mathf.Clamp01(viewerRating / 100f);
         float criticalPressure = viewerRating <= RatingCritical ? Mathf.InverseLerp(RatingCritical, 0f, viewerRating) : 0f;
-        float vignetteIntensity = Mathf.Lerp(0.14f, 0.42f, ratingDanger) + criticalPressure * 0.08f;
+        float vignetteIntensity = Mathf.Lerp(0.16f, 0.48f, ratingDanger) + criticalPressure * 0.08f;
 
         postProcessVignette.intensity.Override(Mathf.Clamp01(vignetteIntensity));
-        postProcessVignette.smoothness.Override(Mathf.Lerp(0.46f, 0.72f, ratingDanger));
+        postProcessVignette.smoothness.Override(Mathf.Lerp(0.48f, 0.76f, ratingDanger));
 
         if (postProcessColor != null)
         {
-            postProcessColor.contrast.Override(Mathf.Lerp(10f, 20f, ratingDanger));
-            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -12f, ratingDanger));
+            postProcessColor.postExposure.Override(Mathf.Lerp(-0.02f, -0.10f, ratingDanger));
+            postProcessColor.contrast.Override(Mathf.Lerp(12f, 24f, ratingDanger));
+            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -14f, ratingDanger));
         }
 
         if (postProcessChromaticAberration != null)
-            postProcessChromaticAberration.intensity.Override(Mathf.Lerp(0.03f, 0.10f, criticalPressure));
+            postProcessChromaticAberration.intensity.Override(Mathf.Lerp(0.035f, 0.12f, criticalPressure));
     }
 
     private void SetupCamera()
@@ -3299,6 +3325,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (cameraData == null)
             cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
         cameraData.renderPostProcessing = true;
+        cameraData.dithering = true;
     }
 
     private Sprite FloorSpriteFor(Vector2Int cell)
@@ -3506,6 +3533,61 @@ public sealed class PrototypeGame : MonoBehaviour
         yield return cell + Vector2Int.down;
         yield return cell + Vector2Int.left;
         yield return cell + Vector2Int.right;
+    }
+
+    private IEnumerable<Vector2Int> GoalOrderedCardinalCells(Vector2Int cell, Vector2Int goal)
+    {
+        Vector2Int up = cell + Vector2Int.up;
+        Vector2Int down = cell + Vector2Int.down;
+        Vector2Int left = cell + Vector2Int.left;
+        Vector2Int right = cell + Vector2Int.right;
+        bool usedUp = false;
+        bool usedDown = false;
+        bool usedLeft = false;
+        bool usedRight = false;
+
+        for (int emitted = 0; emitted < 4; emitted++)
+        {
+            int bestSlot = -1;
+            int bestScore = int.MaxValue;
+            ConsiderPathNeighbor(up, 0, usedUp, goal, ref bestSlot, ref bestScore);
+            ConsiderPathNeighbor(down, 1, usedDown, goal, ref bestSlot, ref bestScore);
+            ConsiderPathNeighbor(left, 2, usedLeft, goal, ref bestSlot, ref bestScore);
+            ConsiderPathNeighbor(right, 3, usedRight, goal, ref bestSlot, ref bestScore);
+
+            switch (bestSlot)
+            {
+                case 0:
+                    usedUp = true;
+                    yield return up;
+                    break;
+                case 1:
+                    usedDown = true;
+                    yield return down;
+                    break;
+                case 2:
+                    usedLeft = true;
+                    yield return left;
+                    break;
+                default:
+                    usedRight = true;
+                    yield return right;
+                    break;
+            }
+        }
+    }
+
+    private static void ConsiderPathNeighbor(Vector2Int cell, int slot, bool used, Vector2Int goal, ref int bestSlot, ref int bestScore)
+    {
+        if (used)
+            return;
+
+        int score = Mathf.Abs(cell.x - goal.x) + Mathf.Abs(cell.y - goal.y);
+        if (score < bestScore)
+        {
+            bestSlot = slot;
+            bestScore = score;
+        }
     }
 
     private Stone StoneAt(Vector2Int cell)

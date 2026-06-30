@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
@@ -26,12 +27,15 @@ public sealed class IntroCutscene : MonoBehaviour
     [SerializeField] private Light2D tvLight;
     [SerializeField] private Light2D pullLight;
     [SerializeField] private Texture2D hudTexture;
+    private Volume postProcessVolume;
+    private VolumeProfile postProcessProfile;
     private float startedAt;
 
     private void Awake()
     {
         Application.targetFrameRate = 60;
         SetupCamera();
+        EnsurePostProcessing();
         NarrativeRunState.Reset();
         if (!BindSceneReferences())
         {
@@ -224,10 +228,12 @@ public sealed class IntroCutscene : MonoBehaviour
     public void BakeSceneForEditor()
     {
         DestroySceneObject("Intro Art");
+        DestroySceneObject("Post Processing");
         foreach (Light2D light in GetComponents<Light2D>())
             DestroyImmediate(light);
 
         SetupCamera();
+        EnsurePostProcessing();
         BuildScene();
         EnsureHudTexture();
         PersistGeneratedSpritesForEditor();
@@ -701,6 +707,51 @@ public sealed class IntroCutscene : MonoBehaviour
             texture.SetPixel(x, y, color);
     }
 
+    private void EnsurePostProcessing()
+    {
+        GameObject volumeObject = GameObject.Find("Post Processing");
+        if (volumeObject == null)
+            volumeObject = new GameObject("Post Processing");
+
+        postProcessVolume = volumeObject.GetComponent<Volume>();
+        if (postProcessVolume == null)
+            postProcessVolume = volumeObject.AddComponent<Volume>();
+
+        postProcessProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+        postProcessProfile.name = "Intro Runtime Post Processing";
+
+        Vignette vignette = postProcessProfile.Add<Vignette>(true);
+        vignette.color.Override(new Color(0.008f, 0.010f, 0.016f));
+        vignette.center.Override(new Vector2(0.5f, 0.5f));
+        vignette.intensity.Override(0.18f);
+        vignette.smoothness.Override(0.58f);
+        vignette.rounded.Override(true);
+
+        ColorAdjustments color = postProcessProfile.Add<ColorAdjustments>(true);
+        color.postExposure.Override(-0.04f);
+        color.contrast.Override(12f);
+        color.saturation.Override(-6f);
+        color.colorFilter.Override(new Color(0.88f, 0.95f, 1f));
+
+        ChromaticAberration chromaticAberration = postProcessProfile.Add<ChromaticAberration>(true);
+        chromaticAberration.intensity.Override(0.035f);
+
+        FilmGrain filmGrain = postProcessProfile.Add<FilmGrain>(true);
+        filmGrain.type.Override(FilmGrainLookup.Thin1);
+        filmGrain.intensity.Override(0.12f);
+        filmGrain.response.Override(0.78f);
+
+        LensDistortion lensDistortion = postProcessProfile.Add<LensDistortion>(true);
+        lensDistortion.intensity.Override(-0.025f);
+        lensDistortion.center.Override(new Vector2(0.5f, 0.5f));
+        lensDistortion.scale.Override(1.01f);
+
+        postProcessVolume.isGlobal = true;
+        postProcessVolume.priority = 0f;
+        postProcessVolume.weight = 1f;
+        postProcessVolume.sharedProfile = postProcessProfile;
+    }
+
     private static void SetupCamera()
     {
         Camera camera = Camera.main;
@@ -722,5 +773,11 @@ public sealed class IntroCutscene : MonoBehaviour
         camera.orthographic = true;
         camera.orthographicSize = 5.4f;
         camera.transform.position = new Vector3(0f, 0f, -10f);
+
+        UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
+        if (cameraData == null)
+            cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
+        cameraData.renderPostProcessing = true;
+        cameraData.dithering = true;
     }
 }

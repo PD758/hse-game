@@ -57,6 +57,7 @@ public static class ProjectBootstrap
             ResourceReloader.ReloadAllNullIn(rendererData, UniversalRenderPipelineAsset.packagePath);
             AssetDatabase.CreateAsset(rendererData, $"{urpRoot}/TVRoguelike2DRenderer.asset");
         }
+        EnsureRendererPostProcessing(rendererData);
 
         var pipeline = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineAsset>($"{urpRoot}/TVRoguelikeURP.asset");
         if (pipeline == null)
@@ -71,6 +72,34 @@ public static class ProjectBootstrap
         GraphicsSettings.defaultRenderPipeline = pipeline;
         ApplyPipelineToAllQualityLevels(pipeline);
         AssetDatabase.SaveAssets();
+    }
+
+    private static void EnsureRendererPostProcessing(Renderer2DData rendererData)
+    {
+        if (rendererData == null)
+            return;
+
+        var postProcessData = AssetDatabase.LoadAssetAtPath<PostProcessData>("Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.asset");
+        if (postProcessData == null)
+        {
+            Debug.LogError("URP default PostProcessData asset was not found; 2D post processing will stay disabled.");
+            return;
+        }
+
+        var serializedRenderer = new SerializedObject(rendererData);
+        SerializedProperty property = serializedRenderer.FindProperty("m_PostProcessData");
+        if (property == null)
+        {
+            Debug.LogError("Renderer2DData.m_PostProcessData was not found; 2D post processing will stay disabled.");
+            return;
+        }
+
+        if (property.objectReferenceValue == postProcessData)
+            return;
+
+        property.objectReferenceValue = postProcessData;
+        serializedRenderer.ApplyModifiedPropertiesWithoutUndo();
+        EditorUtility.SetDirty(rendererData);
     }
 
     [MenuItem("Rogue/Bootstrap Main Menu Scene")]
