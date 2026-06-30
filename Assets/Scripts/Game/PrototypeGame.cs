@@ -38,6 +38,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float RemoteEnemySpeedMultiplier = 0.18f;
     private const string CameraLightName = "Camera Light";
     private const string EnemyLightName = "Enemy Light";
+    private const string EnemyBeamName = "Enemy Beam";
     private const int FixedAtlasColumns = 8;
     private const int FixedAtlasRows = 8;
     private const int HudAtlasColumns = 4;
@@ -47,14 +48,6 @@ public sealed class PrototypeGame : MonoBehaviour
     public Texture2D EnvironmentAtlas;
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
-
-    private static readonly Vector3[] EnemyLightShape =
-    {
-        new Vector3(-0.75f, 0.35f, 0f),
-        new Vector3(0.75f, 0.35f, 0f),
-        new Vector3(1.65f, 3.8f, 0f),
-        new Vector3(-1.65f, 3.8f, 0f),
-    };
 
     private enum Tile
     {
@@ -128,6 +121,7 @@ public sealed class PrototypeGame : MonoBehaviour
         public GameObject View;
         public GameObject TelegraphView;
         public Light2D Light;
+        public SpriteRenderer BeamRenderer;
     }
 
     private sealed class CombatEffect
@@ -181,6 +175,7 @@ public sealed class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite enemySprite;
     [SerializeField] private Sprite enemyInvestigateSprite;
     [SerializeField] private Sprite enemyHuntSprite;
+    [SerializeField] private Sprite enemyBeamSprite;
     [SerializeField] private Texture2D hudTexture;
     [SerializeField] private Texture2D hudPanelTexture;
     [SerializeField] private Texture2D ratingFrameNeutralTexture;
@@ -746,6 +741,8 @@ public sealed class PrototypeGame : MonoBehaviour
         target.KnockbackVelocity = away * EnemyKnockbackSpeed;
         CancelEnemyAttack(target);
         SpawnHitBurst(target.Position, target.Hp <= 0);
+        if (target.Hp <= 0)
+            SpawnEnemyDeathFlash(target.Position);
         message = target.Hp <= 0 ? "Диктор рассыпался в белый шум." : "Диктор сбился с текста.";
 
         if (target.Hp > 0)
@@ -1252,9 +1249,28 @@ public sealed class PrototypeGame : MonoBehaviour
             EndScale = Vector3.one,
             Duration = 0.20f,
         };
-        effect.Light = Urp2DLighting.AddConeLight(effect.View, new Color(0.78f, 0.93f, 1f), 2.3f, 5.2f, 0.45f, 82f, 42f, direction);
+        effect.Light = Urp2DLighting.AddConeLight(effect.View, new Color(0.78f, 0.93f, 1f), 3.2f, 6.0f, 0.55f, 95f, 48f, direction);
         effect.LightStartIntensity = effect.Light.intensity;
         Urp2DLighting.ConfigurePointLightShadows(effect.Light, 0.55f, 0.36f, 0.62f);
+        combatEffects.Add(effect);
+    }
+
+    private void SpawnEnemyDeathFlash(Vector2 position)
+    {
+        GameObject view = new GameObject("Enemy Death Flash");
+        view.transform.SetParent(EnsureCombatVfxRoot());
+        view.transform.position = position;
+
+        var effect = new CombatEffect
+        {
+            View = view,
+            StartScale = Vector3.one,
+            EndScale = Vector3.one,
+            Duration = 0.20f,
+        };
+        effect.Light = Urp2DLighting.AddPointLight(view, new Color(1f, 0.62f, 0.54f), 2.0f, 3.2f, 0.35f);
+        effect.LightStartIntensity = effect.Light.intensity;
+        Urp2DLighting.ConfigurePointLightShadows(effect.Light, 0.35f, 0.42f, 0.62f);
         combatEffects.Add(effect);
     }
 
@@ -1860,6 +1876,7 @@ public sealed class PrototypeGame : MonoBehaviour
             SetLitMaterial(renderer);
             renderer.sortingOrder = 15;
             enemy.Light = EnsureEnemyLight(enemy.View);
+            enemy.BeamRenderer = EnsureEnemyBeam(enemy.View);
             ConfigureEnemyLight(enemy);
         }
     }
@@ -1946,6 +1963,7 @@ public sealed class PrototypeGame : MonoBehaviour
             enemy.View.transform.position = enemy.Position;
             enemy.View.transform.localScale = Vector3.one;
             enemy.Light = EnsureEnemyLight(enemy.View);
+            enemy.BeamRenderer = EnsureEnemyBeam(enemy.View);
             ConfigureEnemyLight(enemy);
             enemy.View.SetActive(true);
         }
@@ -2037,8 +2055,32 @@ public sealed class PrototypeGame : MonoBehaviour
         lightObject.transform.localPosition = Vector3.zero;
         Light2D light = lightObject.GetComponent<Light2D>();
         if (light == null)
-            light = Urp2DLighting.AddFreeformLight(lightObject, Color.white, 0.42f, EnemyLightShape, 0.95f, Vector2.down);
+            light = Urp2DLighting.AddConeLight(lightObject, Color.white, 0.42f, 4.2f, 0.35f, 110f, 78f, Vector2.down);
         return light;
+    }
+
+    private SpriteRenderer EnsureEnemyBeam(GameObject enemyView)
+    {
+        if (enemyView == null)
+            return null;
+
+        GameObject beamObject = FindChildObject(enemyView.transform, EnemyBeamName);
+        if (beamObject == null)
+        {
+            beamObject = new GameObject(EnemyBeamName);
+            beamObject.transform.SetParent(enemyView.transform);
+        }
+
+        beamObject.SetActive(true);
+        beamObject.transform.localPosition = Vector3.zero;
+        SpriteRenderer renderer = beamObject.GetComponent<SpriteRenderer>();
+        if (renderer == null)
+            renderer = beamObject.AddComponent<SpriteRenderer>();
+        renderer.sprite = enemyBeamSprite;
+        renderer.sortingOrder = 13;
+        if (Urp2DLighting.SpriteUnlitMaterial != null)
+            renderer.sharedMaterial = Urp2DLighting.SpriteUnlitMaterial;
+        return renderer;
     }
 
     private void ConfigureEnemyLight(Enemy enemy)
@@ -2048,6 +2090,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (enemy.Light == null)
             enemy.Light = EnsureEnemyLight(enemy.View);
+        if (enemy.BeamRenderer == null)
+            enemy.BeamRenderer = EnsureEnemyBeam(enemy.View);
         if (enemy.Light == null)
             return;
 
@@ -2056,17 +2100,29 @@ public sealed class PrototypeGame : MonoBehaviour
         Vector2 direction = DirectionOrFallback(attacking ? enemy.AttackDirection : enemy.LookDirection, Vector2.down);
         Color color = hunting ? new Color(1f, 0.58f, 0.52f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.82f, 0.52f) : new Color(0.82f, 0.92f, 1f);
         float intensity = hunting ? 0.72f : enemy.Mode == EnemyMode.Investigate ? 0.55f : 0.42f;
+        float radius = hunting ? 4.7f : enemy.Mode == EnemyMode.Investigate ? 4.4f : 4.1f;
+        Color beamColor = hunting ? new Color(1f, 0.42f, 0.34f, 0.34f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.78f, 0.38f, 0.26f) : new Color(0.72f, 0.90f, 1f, 0.20f);
         if (RemoteJamActive())
         {
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1f), 0.72f);
             intensity *= 0.36f;
+            beamColor = new Color(0.46f, 0.94f, 1f, 0.13f);
         }
 
         enemy.Light.transform.localPosition = Vector3.zero;
         float parentScale = Mathf.Max(0.001f, enemy.View.transform.localScale.x);
         enemy.Light.transform.localScale = Vector3.one / parentScale;
-        Urp2DLighting.ConfigureFreeformLight(enemy.Light, color, intensity, EnemyLightShape, 0.95f, direction);
-        Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.62f : 0.46f, 0.46f, 0.62f);
+        Urp2DLighting.ConfigureConeLight(enemy.Light, color, intensity, radius, 0.35f, 112f, 72f, direction);
+        Urp2DLighting.ConfigurePointLightShadows(enemy.Light, hunting ? 0.32f : 0.20f, 0.62f, 0.70f);
+
+        if (enemy.BeamRenderer == null)
+            return;
+
+        enemy.BeamRenderer.sprite = enemyBeamSprite;
+        enemy.BeamRenderer.color = beamColor;
+        enemy.BeamRenderer.transform.localPosition = Vector3.zero;
+        enemy.BeamRenderer.transform.localScale = Vector3.one / parentScale;
+        Urp2DLighting.RotateToward(enemy.BeamRenderer.transform, direction);
     }
 
     private static Vector2 CameraDirectionForCell(Vector2Int cell)
@@ -2121,6 +2177,7 @@ public sealed class PrototypeGame : MonoBehaviour
                enemySprite != null &&
                enemyInvestigateSprite != null &&
                enemyHuntSprite != null &&
+               enemyBeamSprite != null &&
                hudTexture != null &&
                whiteTexture != null &&
                floorSprites != null &&
@@ -2777,6 +2834,7 @@ public sealed class PrototypeGame : MonoBehaviour
         enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);
         enemyInvestigateSprite = PersistSpriteForEditor(folder, "enemy_investigate", enemyInvestigateSprite);
         enemyHuntSprite = PersistSpriteForEditor(folder, "enemy_hunt", enemyHuntSprite);
+        enemyBeamSprite = PersistSpriteForEditor(folder, "enemy_beam", enemyBeamSprite);
         floorSprites = PersistSpriteArrayForEditor(folder, "floor", floorSprites);
         floorDecalSprites = PersistSpriteArrayForEditor(folder, "floor_decal", floorDecalSprites);
         PersistPlayerSpriteArrayForEditor(folder, "player_idle", playerIdleSprites);
@@ -2938,6 +2996,44 @@ public sealed class PrototypeGame : MonoBehaviour
         enemySprite = CreateSprite(new Color(0.34f, 0.12f, 0.16f), new Color(0.12f, 0.06f, 0.08f), new Color(0.95f, 0.24f, 0.30f), SpriteMark.Enemy);
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
+        enemyBeamSprite = CreateEnemyBeamSprite();
+    }
+
+    private static Sprite CreateEnemyBeamSprite()
+    {
+        ThrowIfPlayingBake("CreateEnemyBeamSprite");
+        const int width = 128;
+        const int height = 256;
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+        };
+
+        Fill(texture, Color.clear);
+        Color beamColor = new Color(0.76f, 0.92f, 1f, 1f);
+        for (int y = 0; y < height; y++)
+        {
+            float t = y / (float)(height - 1);
+            float halfWidth = Mathf.Lerp(18f, 60f, t);
+            float center = (width - 1) * 0.5f;
+            float distanceFade = Mathf.SmoothStep(1f, 0.08f, t);
+            for (int x = 0; x < width; x++)
+            {
+                float edge = Mathf.Abs(x - center) / halfWidth;
+                if (edge > 1f)
+                    continue;
+
+                float sideFade = Mathf.SmoothStep(1f, 0f, edge);
+                float centerLift = Mathf.Lerp(0.62f, 1f, sideFade);
+                float alpha = 0.34f * sideFade * distanceFade * centerLift;
+                texture.SetPixel(x, y, new Color(beamColor.r, beamColor.g, beamColor.b, alpha));
+            }
+        }
+
+        texture.Apply(false, false);
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0f), 64f, 0, SpriteMeshType.FullRect);
+        sprite.name = "enemy_beam";
+        return sprite;
     }
 
     private static Sprite CreateDecalSprite(Color color, SpriteMark mark)
