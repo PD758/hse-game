@@ -107,7 +107,6 @@ public sealed class PrototypeGame : MonoBehaviour
     private Sprite enemySprite;
     private Sprite enemyInvestigateSprite;
     private Sprite enemyHuntSprite;
-    private Texture2D hudTexture;
     private Texture2D whiteTexture;
     private Sprite[] floorSprites = Array.Empty<Sprite>();
     private Sprite[] floorDecalSprites = Array.Empty<Sprite>();
@@ -224,102 +223,19 @@ public sealed class PrototypeGame : MonoBehaviour
         EnsureHudTextures();
         GUI.color = Color.white;
         float meterWidth = Screen.width < 760 ? 44f : 54f;
-        float hudWidth = Mathf.Min(900f, Screen.width - meterWidth - 28f);
-        float hudHeight = Screen.width < 760 ? 118f : 104f;
-        GUI.DrawTexture(new Rect(10, 10, hudWidth, hudHeight), hudTexture, ScaleMode.StretchToFill, true);
-
-        var style = new GUIStyle(GUI.skin.label)
-        {
-            fontSize = Screen.width < 760 ? 13 : 16,
-            wordWrap = true,
-            normal = { textColor = Color.white },
-        };
-        PixelGui.Apply(style);
-
-        DrawStatusIcons(new Rect(18, 18, 178, 28));
-        GUI.Label(new Rect(210, 16, hudWidth - 226f, 42), message, style);
-
-        var hintStyle = new GUIStyle(style)
+        var hintStyle = new GUIStyle(GUI.skin.label)
         {
             fontSize = Screen.width < 760 ? 12 : 14,
+            wordWrap = true,
             normal = { textColor = new Color(0.74f, 0.78f, 0.82f) },
         };
         PixelGui.Apply(hintStyle);
-        GUI.Label(new Rect(210, 56, hudWidth - 226f, 32), NarrativeRunState.SignalHint(), hintStyle);
 
         string controls = Screen.width < 900
             ? "WASD/стрелки: движение | Space/ЛКМ: атака | E: действие | Q: пульт | R: рестарт | Esc: меню"
             : "WASD/стрелки: двигаться | Space/ЛКМ: атаковать | E: взаимодействовать/толкать | Q: пульт | R: перезапуск | Esc: меню";
         GUI.Label(new Rect(16, Screen.height - 50, Screen.width - 32, 44), controls, hintStyle);
         DrawVerticalRatingMeter(new Rect(Screen.width - meterWidth - 16f, 78f, meterWidth, Mathf.Min(300f, Screen.height - 156f)));
-    }
-
-    private void DrawStatusIcons(Rect rect)
-    {
-        DrawHpPips(new Rect(rect.x, rect.y, 68f, rect.height));
-        DrawBranchBadge(new Rect(rect.x + 78f, rect.y, 28f, rect.height));
-        DrawRemoteBadge(new Rect(rect.x + 116f, rect.y, 38f, rect.height));
-    }
-
-    private void DrawHpPips(Rect rect)
-    {
-        for (int i = 0; i < 6; i++)
-        {
-            Rect pip = new Rect(rect.x + i * 11f, rect.y + 4f, 8f, rect.height - 8f);
-            GUI.color = i < playerHp ? new Color(0.92f, 0.96f, 1f, 0.96f) : new Color(0.18f, 0.20f, 0.23f, 0.92f);
-            GUI.DrawTexture(pip, whiteTexture);
-            GUI.color = new Color(0f, 0f, 0f, 0.42f);
-            GUI.DrawTexture(new Rect(pip.x, pip.y, pip.width, 1f), whiteTexture);
-        }
-        GUI.color = Color.white;
-    }
-
-    private void DrawBranchBadge(Rect rect)
-    {
-        GUI.color = new Color(0.05f, 0.06f, 0.07f, 0.88f);
-        GUI.DrawTexture(rect, whiteTexture);
-
-        Color color = NarrativeRunState.Branch switch
-        {
-            BranchChoice.Puzzle => new Color(0.48f, 0.86f, 1f, 0.95f),
-            BranchChoice.Combat => new Color(1f, 0.24f, 0.20f, 0.95f),
-            _ => new Color(0.50f, 0.54f, 0.60f, 0.80f),
-        };
-
-        GUI.color = color;
-        if (NarrativeRunState.Branch == BranchChoice.Combat)
-        {
-            GUI.DrawTexture(new Rect(rect.x + 7f, rect.y + 6f, 4f, rect.height - 12f), whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x + 17f, rect.y + 6f, 4f, rect.height - 12f), whiteTexture);
-        }
-        else
-        {
-            GUI.DrawTexture(new Rect(rect.x + 12f, rect.y + 5f, 4f, rect.height - 10f), whiteTexture);
-            GUI.DrawTexture(new Rect(rect.x + 6f, rect.y + 12f, rect.width - 12f, 4f), whiteTexture);
-        }
-
-        GUI.color = Color.white;
-    }
-
-    private void DrawRemoteBadge(Rect rect)
-    {
-        GUI.color = hasRemote ? new Color(0.06f, 0.07f, 0.08f, 0.92f) : new Color(0.04f, 0.04f, 0.05f, 0.52f);
-        GUI.DrawTexture(rect, whiteTexture);
-
-        Rect body = new Rect(rect.x + 10f, rect.y + 5f, 18f, rect.height - 10f);
-        GUI.color = hasRemote ? new Color(0.42f, 0.47f, 0.52f, 0.96f) : new Color(0.16f, 0.17f, 0.19f, 0.72f);
-        GUI.DrawTexture(body, whiteTexture);
-        GUI.color = RemoteJamActive() ? new Color(0.50f, 0.92f, 1f, 0.96f) : new Color(0.86f, 0.18f, 0.16f, hasRemote ? 0.94f : 0.35f);
-        GUI.DrawTexture(new Rect(body.x + 11f, body.y + 3f, 4f, 4f), whiteTexture);
-
-        if (hasRemote && remoteCooldown > 0f)
-        {
-            float ratio = Mathf.Clamp01(remoteCooldown / RemoteCooldown);
-            GUI.color = new Color(0f, 0f, 0f, 0.58f);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, rect.height * ratio), whiteTexture);
-        }
-
-        GUI.color = Color.white;
     }
 
     private void DrawVerticalRatingMeter(Rect rect)
@@ -1718,13 +1634,6 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void EnsureHudTextures()
     {
-        if (hudTexture == null)
-        {
-            hudTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
-            hudTexture.SetPixel(0, 0, new Color(0.04f, 0.05f, 0.06f, 0.88f));
-            hudTexture.Apply();
-        }
-
         if (whiteTexture == null)
         {
             whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
