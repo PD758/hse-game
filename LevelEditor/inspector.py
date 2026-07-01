@@ -104,6 +104,7 @@ def draw_inspector(
             y = draw_text_field(screen, font, state, selected_ref, "requiresPlates", target.get("requiresPlates", []), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "requiresStories", target.get("requiresStories", []), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "requiresEnemies", target.get("requiresEnemies", []), x + margin, y, width - margin * 2, scale)
+            y = draw_text_field(screen, font, state, selected_ref, "requiresStats", target.get("requiresStats", []), x + margin, y, width - margin * 2, scale, multiline=True)
             y = draw_enum_buttons(screen, font, state, "frame", target.get("frame", "vertical"), FRAMES, x + margin, y, width - margin * 2, scale)
         elif obj_type == "plate":
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
@@ -120,6 +121,7 @@ def draw_inspector(
     elif kind == "enemy":
         y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "level", target.get("level", 3), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "hp", target.get("hp", 2), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
         patrol = target.setdefault("patrol", [])
         y = draw_text(screen, font, f"patrol points: {len(patrol)}", x + margin, y, (188, 196, 204))
@@ -331,18 +333,23 @@ def draw_variant_buttons(
 
     y = draw_text(screen, font, "variant:", x, y, (188, 196, 204))
     labels = ["auto"] + [str(index) for index in range(count)]
-    button_width = max(round(50 * scale), width // len(labels) - round(5 * scale))
+    gap = round(6 * scale)
+    button_width = max(round(44 * scale), min(round(58 * scale), width // min(len(labels), 5) - gap))
     height = round(28 * scale)
     bx = x
+    row_y = y
     for label in labels:
+        if bx + button_width > x + width and bx > x:
+            bx = x
+            row_y += height + gap
         value = -1 if label == "auto" else int(label)
-        rect = pygame.Rect(bx, y, button_width, height)
+        rect = pygame.Rect(bx, row_y, button_width, height)
         color = (68, 88, 96) if value == current else (36, 40, 46)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(6 * scale)))
+        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
         state.actions.append(InspectorAction(rect, kind, field=field, value=value))
-        bx += button_width + round(6 * scale)
-    return y + height + round(10 * scale)
+        bx += button_width + gap
+    return row_y + height + round(10 * scale)
 
 
 def draw_validation_summary(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, issues: list[Any], x: int, y: int, width: int, scale: float) -> int:
@@ -404,8 +411,18 @@ def display_text_value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, list):
+        if all(is_stat_condition(item) for item in value):
+            return "; ".join(format_stat_condition(item) for item in value)
         return ", ".join(str(item) for item in value)
     return str(value)
+
+
+def is_stat_condition(value: object) -> bool:
+    return isinstance(value, list) and len(value) >= 3
+
+
+def format_stat_condition(value: list) -> str:
+    return f"{value[0]} {value[1]} {value[2]}"
 
 
 def draw_field_value(screen: pygame.Surface, font: pygame.font.Font, value: str, rect: pygame.Rect, scale: float) -> None:
@@ -457,11 +474,18 @@ def fit_word(word: str, font: pygame.font.Font, max_width: int, result: list[str
 def coerce_text_value(field: str, value: str) -> object:
     if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return [part.strip() for part in value.split(",") if part.strip()]
+    if field == "requiresStats":
+        return parse_stat_conditions(value)
     if field == "level":
         try:
             return min(9, max(1, int(value)))
         except ValueError:
             return 3
+    if field == "hp":
+        try:
+            return max(1, int(value))
+        except ValueError:
+            return 2
     return value
 
 
@@ -470,7 +494,11 @@ def is_allowed_text(value: str, field: str) -> bool:
         return all(ch >= " " for ch in value)
     if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return all(ch.isalnum() or ch in "_-., " for ch in value)
+    if field == "requiresStats":
+        return all(ch.isalnum() or ch in "_-.,;()[] " for ch in value)
     if field == "level":
+        return value.isdigit()
+    if field == "hp":
         return value.isdigit()
     return all(ch.isalnum() or ch in "_-." for ch in value)
 
@@ -478,3 +506,27 @@ def is_allowed_text(value: str, field: str) -> bool:
 def inside_tiles(tiles: list, cell: tuple[int, int]) -> bool:
     x, y = cell
     return 0 <= x < len(tiles) and len(tiles) > 0 and 0 <= y < len(tiles[x])
+
+
+def parse_stat_conditions(value: str) -> list[list[object]]:
+    result: list[list[object]] = []
+    for raw_part in value.replace("\n", ";").split(";"):
+        part = raw_part.strip().strip("()[]")
+        if not part:
+            continue
+        tokens = [token.strip() for token in part.replace(",", " ").split() if token.strip()]
+        if len(tokens) < 3:
+            continue
+        op, stat_name, target = tokens[0], tokens[1], tokens[2]
+        result.append([op, stat_name, parse_number(target)])
+    return result
+
+
+def parse_number(value: str) -> int | float | str:
+    try:
+        number = float(value)
+    except ValueError:
+        return value
+    if number.is_integer():
+        return int(number)
+    return number

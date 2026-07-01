@@ -22,15 +22,6 @@ SPRITE_NAMES = {
 }
 
 VARIANT_FILES = {
-    "wall": (
-        "wall_horizontal.png",
-        "wall_vertical.png",
-        "wall_corner.png",
-        "wall_corner_dl.png",
-        "wall_corner_lu.png",
-        "wall_corner_rd.png",
-        "wall_corner_ur.png",
-    ),
     "heal": ("heal_cassette.png",),
 }
 

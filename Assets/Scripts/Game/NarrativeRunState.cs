@@ -10,6 +10,7 @@ public static class NarrativeRunState
     public static int Aggression { get; private set; }
     public static int Clarity { get; private set; }
     public static int Noise { get; private set; }
+    public static int EnemiesKilled { get; private set; }
     public static BranchChoice Branch { get; private set; }
 
     public static void Reset()
@@ -17,6 +18,7 @@ public static class NarrativeRunState
         Aggression = 0;
         Clarity = 0;
         Noise = 0;
+        EnemiesKilled = 0;
         Branch = BranchChoice.None;
     }
 
@@ -29,6 +31,7 @@ public static class NarrativeRunState
     public static void RecordKill()
     {
         Aggression += 3;
+        EnemiesKilled += 1;
     }
 
     public static void RecordNoise(int amount)

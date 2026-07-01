@@ -7,6 +7,9 @@ from pathlib import Path
 
 from schema import ENEMY_TYPE, TILE_WALL, object_at
 
+STAT_OPERATORS = {"gt", "lt", "ge", "le", "eq", "ne"}
+STAT_NAMES = {"enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating"}
+
 
 @dataclass
 class ValidationIssue:
@@ -60,6 +63,8 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
 
         if not reachable(tiles, player_cell, cell):
             issues.append(ValidationIssue("warning", "exit is not reachable from player start", cell, target))
+        if exit_cell.get("branch", "none") not in ("", "none"):
+            issues.append(ValidationIssue("warning", "exit branch is ignored; use requiresGate with gate conditions instead", cell, target))
 
     for index, obj in enumerate(level.get("objects", [])):
         target = ("object", index)
@@ -128,6 +133,13 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
         if enemy_level < 1 or enemy_level > 9:
             issues.append(ValidationIssue("error", "enemy level must be 1..9", cell, target))
 
+        try:
+            hp = int(enemy.get("hp", 2))
+        except (TypeError, ValueError):
+            hp = 0
+        if hp < 1:
+            issues.append(ValidationIssue("error", "enemy hp must be >= 1", cell, target))
+
         patrol = enemy.get("patrol", [])
         if not patrol:
             issues.append(ValidationIssue("warning", "enemy has no patrol", cell, target))
@@ -150,14 +162,23 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
         for enemy_id in obj.get("requiresEnemies", []) or []:
             if enemy_id not in enemy_ids:
                 issues.append(ValidationIssue("error", f"gate requires missing enemy '{enemy_id}'", cell, target))
+        for condition in obj.get("requiresStats", []) or []:
+            validate_stat_condition(issues, condition, cell, target)
 
     for cell, targets in occupied.items():
         if len(targets) > 1:
             issues.append(ValidationIssue("error", "multiple entities in one cell", cell, targets[0]))
 
     logic = level.get("logic", {})
+    if logic.get("gates"):
+        issues.append(ValidationIssue("warning", "logic.gates/openWhen is metadata only; configure gate object requirements instead"))
+    if logic.get("exitRules"):
+        issues.append(ValidationIssue("warning", "logic.exitRules is ignored; move exit gating to exits[].requiresGate"))
     for key in ("branchTriggers", "branchBlocks"):
-        for index, area in enumerate(logic.get(key, []) or []):
+        entries = logic.get(key, []) or []
+        if entries:
+            issues.append(ValidationIssue("warning", f"logic.{key} is ignored; use explicit walls/gates and gate requirements instead"))
+        for index, area in enumerate(entries):
             if not area.get("area"):
                 issues.append(ValidationIssue("error", f"{key}[{index}] has no area"))
 
@@ -188,6 +209,28 @@ def normalize_level_id(value: object) -> str:
     if text.lower().endswith(".json"):
         text = text[:-5]
     return text
+
+
+def validate_stat_condition(issues: list[ValidationIssue], condition: object, cell: tuple[int, int], target: tuple[str, int]) -> None:
+    if not isinstance(condition, list) or len(condition) < 3:
+        issues.append(ValidationIssue("error", "gate stat condition must be [op, stat, targetValue]", cell, target))
+        return
+
+    op = str(condition[0]).strip()
+    stat_name = str(condition[1]).strip()
+    if op not in STAT_OPERATORS:
+        issues.append(ValidationIssue("error", f"unknown stat operator '{op}'", cell, target))
+    if stat_name not in STAT_NAMES:
+        issues.append(ValidationIssue("error", f"unknown gate stat '{stat_name}'", cell, target))
+
+    try:
+        target_value = float(condition[2])
+    except (TypeError, ValueError):
+        issues.append(ValidationIssue("error", "gate stat targetValue must be numeric", cell, target))
+        return
+
+    if stat_name == "currentRating" and not 0 <= target_value <= 100:
+        issues.append(ValidationIssue("warning", "currentRating condition target should be 0..100", cell, target))
 
 
 def validate_walkable_cell(issues: list[ValidationIssue], tiles: list[list[str]], cell: tuple[int, int], target: tuple[str, int], label: str) -> None:

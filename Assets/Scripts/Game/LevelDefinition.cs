@@ -82,6 +82,7 @@ public sealed class LevelObject
     public List<string> requiresPlates = new List<string>();
     public List<string> requiresStories = new List<string>();
     public List<string> requiresEnemies = new List<string>();
+    public List<List<object>> requiresStats = new List<List<object>>();
 }
 
 [Serializable]
@@ -108,6 +109,7 @@ public sealed class LevelEnemy
     public string type;
     public string branch;
     public int level = 3;
+    public int hp = 2;
     public int x;
     public int y;
     public List<List<int>> patrol = new List<List<int>>();

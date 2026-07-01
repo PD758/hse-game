@@ -327,7 +327,7 @@ def handle_left_click(
         return selected_ref, None, True
 
     if tool["kind"] == "enemy":
-        level["enemies"].append({"id": f"enemy_{cell[0]}_{cell[1]}", "type": "announcer", "branch": "none", "level": 3, "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
+        level["enemies"].append({"id": f"enemy_{cell[0]}_{cell[1]}", "type": "announcer", "branch": "none", "level": 3, "hp": 2, "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
         return (ENEMY_TYPE, len(level["enemies"]) - 1), None, True
 
     if tool["kind"] == "exit":
@@ -344,7 +344,7 @@ def handle_left_click(
 
     obj = {"type": tool["value"], "x": cell[0], "y": cell[1], "variant": current_tile_variant}
     if tool["value"] == "gate":
-        obj.update({"id": f"gate_{cell[0]}_{cell[1]}", "group": "start", "frame": "vertical", "requiresPlates": [], "requiresStories": [], "requiresEnemies": []})
+        obj.update({"id": f"gate_{cell[0]}_{cell[1]}", "group": "start", "frame": "vertical", "requiresPlates": [], "requiresStories": [], "requiresEnemies": [], "requiresStats": []})
     if tool["value"] == "plate":
         obj["group"] = "start"
     if tool["value"] == "trap":
@@ -614,6 +614,7 @@ def draw_logic_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, 
         labels = [f"P:{value}" for value in obj.get("requiresPlates", []) or []]
         labels.extend(f"S:{value}" for value in obj.get("requiresStories", []) or [])
         labels.extend(f"E:{value}" for value in obj.get("requiresEnemies", []) or [])
+        labels.extend(f"V:{format_stat_condition(value)}" for value in obj.get("requiresStats", []) or [])
         if not labels:
             continue
         rect = viewport.cell_to_screen(int(obj.get("x", 0)), int(obj.get("y", 0)))
@@ -633,6 +634,12 @@ def draw_area(surface: pygame.Surface, viewport: Viewport, area: dict, fill: tup
     rect = pygame.Rect(top_left.x, top_left.y, bottom_right.right - top_left.x, bottom_right.bottom - top_left.y)
     pygame.draw.rect(surface, fill, rect)
     pygame.draw.rect(surface, outline, rect, max(2, viewport.cell_size // 14))
+
+
+def format_stat_condition(value: object) -> str:
+    if isinstance(value, list) and len(value) >= 3:
+        return f"{value[1]} {value[0]} {value[2]}"
+    return str(value)
 
 
 if __name__ == "__main__":

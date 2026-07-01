@@ -14,7 +14,7 @@
       "id": "puzzle_exit",
       "x": 36,
       "y": 12,
-      "branch": "puzzle",
+      "branch": "none",
       "requiresGate": "puzzle_exit_gate",
       "targetLevel": ""
     },
@@ -22,7 +22,7 @@
       "id": "combat_exit",
       "x": 36,
       "y": 8,
-      "branch": "combat",
+      "branch": "none",
       "requiresGate": "combat_exit_gate",
       "targetLevel": ""
     }
@@ -310,6 +310,7 @@
       ],
       "requiresStories": [],
       "requiresEnemies": [],
+      "requiresStats": [],
       "variant": -1
     },
     {
@@ -325,7 +326,8 @@
       "requiresStories": [
         "mirror_note"
       ],
-      "requiresEnemies": []
+      "requiresEnemies": [],
+      "requiresStats": []
     },
     {
       "type": "gate",
@@ -340,7 +342,8 @@
         "combat_anchor_1",
         "combat_anchor_2",
         "combat_anchor_3"
-      ]
+      ],
+      "requiresStats": []
     },
     {
       "type": "trap",
@@ -473,6 +476,7 @@
       "type": "announcer",
       "branch": "none",
       "level": 3,
+      "hp": 2,
       "x": 15,
       "y": 11,
       "patrol": [
@@ -495,6 +499,7 @@
       "type": "announcer",
       "branch": "combat",
       "level": 4,
+      "hp": 2,
       "x": 24,
       "y": 5,
       "patrol": [
@@ -517,6 +522,7 @@
       "type": "announcer",
       "branch": "combat",
       "level": 5,
+      "hp": 3,
       "x": 31,
       "y": 7,
       "patrol": [
@@ -539,6 +545,7 @@
       "type": "announcer",
       "branch": "combat",
       "level": 4,
+      "hp": 2,
       "x": 35,
       "y": 3,
       "patrol": [
@@ -554,73 +561,10 @@
     }
   ],
   "logic": {
-    "gates": [
-      {
-        "id": "start_gate",
-        "group": "start",
-        "openWhen": "platesCovered"
-      },
-      {
-        "id": "puzzle_exit_gate",
-        "group": "puzzle",
-        "openWhen": "puzzleSolvedAndStoryRead"
-      },
-      {
-        "id": "combat_exit_gate",
-        "group": "combat",
-        "openWhen": "combatEnemiesDefeated"
-      }
-    ],
-    "branchTriggers": [
-      {
-        "branch": "puzzle",
-        "area": {
-          "x1": 19,
-          "y1": 12,
-          "x2": 38,
-          "y2": 20
-        }
-      },
-      {
-        "branch": "combat",
-        "area": {
-          "x1": 19,
-          "y1": 0,
-          "x2": 38,
-          "y2": 8
-        }
-      }
-    ],
-    "branchBlocks": [
-      {
-        "branch": "puzzle",
-        "area": {
-          "x1": 18,
-          "y1": 6,
-          "x2": 20,
-          "y2": 8
-        }
-      },
-      {
-        "branch": "combat",
-        "area": {
-          "x1": 18,
-          "y1": 12,
-          "x2": 20,
-          "y2": 14
-        }
-      }
-    ],
-    "exitRules": [
-      {
-        "branch": "puzzle",
-        "gate": "puzzle_exit_gate"
-      },
-      {
-        "branch": "combat",
-        "gate": "combat_exit_gate"
-      }
-    ]
+    "gates": [],
+    "branchTriggers": [],
+    "branchBlocks": [],
+    "exitRules": []
   },
   "regions": []
 }

@@ -164,8 +164,6 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly GameObject[,] floorViews = new GameObject[Width, Height];
     private readonly GameObject[,] floorDecalViews = new GameObject[Width, Height];
     private readonly GameObject[,] tileViews = new GameObject[Width, Height];
-    private readonly List<Vector2Int> startPlates = new List<Vector2Int>();
-    private readonly List<Vector2Int> puzzlePlates = new List<Vector2Int>();
     private readonly Vector2Int[] pathParents = new Vector2Int[Width * Height];
     private readonly bool[] pathVisited = new bool[Width * Height];
     private readonly Queue<Vector2Int> pathQueue = new Queue<Vector2Int>();
@@ -181,8 +179,6 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly HashSet<string> readStoryIds = new HashSet<string>();
     private readonly HashSet<string> killedEnemyIds = new HashSet<string>();
     private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
-    private readonly List<LevelBranchArea> branchTriggers = new List<LevelBranchArea>();
-    private readonly List<LevelBranchArea> branchBlocks = new List<LevelBranchArea>();
 
     [SerializeField] private Sprite floorSprite;
     [SerializeField] private Sprite wallSprite;
@@ -240,15 +236,14 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2Int lastNoiseCell;
     private int lastNoisePower;
     private int playerHp = 6;
+    private int levelEnemiesKilled;
+    private int camerasBroken;
     private float viewerRating = 100f;
     private float idleTimer;
     private float criticalDamageTimer;
     private float attackCooldown;
     private float remoteCooldown;
     private float remoteJamTimer;
-    private bool startGateOpen;
-    private bool puzzleExitOpen;
-    private bool combatExitOpen;
     private bool storyRead;
     private bool hasRemote;
     private bool gameEnded;
@@ -553,8 +548,6 @@ public sealed class PrototypeGame : MonoBehaviour
 
         enemies.Clear();
         stones.Clear();
-        startPlates.Clear();
-        puzzlePlates.Clear();
         playerHp = 6;
         viewerRating = 100f;
         idleTimer = 0f;
@@ -562,9 +555,6 @@ public sealed class PrototypeGame : MonoBehaviour
         attackCooldown = 0f;
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
-        startGateOpen = false;
-        puzzleExitOpen = false;
-        combatExitOpen = false;
         storyRead = false;
         hasRemote = false;
         gameEnded = false;
@@ -572,6 +562,8 @@ public sealed class PrototypeGame : MonoBehaviour
         currentVelocity = Vector2.zero;
         currentLevelId = NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         killedEnemyIds.Clear();
+        levelEnemiesKilled = 0;
+        camerasBroken = 0;
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
@@ -631,6 +623,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void UpdateRating(float dt)
     {
+        float previousRating = viewerRating;
         if (moveInput.sqrMagnitude <= 0.01f)
             idleTimer += dt;
 
@@ -655,12 +648,17 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         UpdatePostProcessing();
+        if (!Mathf.Approximately(previousRating, viewerRating))
+            RefreshStatGates();
     }
 
     private void RestoreRating(float amount)
     {
+        float previousRating = viewerRating;
         viewerRating = Mathf.Min(100f, viewerRating + amount);
         UpdatePostProcessing();
+        if (!Mathf.Approximately(previousRating, viewerRating))
+            RefreshStatGates();
     }
 
     private void TryInteract()
@@ -847,6 +845,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
 
         NarrativeRunState.RecordKill();
+        levelEnemiesKilled += 1;
         if (!string.IsNullOrEmpty(target.Id))
             killedEnemyIds.Add(target.Id);
         RestoreRating(12f);
@@ -854,7 +853,6 @@ public sealed class PrototypeGame : MonoBehaviour
         if (target.View != null)
             target.View.SetActive(false);
         enemies.Remove(target);
-        UpdateBranchObjective();
         RedrawGateGroups();
         RedrawExits();
     }
@@ -900,8 +898,11 @@ public sealed class PrototypeGame : MonoBehaviour
         tiles[bestCell.x, bestCell.y] = Tile.Floor;
         tileVariants[bestCell.x, bestCell.y] = -1;
         NarrativeRunState.RecordSignalInsight();
+        camerasBroken += 1;
         RestoreRating(8f);
         RedrawTile(bestCell);
+        RedrawGateGroups();
+        RedrawExits();
         SpawnHitBurst(ToWorld(bestCell), true);
         message = "Камера хрустит и гаснет. Эфир на секунду теряет взгляд.";
         return true;
@@ -964,56 +965,8 @@ public sealed class PrototypeGame : MonoBehaviour
         if (tile == Tile.Heal && playerHp < 6)
             TryConsumeHeal(playerCell);
 
-        if (startGateOpen && NarrativeRunState.Branch == BranchChoice.None)
-        {
-            if (BranchAreaContains(BranchChoice.Puzzle, branchTriggers, playerCell))
-                ChooseBranch(BranchChoice.Puzzle);
-            else if (BranchAreaContains(BranchChoice.Combat, branchTriggers, playerCell))
-                ChooseBranch(BranchChoice.Combat);
-        }
-
         if (tile == Tile.Exit)
             TryUseExit(playerCell);
-    }
-
-    private void ChooseBranch(BranchChoice branch)
-    {
-        NarrativeRunState.ChooseBranch(branch);
-        RestoreRating(16f);
-
-        if (branch == BranchChoice.Puzzle)
-        {
-            BlockBranchAreas(BranchChoice.Puzzle);
-            message = "Нижний эфир заваливается помехой. Остаётся монтажная, где придётся разбирать себя.";
-        }
-        else
-        {
-            BlockBranchAreas(BranchChoice.Combat);
-            message = "Верхний проход тухнет. Дикторы внизу встречают вашу злость аплодисментами.";
-            UpdateBranchObjective();
-        }
-    }
-
-    private bool BranchAreaContains(BranchChoice branch, List<LevelBranchArea> areas, Vector2Int cell)
-    {
-        foreach (LevelBranchArea area in areas)
-        {
-            if (ParseBranch(area.branch) == branch && area.area.Contains(cell))
-                return true;
-        }
-
-        return false;
-    }
-
-    private void BlockBranchAreas(BranchChoice branch)
-    {
-        foreach (LevelBranchArea area in branchBlocks)
-        {
-            if (ParseBranch(area.branch) != branch)
-                continue;
-
-            BlockRectangle(area.area.x1, area.area.y1, area.area.x2, area.area.y2);
-        }
     }
 
     private void BlockRectangle(int minX, int minY, int maxX, int maxY)
@@ -1085,14 +1038,12 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void ResetLevelLocalState()
     {
-        startGateOpen = false;
-        puzzleExitOpen = false;
-        combatExitOpen = false;
         storyRead = false;
         attackCooldown = 0f;
         remoteJamTimer = 0f;
         lastNoisePower = 0;
         killedEnemyIds.Clear();
+        levelEnemiesKilled = 0;
     }
 
     private void ClearLevelEntityViews()
@@ -1127,20 +1078,10 @@ public sealed class PrototypeGame : MonoBehaviour
         if (!exitsByCell.TryGetValue(cell, out LevelExit exit))
             return false;
 
-        BranchChoice branch = ParseBranch(exit.branch);
-        if (branch != BranchChoice.None && NarrativeRunState.Branch != branch)
-            return false;
-
         if (!string.IsNullOrEmpty(exit.requiresGate))
             return GateOpenForId(exit.requiresGate);
 
-        return branch == BranchChoice.None || BranchExitOpen(branch);
-    }
-
-    private bool BranchExitOpen(BranchChoice branch)
-    {
-        return branch == BranchChoice.Puzzle && puzzleExitOpen ||
-               branch == BranchChoice.Combat && combatExitOpen;
+        return true;
     }
 
     private bool GateOpenForId(string gateId)
@@ -1159,27 +1100,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void UpdatePuzzle()
     {
-        bool startSolved = GateGroupRequirementsMet("start") || ArePlatesCovered(startPlates);
-        if (startSolved && !startGateOpen)
-        {
-            startGateOpen = true;
-            NarrativeRunState.RecordPuzzleSolved();
-            RestoreRating(22f);
-            message = "Стартовый сигнал собран. Два прохода раскрываются одновременно.";
-            RedrawGateGroup("start");
-        }
-
-        bool explicitPuzzleSolved = GateGroupRequirementsMet("puzzle");
-        bool legacyPuzzleSolved = ArePlatesCovered(puzzlePlates) && storyRead;
-        if (NarrativeRunState.Branch == BranchChoice.Puzzle && (explicitPuzzleSolved || legacyPuzzleSolved) && !puzzleExitOpen)
-        {
-            puzzleExitOpen = true;
-            NarrativeRunState.RecordPuzzleSolved();
-            RestoreRating(28f);
-            message = "Смысл и сигнал совпали. Белая дверь перестаёт быть декорацией.";
-            RedrawGateGroup("puzzle");
-            RedrawExits();
-        }
+        RedrawGateGroups();
+        RedrawExits();
     }
 
     private bool GateGroupRequirementsMet(string group)
@@ -1198,10 +1120,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool GateRequirementsMet(LevelObject gate)
     {
-        bool hasExplicitRequirements = gate.requiresPlates != null && gate.requiresPlates.Count > 0 ||
-                                       gate.requiresStories != null && gate.requiresStories.Count > 0 ||
-                                       gate.requiresEnemies != null && gate.requiresEnemies.Count > 0;
-        if (!hasExplicitRequirements)
+        if (!HasExplicitGateRequirements(gate))
             return false;
 
         if (gate.requiresPlates != null)
@@ -1231,7 +1150,93 @@ public sealed class PrototypeGame : MonoBehaviour
             }
         }
 
+        if (gate.requiresStats != null)
+        {
+            foreach (List<object> condition in gate.requiresStats)
+            {
+                if (!GateStatConditionMet(condition))
+                    return false;
+            }
+        }
+
         return true;
+    }
+
+    private static bool HasExplicitGateRequirements(LevelObject gate)
+    {
+        return gate != null &&
+               (gate.requiresPlates != null && gate.requiresPlates.Count > 0 ||
+                gate.requiresStories != null && gate.requiresStories.Count > 0 ||
+                gate.requiresEnemies != null && gate.requiresEnemies.Count > 0 ||
+                gate.requiresStats != null && gate.requiresStats.Count > 0);
+    }
+
+    private bool GateStatConditionMet(List<object> condition)
+    {
+        if (condition == null || condition.Count < 3)
+            return false;
+
+        string op = Convert.ToString(condition[0]);
+        string valueName = Convert.ToString(condition[1]);
+        if (!TryReadFloat(condition[2], out float targetValue) || !TryReadGateStat(valueName, out float currentValue))
+            return false;
+
+        return op switch
+        {
+            "gt" => currentValue > targetValue,
+            "lt" => currentValue < targetValue,
+            "ge" => currentValue >= targetValue,
+            "le" => currentValue <= targetValue,
+            "eq" => Mathf.Approximately(currentValue, targetValue),
+            "ne" => !Mathf.Approximately(currentValue, targetValue),
+            _ => false,
+        };
+    }
+
+    private bool TryReadGateStat(string valueName, out float value)
+    {
+        switch (valueName)
+        {
+            case "enemiesKilled":
+                value = NarrativeRunState.EnemiesKilled;
+                return true;
+            case "enemiesKilledOnLevel":
+                value = levelEnemiesKilled;
+                return true;
+            case "camerasBroken":
+                value = camerasBroken;
+                return true;
+            case "currentRating":
+                value = viewerRating;
+                return true;
+            default:
+                value = 0f;
+                return false;
+        }
+    }
+
+    private static bool TryReadFloat(object raw, out float value)
+    {
+        switch (raw)
+        {
+            case null:
+                value = 0f;
+                return false;
+            case float floatValue:
+                value = floatValue;
+                return true;
+            case double doubleValue:
+                value = (float)doubleValue;
+                return true;
+            case int intValue:
+                value = intValue;
+                return true;
+            case long longValue:
+                value = longValue;
+                return true;
+            default:
+                return float.TryParse(Convert.ToString(raw), out value);
+        }
     }
 
     private bool ArePlateGroupCovered(string group)
@@ -1256,42 +1261,6 @@ public sealed class PrototypeGame : MonoBehaviour
         return true;
     }
 
-    private void UpdateBranchObjective()
-    {
-        if (NarrativeRunState.Branch != BranchChoice.Combat || combatExitOpen)
-            return;
-        if (GateGroupHasEnemyRequirements("combat"))
-            return;
-
-        foreach (Enemy enemy in enemies)
-        {
-            if (enemy.Branch == BranchChoice.Combat)
-                return;
-        }
-
-        combatExitOpen = true;
-        RestoreRating(24f);
-        message = "Боевой эфир стихает. Нижний выход открывается, но шум уже похож на вас.";
-        RedrawGateGroup("combat");
-        RedrawExits();
-    }
-
-    private bool GateGroupHasEnemyRequirements(string group)
-    {
-        if (!gateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
-            return false;
-
-        foreach (Vector2Int cell in cells)
-        {
-            if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) &&
-                gate.requiresEnemies != null &&
-                gate.requiresEnemies.Count > 0)
-                return true;
-        }
-
-        return false;
-    }
-
     private void RedrawExits()
     {
         foreach (Vector2Int cell in exitsByCell.Keys)
@@ -1311,6 +1280,12 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         foreach (string group in gateCellsByGroup.Keys)
             RedrawGateGroup(group);
+    }
+
+    private void RefreshStatGates()
+    {
+        RedrawGateGroups();
+        RedrawExits();
     }
 
     private void UpdateEnemies(float dt)
@@ -2104,11 +2079,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void BuildLevel()
     {
-        startPlates.Clear();
-        puzzlePlates.Clear();
         stones.Clear();
         enemies.Clear();
         killedEnemyIds.Clear();
+        levelEnemiesKilled = 0;
         gateGroupsByCell.Clear();
         gateCellsByGroup.Clear();
         gateObjectsByCell.Clear();
@@ -2117,8 +2091,6 @@ public sealed class PrototypeGame : MonoBehaviour
         exitsByCell.Clear();
         readStoryIds.Clear();
         cameraDirectionsByCell.Clear();
-        branchTriggers.Clear();
-        branchBlocks.Clear();
 
         for (int x = 0; x < Width; x++)
         {
@@ -2166,14 +2138,6 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             foreach (LevelEnemy enemy in level.enemies)
                 ApplyLevelEnemy(enemy);
-        }
-
-        if (level.logic != null)
-        {
-            if (level.logic.branchTriggers != null)
-                branchTriggers.AddRange(level.logic.branchTriggers);
-            if (level.logic.branchBlocks != null)
-                branchBlocks.AddRange(level.logic.branchBlocks);
         }
 
         ResetPlayerTransformIfBound();
@@ -2375,7 +2339,6 @@ public sealed class PrototypeGame : MonoBehaviour
                 break;
             case "plate":
                 tileVariants[cell.x, cell.y] = obj.variant;
-                AddPlate(obj.group == "puzzle" ? puzzlePlates : startPlates, cell);
                 RegisterPlateGroup(cell, obj.group);
                 break;
             case "stone":
@@ -2435,7 +2398,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
         string id = string.IsNullOrWhiteSpace(data.id) ? $"enemy_{start.x}_{start.y}_{enemies.Count}" : data.id.Trim();
         int level = Mathf.Clamp(data.level <= 0 ? EnemyBaseLevel : data.level, EnemyMinLevel, EnemyMaxLevel);
-        AddEnemy(id, ParseBranch(data.branch), level, start, patrol.ToArray());
+        int hp = Mathf.Max(1, data.hp <= 0 ? 2 : data.hp);
+        AddEnemy(id, ParseBranch(data.branch), level, hp, start, patrol.ToArray());
     }
 
     private void ResetPlayerTransformIfBound()
@@ -2484,7 +2448,7 @@ public sealed class PrototypeGame : MonoBehaviour
         });
     }
 
-    private void AddEnemy(string id, BranchChoice branch, int level, Vector2Int start, params Vector2Int[] patrol)
+    private void AddEnemy(string id, BranchChoice branch, int level, int hp, Vector2Int start, params Vector2Int[] patrol)
     {
         var enemy = new Enemy
         {
@@ -2494,6 +2458,7 @@ public sealed class PrototypeGame : MonoBehaviour
             Mode = EnemyMode.Patrol,
             Branch = branch,
             Level = level,
+            Hp = hp,
             LookDirection = InitialEnemyLookDirection(start, patrol),
         };
         enemy.Patrol.AddRange(patrol);
@@ -3134,20 +3099,6 @@ public sealed class PrototypeGame : MonoBehaviour
         if (!WallVisibleFor(cell))
             return null;
 
-        int variant = tileVariants[cell.x, cell.y];
-        if (variant >= 0)
-        {
-            switch (variant % 3)
-            {
-                case 1:
-                    return wallVerticalSprite ?? wallSprite;
-                case 2:
-                    return wallCornerSprite ?? wallSprite;
-                default:
-                    return wallSprite;
-            }
-        }
-
         bool up = OpenTileAdjacent(cell + Vector2Int.up);
         bool down = OpenTileAdjacent(cell + Vector2Int.down);
         bool left = OpenTileAdjacent(cell + Vector2Int.left);
@@ -3208,16 +3159,10 @@ public sealed class PrototypeGame : MonoBehaviour
         if (!gateGroupsByCell.TryGetValue(cell, out string group))
             return false;
 
-        if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) && GateRequirementsMet(gate))
-            return true;
+        if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) && HasExplicitGateRequirements(gate))
+            return GateRequirementsMet(gate);
 
-        return group switch
-        {
-            "start" => startGateOpen,
-            "puzzle" => puzzleExitOpen,
-            "combat" => combatExitOpen,
-            _ => false,
-        };
+        return false;
     }
 
     private static BranchChoice ParseBranch(string branch)

@@ -42,12 +42,13 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 
 The right panel shows editable properties for the current selection.
 
-- Gate: `id`, `group`, `requiresPlates`, `requiresStories`, `requiresEnemies`, vertical/horizontal frame
+- Gate: `id`, `group`, `requiresPlates`, `requiresStories`, `requiresEnemies`, `requiresStats`, vertical/horizontal frame
+- Gate stat conditions use `op stat value`, separated by semicolons, e.g. `ge enemiesKilledOnLevel 2; lt currentRating 50`
 - Plate: `group`
 - Camera: drag the arrow handle on the map to rotate
 - Story: `id`, text
-- Exit: `id`, `targetLevel`, `requiresGate`, branch
-- Enemy: `id`, `level`, branch and patrol controls
+- Exit: `id`, `targetLevel`, `requiresGate`; `branch` is legacy metadata and ignored by gameplay
+- Enemy: `id`, `level`, `hp`, branch metadata and patrol controls
 - Player start / objects / exits / enemies: use Cursor drag to move
 
 ## Validation
