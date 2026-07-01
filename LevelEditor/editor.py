@@ -88,9 +88,7 @@ def main() -> int:
                     discard_unchanged_undo(undo_stack, level, tiles, tile_variants)
                     dirty = changed or dirty
                     continue
-                if event.key == pygame.K_ESCAPE:
-                    running = False
-                elif event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_CTRL:
+                if event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_CTRL:
                     save_level(level_path, level, tiles, tile_variants)
                     dirty = False
                 elif event.key == pygame.K_DELETE and selected_ref is not None:

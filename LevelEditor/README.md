@@ -37,7 +37,6 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 - `Delete`: delete selected object/enemy
 - `Ctrl+Z`: undo
 - `Ctrl+S` or sidebar `Save`: save
-- `Esc`: quit
 
 ## Inspector
 

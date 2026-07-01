@@ -523,6 +523,31 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void Restart()
     {
+        RespawnAtCurrentLevelStart();
+    }
+
+    private void RespawnAtCurrentLevelStart()
+    {
+        playerHp = 6;
+        viewerRating = 100f;
+        idleTimer = 0f;
+        criticalDamageTimer = 0f;
+        attackCooldown = 0f;
+        currentVelocity = Vector2.zero;
+        gameEnded = false;
+
+        if (playerView != null)
+            playerView.transform.position = ToWorld(playerStart);
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+
+        SpawnHitBurst(ToWorld(playerStart), false);
+        message = "Вы снова у точки входа текущего канала.";
+        UpdatePostProcessing();
+    }
+
+    private void RestartRun()
+    {
         NarrativeRunState.Reset();
         ClearCombatRuntimeObjects();
 
