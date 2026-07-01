@@ -11,6 +11,8 @@ import pygame
 BRANCHES = ("none", "puzzle", "combat")
 FRAMES = ("vertical", "horizontal")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
+STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
+STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
 
 
 @dataclass
@@ -92,6 +94,7 @@ def draw_inspector(
         draw_text(screen, font, "Nothing selected", x + margin, y, (188, 196, 204))
         return
 
+    options = collect_level_options(level)
     kind, _index = selected_ref
     title = target_title(kind, target)
     y = draw_text(screen, font, title, x + margin, y, (166, 212, 230))
@@ -104,10 +107,10 @@ def draw_inspector(
         if obj_type == "gate":
             y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
-            y = draw_text_field(screen, font, state, selected_ref, "requiresPlates", target.get("requiresPlates", []), x + margin, y, width - margin * 2, scale)
-            y = draw_text_field(screen, font, state, selected_ref, "requiresStories", target.get("requiresStories", []), x + margin, y, width - margin * 2, scale)
-            y = draw_text_field(screen, font, state, selected_ref, "requiresEnemies", target.get("requiresEnemies", []), x + margin, y, width - margin * 2, scale)
-            y = draw_text_field(screen, font, state, selected_ref, "requiresStats", target.get("requiresStats", []), x + margin, y, width - margin * 2, scale, multiline=True)
+            y = draw_dependency_picker(screen, font, state, "requiresPlates", target.get("requiresPlates", []), options["plates"], x + margin, y, width - margin * 2, scale)
+            y = draw_dependency_picker(screen, font, state, "requiresStories", target.get("requiresStories", []), options["stories"], x + margin, y, width - margin * 2, scale)
+            y = draw_dependency_picker(screen, font, state, "requiresEnemies", target.get("requiresEnemies", []), options["enemies"], x + margin, y, width - margin * 2, scale)
+            y = draw_stat_condition_editor(screen, font, state, "requiresStats", target.get("requiresStats", []), x + margin, y, width - margin * 2, scale)
             y = draw_enum_buttons(screen, font, state, "frame", target.get("frame", "vertical"), FRAMES, x + margin, y, width - margin * 2, scale)
         elif obj_type == "plate":
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
@@ -135,7 +138,7 @@ def draw_inspector(
     elif kind == "exit":
         y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "targetLevel", target.get("targetLevel", ""), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "requiresGate", target.get("requiresGate", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_choice_buttons(screen, font, state, "requiresGate", target.get("requiresGate", ""), [""] + options["gates"], x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
         y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
     elif kind == "player":
@@ -144,10 +147,14 @@ def draw_inspector(
         y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "trigger", target.get("trigger", "enterRegion"), EVENT_TRIGGERS, x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "once", str(bool(target.get("once", True))).lower(), ("true", "false"), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "region", target.get("region", ""), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "enemyId", target.get("enemyId", ""), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "enemyGroup", target.get("enemyGroup", ""), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "conditions", target.get("conditions", []), x + margin, y, width - margin * 2, scale, multiline=True)
+        trigger = target.get("trigger", "enterRegion")
+        if trigger == "enterRegion":
+            y = draw_choice_buttons(screen, font, state, "region", target.get("region", ""), [""] + options["regions"], x + margin, y, width - margin * 2, scale)
+        elif trigger == "enemyKilled":
+            y = draw_choice_buttons(screen, font, state, "enemyId", target.get("enemyId", ""), [""] + options["enemies"], x + margin, y, width - margin * 2, scale)
+        elif trigger == "enemyGroupCleared":
+            y = draw_choice_buttons(screen, font, state, "enemyGroup", target.get("enemyGroup", ""), [""] + options["enemyGroups"], x + margin, y, width - margin * 2, scale)
+        y = draw_stat_condition_editor(screen, font, state, "conditions", target.get("conditions", []), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "actions", target.get("actions", []), x + margin, y, width - margin * 2, scale, multiline=True)
         y = draw_button_row(screen, font, state, [("delete_event", "Delete event")], x + margin, y, width - margin * 2, scale)
 
@@ -225,6 +232,43 @@ def handle_click(
             target[action.field] = coerce_action_value(action.field, action.value)
             state.clear_text()
             return True, current_tile_variant
+        if action.kind == "toggle_list_value":
+            values = target.setdefault(action.field, [])
+            value = str(action.value)
+            if value in values:
+                values.remove(value)
+            elif value:
+                values.append(value)
+            state.clear_text()
+            return True, current_tile_variant
+        if action.kind == "add_stat_condition":
+            conditions = target.setdefault(action.field, [])
+            conditions.append(["ge", "enemiesKilledOnLevel", 1])
+            state.clear_text()
+            return True, current_tile_variant
+        if action.kind == "remove_stat_condition":
+            conditions = target.setdefault(action.field, [])
+            index = condition_action_index(action)
+            if 0 <= index < len(conditions):
+                del conditions[index]
+                state.clear_text()
+                return True, current_tile_variant
+            return False, current_tile_variant
+        if action.kind == "cycle_stat_op":
+            return cycle_stat_condition(target, action.field, condition_action_index(action), 0, STAT_OPS, state), current_tile_variant
+        if action.kind == "cycle_stat_name":
+            return cycle_stat_condition(target, action.field, condition_action_index(action), 1, STAT_NAMES, state), current_tile_variant
+        if action.kind == "adjust_stat_value":
+            conditions = target.setdefault(action.field, [])
+            index = condition_action_index(action)
+            if 0 <= index < len(conditions) and is_stat_condition(conditions[index]):
+                current = parse_number(str(conditions[index][2]))
+                if not isinstance(current, (int, float)):
+                    current = 0
+                conditions[index][2] = clamp_condition_value(conditions[index][1], current + action.amount)
+                state.clear_text()
+                return True, current_tile_variant
+            return False, current_tile_variant
         if action.kind == "set_int":
             target[action.field] = int(action.value)
             state.clear_text()
@@ -353,6 +397,149 @@ def draw_enum_buttons(
     return y + height + round(10 * scale)
 
 
+def draw_choice_buttons(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    field: str,
+    current: object,
+    values: list[str],
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    y = draw_text(screen, font, f"{field}:", x, y, (188, 196, 204))
+    normalized = unique_strings(values)
+    if any(str(value).strip() == "" for value in values):
+        normalized = [""] + normalized
+    if not normalized:
+        normalized = [""]
+    return draw_wrapped_buttons(screen, font, state, [(value, value or "none", "set") for value in normalized], str(current or ""), field, x, y, width, scale)
+
+
+def draw_dependency_picker(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    field: str,
+    current: object,
+    candidates: list[str],
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    values = [str(item) for item in current or [] if str(item)]
+    y = draw_text(screen, font, f"{field}:", x, y, (188, 196, 204))
+    if values:
+        y = draw_wrapped_buttons(screen, font, state, [(value, f"- {value}", "toggle_list_value") for value in values], "", field, x, y, width, scale)
+    available = [value for value in unique_strings(candidates) if value not in values]
+    if available:
+        y = draw_wrapped_buttons(screen, font, state, [(value, f"+ {value}", "toggle_list_value") for value in available], "", field, x, y, width, scale)
+    elif not values:
+        y = draw_text(screen, font, "No matching ids yet", x, y, (132, 140, 148))
+    return y + round(4 * scale)
+
+
+def draw_wrapped_buttons(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    buttons: list[tuple[str, str, str]],
+    current: str,
+    field: str,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    gap = round(6 * scale)
+    height = round(28 * scale)
+    bx = x
+    row_y = y
+    for value, label, kind in buttons:
+        shown = label if len(label) <= 18 else label[:15] + "..."
+        button_width = min(width, max(round(58 * scale), font.size(shown)[0] + round(16 * scale)))
+        if bx + button_width > x + width and bx > x:
+            bx = x
+            row_y += height + gap
+        rect = pygame.Rect(bx, row_y, button_width, height)
+        color = (68, 88, 96) if str(value) == current else (36, 40, 46)
+        pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
+        screen.blit(font.render(shown, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
+        state.actions.append(InspectorAction(rect, kind, field=field, value=value))
+        bx += button_width + gap
+    return row_y + height + round(8 * scale)
+
+
+def draw_stat_condition_editor(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    field: str,
+    conditions: object,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    y = draw_text(screen, font, f"{field}:", x, y, (188, 196, 204))
+    rows = [(index, condition) for index, condition in enumerate(conditions or []) if is_stat_condition(condition)]
+    if not rows:
+        y = draw_text(screen, font, "No stat conditions", x, y, (132, 140, 148))
+    for index, condition in rows:
+        y = draw_stat_condition_row(screen, font, state, field, index, condition, x, y, width, scale)
+    height = round(28 * scale)
+    rect = pygame.Rect(x, y, width, height)
+    pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+    screen.blit(font.render("+ condition", True, (224, 228, 232)), (x + round(7 * scale), y + round(6 * scale)))
+    state.actions.append(InspectorAction(rect, "add_stat_condition", field=field))
+    return y + height + round(10 * scale)
+
+
+def draw_stat_condition_row(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    field: str,
+    index: int,
+    condition: list,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    height = round(28 * scale)
+    gap = round(5 * scale)
+    op = str(condition[0])
+    stat = str(condition[1])
+    value = condition[2]
+    specs = [
+        ("cycle_stat_op", op, round(38 * scale), 0.0),
+        ("cycle_stat_name", short_stat_name(stat), round(118 * scale), 0.0),
+        ("adjust_stat_value", "-10", round(38 * scale), -10.0),
+        ("adjust_stat_value", "-1", round(32 * scale), -1.0),
+        ("adjust_stat_value", str(value), round(46 * scale), 0.0),
+        ("adjust_stat_value", "+1", round(32 * scale), 1.0),
+        ("adjust_stat_value", "+10", round(38 * scale), 10.0),
+        ("remove_stat_condition", "x", round(28 * scale), 0.0),
+    ]
+    bx = x
+    row_y = y
+    for kind, label, button_width, amount in specs:
+        if bx + button_width > x + width and bx > x:
+            bx = x
+            row_y += height + gap
+        rect = pygame.Rect(bx, row_y, button_width, height)
+        color = (48, 54, 62) if amount == 0.0 else (36, 40, 46)
+        pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
+        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
+        state.actions.append(InspectorAction(rect, kind, field=field, amount=amount, target=("condition", index)))
+        bx += button_width + gap
+    return row_y + height + round(6 * scale)
+
+
 def draw_button_row(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, buttons: list[tuple[str, str]], x: int, y: int, width: int, scale: float) -> int:
     button_width = max(round(110 * scale), width // max(1, len(buttons)) - round(5 * scale))
     height = round(28 * scale)
@@ -417,6 +604,94 @@ def draw_validation_summary(screen: pygame.Surface, font: pygame.font.Font, stat
         state.actions.append(InspectorAction(rect, "issue", target=issue.target))
         y += height + round(5 * scale)
     return y
+
+
+def collect_level_options(level: dict) -> dict[str, list[str]]:
+    plates: list[str] = []
+    stories: list[str] = []
+    gates: list[str] = []
+    enemies: list[str] = []
+    enemy_groups: list[str] = []
+    regions: list[str] = []
+    for obj in level.get("objects", []) or []:
+        obj_type = obj.get("type", "")
+        if obj_type == "plate":
+            plates.append(str(obj.get("group", "")))
+        elif obj_type == "story":
+            stories.append(str(obj.get("id", "")))
+        elif obj_type == "gate":
+            gates.append(str(obj.get("id", "")))
+    for enemy in level.get("enemies", []) or []:
+        enemies.append(str(enemy.get("id", "")))
+        enemy_groups.append(str(enemy.get("group", "")))
+    for event in level.get("events", []) or []:
+        for action in event.get("actions", []) or []:
+            if isinstance(action, dict):
+                if action.get("type") in ("spawnEnemy", "spawnEnemies"):
+                    enemies.append(str(action.get("id", "")))
+                    enemy_groups.append(str(action.get("group", "")))
+    for region in level.get("regions", []) or []:
+        regions.append(str(region.get("id", "")))
+    return {
+        "plates": unique_strings(plates),
+        "stories": unique_strings(stories),
+        "gates": unique_strings(gates),
+        "enemies": unique_strings(enemies),
+        "enemyGroups": unique_strings(enemy_groups),
+        "regions": unique_strings(regions),
+    }
+
+
+def unique_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = str(value).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
+
+
+def condition_action_index(action: InspectorAction) -> int:
+    if action.target is None:
+        return -1
+    return int(action.target[1])
+
+
+def cycle_stat_condition(target: dict, field: str, index: int, part_index: int, values: tuple[str, ...], state: InspectorState) -> bool:
+    conditions = target.setdefault(field, [])
+    if not (0 <= index < len(conditions)) or not is_stat_condition(conditions[index]):
+        return False
+    current = str(conditions[index][part_index])
+    try:
+        next_index = (values.index(current) + 1) % len(values)
+    except ValueError:
+        next_index = 0
+    conditions[index][part_index] = values[next_index]
+    if part_index == 1:
+        conditions[index][2] = clamp_condition_value(conditions[index][1], parse_number(str(conditions[index][2])))
+    state.clear_text()
+    return True
+
+
+def clamp_condition_value(stat_name: object, value: object) -> int | float:
+    if not isinstance(value, (int, float)):
+        value = 0
+    if stat_name == "currentRating":
+        return round(max(0, min(100, float(value))), 2)
+    return max(0, int(round(float(value))))
+
+
+def short_stat_name(stat_name: str) -> str:
+    aliases = {
+        "enemiesKilled": "kills",
+        "enemiesKilledOnLevel": "levelKills",
+        "camerasBroken": "cameras",
+        "currentRating": "rating",
+    }
+    return aliases.get(stat_name, stat_name[:10])
 
 
 def target_title(kind: str, target: dict) -> str:

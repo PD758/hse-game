@@ -525,27 +525,45 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void Restart()
     {
-        RespawnAtCurrentLevelStart();
+        ResetCurrentLevel();
     }
 
-    private void RespawnAtCurrentLevelStart()
+    private void ResetCurrentLevel()
     {
+        ClearLevelEntityViews();
+
         playerHp = 6;
         viewerRating = 100f;
         idleTimer = 0f;
         criticalDamageTimer = 0f;
         attackCooldown = 0f;
+        remoteCooldown = 0f;
+        remoteJamTimer = 0f;
+        hasRemote = false;
+        lastNoisePower = 0;
         currentVelocity = Vector2.zero;
         gameEnded = false;
+        camerasBroken = 0;
+
+        BuildLevel();
+        if (!enabled)
+            return;
+
+        CreateEntityViews();
 
         if (playerView != null)
             playerView.transform.position = ToWorld(playerStart);
         if (playerBody != null)
             playerBody.linearVelocity = Vector2.zero;
 
-        SpawnHitBurst(ToWorld(playerStart), false);
-        message = "Вы снова у точки входа текущего канала.";
+        EnsureGameplayLighting();
+        EnsurePostProcessing();
         UpdatePostProcessing();
+        RedrawAll();
+        RebuildTileColliders();
+        EvaluateEvents("levelStart", null, null);
+        SpawnHitBurst(ToWorld(playerStart), false);
+        message = "Канал перемотан к началу текущего уровня.";
     }
 
     private void RestartRun()
