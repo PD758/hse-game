@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Newtonsoft.Json;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -56,6 +57,9 @@ public sealed class PrototypeGame : MonoBehaviour
     public Texture2D EnvironmentAtlas;
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
+    public TextAsset LevelAsset;
+    public TextAsset[] LevelAssets = Array.Empty<TextAsset>();
+    public string StartingLevelId = "prototype_01";
 
     private enum Tile
     {
@@ -68,6 +72,7 @@ public sealed class PrototypeGame : MonoBehaviour
         Trap,
         Remote,
         Story,
+        Heal,
     }
 
     private enum EnemyMode
@@ -95,6 +100,7 @@ public sealed class PrototypeGame : MonoBehaviour
         Trap,
         Remote,
         Story,
+        Heal,
         Player,
         Stone,
         Enemy,
@@ -149,6 +155,7 @@ public sealed class PrototypeGame : MonoBehaviour
     }
 
     private readonly Tile[,] tiles = new Tile[Width, Height];
+    private readonly int[,] tileVariants = new int[Width, Height];
     private readonly GameObject[,] floorViews = new GameObject[Width, Height];
     private readonly GameObject[,] floorDecalViews = new GameObject[Width, Height];
     private readonly GameObject[,] tileViews = new GameObject[Width, Height];
@@ -160,6 +167,16 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly List<Stone> stones = new List<Stone>();
     private readonly List<Enemy> enemies = new List<Enemy>();
     private readonly List<CombatEffect> combatEffects = new List<CombatEffect>();
+    private readonly Dictionary<Vector2Int, string> gateGroupsByCell = new Dictionary<Vector2Int, string>();
+    private readonly Dictionary<string, List<Vector2Int>> gateCellsByGroup = new Dictionary<string, List<Vector2Int>>();
+    private readonly Dictionary<Vector2Int, LevelObject> gateObjectsByCell = new Dictionary<Vector2Int, LevelObject>();
+    private readonly Dictionary<string, List<Vector2Int>> plateCellsByGroup = new Dictionary<string, List<Vector2Int>>();
+    private readonly Dictionary<Vector2Int, LevelObject> storyObjectsByCell = new Dictionary<Vector2Int, LevelObject>();
+    private readonly Dictionary<Vector2Int, LevelExit> exitsByCell = new Dictionary<Vector2Int, LevelExit>();
+    private readonly HashSet<string> readStoryIds = new HashSet<string>();
+    private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
+    private readonly List<LevelBranchArea> branchTriggers = new List<LevelBranchArea>();
+    private readonly List<LevelBranchArea> branchBlocks = new List<LevelBranchArea>();
 
     [SerializeField] private Sprite floorSprite;
     [SerializeField] private Sprite wallSprite;
@@ -175,6 +192,7 @@ public sealed class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite trapSprite;
     [SerializeField] private Sprite remoteSprite;
     [SerializeField] private Sprite storySprite;
+    [SerializeField] private Sprite healSprite;
     [SerializeField] private Sprite playerSprite;
     [SerializeField] private Sprite[] playerIdleSprites = new Sprite[4];
     [SerializeField] private Sprite[] playerWalkOneSprites = new Sprite[4];
@@ -211,7 +229,8 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2 moveInput;
     private Vector2 currentVelocity;
     private Vector2 lastAim = Vector2.right;
-    private Vector2Int exitPosition;
+    private string currentLevelId;
+    private Vector2Int playerStart = new Vector2Int(3, 10);
     private Vector2Int lastNoiseCell;
     private int lastNoisePower;
     private int playerHp = 6;
@@ -235,6 +254,7 @@ public sealed class PrototypeGame : MonoBehaviour
         Physics2D.gravity = Vector2.zero;
         SetupCamera();
         EnsurePostProcessing();
+        currentLevelId = NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         BuildLevel();
 
         if (!HasBakedAssets() || !BindSceneViews())
@@ -519,6 +539,7 @@ public sealed class PrototypeGame : MonoBehaviour
         gameEnded = false;
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
+        currentLevelId = NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
@@ -628,6 +649,7 @@ public sealed class PrototypeGame : MonoBehaviour
             {
                 hasRemote = true;
                 tiles[next.x, next.y] = Tile.Floor;
+                tileVariants[next.x, next.y] = -1;
                 NarrativeRunState.RecordSignalInsight();
                 RestoreRating(10f);
                 message = "Пульт: Q глушит эфир на 3 секунды. Кд 18 секунд.";
@@ -637,13 +659,23 @@ public sealed class PrototypeGame : MonoBehaviour
 
             if (tile == Tile.Story && NarrativeRunState.Branch == BranchChoice.Puzzle)
             {
+                LevelObject story = storyObjectsByCell.TryGetValue(next, out LevelObject storyData) ? storyData : null;
+                string storyId = string.IsNullOrEmpty(story?.id) ? $"story_{next.x}_{next.y}" : story.id;
+                readStoryIds.Add(storyId);
                 storyRead = true;
                 tiles[next.x, next.y] = Tile.Floor;
+                tileVariants[next.x, next.y] = -1;
                 NarrativeRunState.RecordPuzzleReflection();
                 RestoreRating(18f);
-                message = "В монтажной заметке написано: смотреть не значит соглашаться.";
+                message = string.IsNullOrEmpty(story?.text) ? "В монтажной заметке написано: смотреть не значит соглашаться." : story.text;
                 RedrawTile(next);
                 UpdatePuzzle();
+                return;
+            }
+
+            if (tile == Tile.Heal)
+            {
+                TryConsumeHeal(next);
                 return;
             }
         }
@@ -826,6 +858,7 @@ public sealed class PrototypeGame : MonoBehaviour
             return false;
 
         tiles[bestCell.x, bestCell.y] = Tile.Floor;
+        tileVariants[bestCell.x, bestCell.y] = -1;
         NarrativeRunState.RecordSignalInsight();
         RestoreRating(8f);
         RedrawTile(bestCell);
@@ -850,6 +883,26 @@ public sealed class PrototypeGame : MonoBehaviour
         }
     }
 
+    private bool TryConsumeHeal(Vector2Int cell)
+    {
+        if (!Inside(cell) || tiles[cell.x, cell.y] != Tile.Heal)
+            return false;
+
+        if (playerHp >= 6)
+        {
+            message = "Кассета перемотки цела. Сейчас раны не требуют монтажа.";
+            return false;
+        }
+
+        playerHp = Mathf.Min(6, playerHp + 2);
+        tiles[cell.x, cell.y] = Tile.Floor;
+        tileVariants[cell.x, cell.y] = -1;
+        message = "Кассета перематывает боль назад. HP +2.";
+        RestoreRating(4f);
+        RedrawTile(cell);
+        return true;
+    }
+
     private void UpdateWorldInteractions()
     {
         Vector2Int playerCell = PlayerCell();
@@ -859,6 +912,7 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             SpawnCameraFlash(ToWorld(playerCell), CameraDirectionForCell(playerCell));
             tiles[playerCell.x, playerCell.y] = Tile.Floor;
+            tileVariants[playerCell.x, playerCell.y] = -1;
             NarrativeRunState.RecordTrapMistake();
             MakeNoise(playerCell, 9);
             DamagePlayer(1, "Камера ослепляет вспышкой. Рейтинг вздрагивает.");
@@ -867,22 +921,19 @@ public sealed class PrototypeGame : MonoBehaviour
             RedrawTile(playerCell);
         }
 
+        if (tile == Tile.Heal && playerHp < 6)
+            TryConsumeHeal(playerCell);
+
         if (startGateOpen && NarrativeRunState.Branch == BranchChoice.None)
         {
-            if (playerCell.x >= 19 && playerCell.y >= 12)
+            if (BranchAreaContains(BranchChoice.Puzzle, branchTriggers, playerCell))
                 ChooseBranch(BranchChoice.Puzzle);
-            else if (playerCell.x >= 19 && playerCell.y <= 8)
+            else if (BranchAreaContains(BranchChoice.Combat, branchTriggers, playerCell))
                 ChooseBranch(BranchChoice.Combat);
         }
 
-        if (tile == Tile.Exit && CanUseExit())
-        {
-            gameEnded = true;
-            currentVelocity = Vector2.zero;
-            if (playerBody != null)
-                playerBody.linearVelocity = Vector2.zero;
-            message = NarrativeRunState.ChannelClosingLine() + " Нажмите R, чтобы пересмотреть канал.";
-        }
+        if (tile == Tile.Exit)
+            TryUseExit(playerCell);
     }
 
     private void ChooseBranch(BranchChoice branch)
@@ -892,14 +943,36 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (branch == BranchChoice.Puzzle)
         {
-            BlockRectangle(18, 6, 20, 8);
+            BlockBranchAreas(BranchChoice.Puzzle);
             message = "Нижний эфир заваливается помехой. Остаётся монтажная, где придётся разбирать себя.";
         }
         else
         {
-            BlockRectangle(18, 12, 20, 14);
+            BlockBranchAreas(BranchChoice.Combat);
             message = "Верхний проход тухнет. Дикторы внизу встречают вашу злость аплодисментами.";
             UpdateBranchObjective();
+        }
+    }
+
+    private bool BranchAreaContains(BranchChoice branch, List<LevelBranchArea> areas, Vector2Int cell)
+    {
+        foreach (LevelBranchArea area in areas)
+        {
+            if (ParseBranch(area.branch) == branch && area.area.Contains(cell))
+                return true;
+        }
+
+        return false;
+    }
+
+    private void BlockBranchAreas(BranchChoice branch)
+    {
+        foreach (LevelBranchArea area in branchBlocks)
+        {
+            if (ParseBranch(area.branch) != branch)
+                continue;
+
+            BlockRectangle(area.area.x1, area.area.y1, area.area.x2, area.area.y2);
         }
     }
 
@@ -923,34 +996,198 @@ public sealed class PrototypeGame : MonoBehaviour
         }
     }
 
-    private bool CanUseExit()
+    private void TryUseExit(Vector2Int cell)
     {
-        return NarrativeRunState.Branch == BranchChoice.Puzzle && puzzleExitOpen ||
-               NarrativeRunState.Branch == BranchChoice.Combat && combatExitOpen;
+        if (!CanUseExit(cell))
+            return;
+
+        LevelExit exit = exitsByCell.TryGetValue(cell, out LevelExit data) ? data : null;
+        string targetLevel = NormalizeLevelId(exit?.targetLevel);
+        if (!string.IsNullOrEmpty(targetLevel))
+        {
+            LoadNextLevel(targetLevel);
+            return;
+        }
+
+        gameEnded = true;
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+        message = NarrativeRunState.ChannelClosingLine() + " Нажмите R, чтобы пересмотреть канал.";
+    }
+
+    private void LoadNextLevel(string targetLevel)
+    {
+        if (ResolveLevelAsset(targetLevel) == null)
+        {
+            message = $"Следующий уровень не найден: {targetLevel}.";
+            return;
+        }
+
+        ClearLevelEntityViews();
+        currentLevelId = NormalizeLevelId(targetLevel);
+        ResetLevelLocalState();
+        BuildLevel();
+        if (!enabled)
+            return;
+
+        CreateEntityViews();
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+
+        EnsureGameplayLighting();
+        UpdatePostProcessing();
+        RedrawAll();
+        RebuildTileColliders();
+        message = $"Канал переключён: {currentLevelId}.";
+    }
+
+    private void ResetLevelLocalState()
+    {
+        startGateOpen = false;
+        puzzleExitOpen = false;
+        combatExitOpen = false;
+        storyRead = false;
+        attackCooldown = 0f;
+        remoteJamTimer = 0f;
+        lastNoisePower = 0;
+    }
+
+    private void ClearLevelEntityViews()
+    {
+        foreach (Stone stone in stones)
+            DestroyRuntimeObject(stone.View);
+
+        foreach (Enemy enemy in enemies)
+        {
+            DestroyRuntimeObject(enemy.TelegraphView);
+            DestroyRuntimeObject(enemy.View);
+        }
+
+        foreach (CombatEffect effect in combatEffects)
+            DestroyRuntimeObject(effect.View);
+        combatEffects.Clear();
+    }
+
+    private static void DestroyRuntimeObject(GameObject obj)
+    {
+        if (obj == null)
+            return;
+
+        if (Application.isPlaying)
+            Destroy(obj);
+        else
+            DestroyImmediate(obj);
+    }
+
+    private bool CanUseExit(Vector2Int cell)
+    {
+        if (!exitsByCell.TryGetValue(cell, out LevelExit exit))
+            return false;
+
+        BranchChoice branch = ParseBranch(exit.branch);
+        if (branch != BranchChoice.None && NarrativeRunState.Branch != branch)
+            return false;
+
+        if (!string.IsNullOrEmpty(exit.requiresGate))
+            return GateOpenForId(exit.requiresGate);
+
+        return branch == BranchChoice.None || BranchExitOpen(branch);
+    }
+
+    private bool BranchExitOpen(BranchChoice branch)
+    {
+        return branch == BranchChoice.Puzzle && puzzleExitOpen ||
+               branch == BranchChoice.Combat && combatExitOpen;
+    }
+
+    private bool GateOpenForId(string gateId)
+    {
+        if (string.IsNullOrEmpty(gateId))
+            return false;
+
+        foreach (KeyValuePair<Vector2Int, LevelObject> item in gateObjectsByCell)
+        {
+            if (item.Value != null && item.Value.id == gateId && GateOpenForCell(item.Key))
+                return true;
+        }
+
+        return false;
     }
 
     private void UpdatePuzzle()
     {
-        bool startSolved = ArePlatesCovered(startPlates);
+        bool startSolved = GateGroupRequirementsMet("start") || ArePlatesCovered(startPlates);
         if (startSolved && !startGateOpen)
         {
             startGateOpen = true;
             NarrativeRunState.RecordPuzzleSolved();
             RestoreRating(22f);
             message = "Стартовый сигнал собран. Два прохода раскрываются одновременно.";
-            RedrawTile(new Vector2Int(12, 10));
+            RedrawGateGroup("start");
         }
 
-        bool puzzleSolved = ArePlatesCovered(puzzlePlates);
+        bool puzzleSolved = GateGroupRequirementsMet("puzzle") || ArePlatesCovered(puzzlePlates) && storyRead;
         if (NarrativeRunState.Branch == BranchChoice.Puzzle && puzzleSolved && storyRead && !puzzleExitOpen)
         {
             puzzleExitOpen = true;
             NarrativeRunState.RecordPuzzleSolved();
             RestoreRating(28f);
             message = "Смысл и сигнал совпали. Белая дверь перестаёт быть декорацией.";
-            RedrawTile(new Vector2Int(34, 12));
-            RedrawTile(exitPosition);
+            RedrawGateGroup("puzzle");
+            RedrawExits();
         }
+    }
+
+    private bool GateGroupRequirementsMet(string group)
+    {
+        if (!gateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+            return false;
+
+        foreach (Vector2Int cell in cells)
+        {
+            if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) && GateRequirementsMet(gate))
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool GateRequirementsMet(LevelObject gate)
+    {
+        bool hasExplicitRequirements = gate.requiresPlates != null && gate.requiresPlates.Count > 0 ||
+                                       gate.requiresStories != null && gate.requiresStories.Count > 0;
+        if (!hasExplicitRequirements)
+            return false;
+
+        if (gate.requiresPlates != null)
+        {
+            foreach (string group in gate.requiresPlates)
+            {
+                if (!ArePlateGroupCovered(group))
+                    return false;
+            }
+        }
+
+        if (gate.requiresStories != null)
+        {
+            foreach (string storyId in gate.requiresStories)
+            {
+                if (string.IsNullOrEmpty(storyId) || !readStoryIds.Contains(storyId))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool ArePlateGroupCovered(string group)
+    {
+        if (string.IsNullOrEmpty(group) || !plateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+            return false;
+
+        return ArePlatesCovered(cells);
     }
 
     private bool ArePlatesCovered(List<Vector2Int> plates)
@@ -981,8 +1218,23 @@ public sealed class PrototypeGame : MonoBehaviour
         combatExitOpen = true;
         RestoreRating(24f);
         message = "Боевой эфир стихает. Нижний выход открывается, но шум уже похож на вас.";
-        RedrawTile(new Vector2Int(34, 8));
-        RedrawTile(exitPosition);
+        RedrawGateGroup("combat");
+        RedrawExits();
+    }
+
+    private void RedrawExits()
+    {
+        foreach (Vector2Int cell in exitsByCell.Keys)
+            RedrawTile(cell);
+    }
+
+    private void RedrawGateGroup(string group)
+    {
+        if (!gateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+            return;
+
+        foreach (Vector2Int cell in cells)
+            RedrawTile(cell);
     }
 
     private void UpdateEnemies(float dt)
@@ -1623,7 +1875,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool CanEnemyEnterCell(Vector2Int cell, Enemy self)
     {
-        Vector2Int playerCell = playerView != null ? WorldToCell(playerView.transform.position) : new Vector2Int(3, 10);
+        Vector2Int playerCell = playerView != null ? WorldToCell(playerView.transform.position) : playerStart;
         if (!EnemyPathPassable(cell, playerCell))
             return false;
 
@@ -1751,55 +2003,331 @@ public sealed class PrototypeGame : MonoBehaviour
         puzzlePlates.Clear();
         stones.Clear();
         enemies.Clear();
+        gateGroupsByCell.Clear();
+        gateCellsByGroup.Clear();
+        gateObjectsByCell.Clear();
+        plateCellsByGroup.Clear();
+        storyObjectsByCell.Clear();
+        exitsByCell.Clear();
+        readStoryIds.Clear();
+        cameraDirectionsByCell.Clear();
+        branchTriggers.Clear();
+        branchBlocks.Clear();
 
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Height; y++)
+            {
                 tiles[x, y] = Tile.Wall;
+                tileVariants[x, y] = -1;
+            }
         }
 
-        CarveRoom(1, 6, 11, 14);
-        CarveRoom(13, 8, 17, 12);
-        CarveRoom(19, 12, 36, 19);
-        CarveRoom(19, 1, 36, 8);
-        CarveRoom(34, 9, 37, 11);
-        CarveRoom(11, 9, 13, 11);
-        CarveRoom(17, 12, 20, 14);
-        CarveRoom(17, 6, 20, 8);
-        CarveRoom(33, 11, 35, 13);
-        CarveRoom(33, 7, 35, 9);
+        LevelDefinition level = LoadLevelDefinition();
+        if (level == null)
+            return;
 
-        exitPosition = new Vector2Int(36, 10);
-        tiles[exitPosition.x, exitPosition.y] = Tile.Exit;
-        AddGateWithFrame(new Vector2Int(12, 10), Vector2Int.up, Vector2Int.down);
-        AddGateWithFrame(new Vector2Int(34, 12), Vector2Int.left, Vector2Int.right);
-        AddGateWithFrame(new Vector2Int(34, 8), Vector2Int.left, Vector2Int.right);
-        SetWall(new Vector2Int(36, 12));
-        SetWall(new Vector2Int(36, 8));
-        tiles[4, 7] = Tile.Remote;
-        tiles[7, 13] = Tile.Trap;
-        tiles[15, 9] = Tile.Trap;
-        tiles[23, 17] = Tile.Story;
-        tiles[24, 15] = Tile.Trap;
-        tiles[27, 5] = Tile.Trap;
-        tiles[32, 3] = Tile.Trap;
+        if (level.size.width != Width || level.size.height != Height)
+        {
+            Debug.LogError($"Level {level.id} has size {level.size.width}x{level.size.height}; PrototypeGame currently expects {Width}x{Height}.");
+            enabled = false;
+            return;
+        }
 
-        AddPlate(startPlates, new Vector2Int(5, 11));
-        AddPlate(startPlates, new Vector2Int(5, 9));
-        AddPlate(puzzlePlates, new Vector2Int(27, 16));
-        AddPlate(puzzlePlates, new Vector2Int(30, 16));
+        playerStart = level.playerStart.ToVector2Int();
 
-        AddStone(new Vector2Int(8, 11));
-        AddStone(new Vector2Int(8, 9));
-        AddStone(new Vector2Int(27, 14));
-        AddStone(new Vector2Int(30, 14));
+        if (level.tiles != null)
+        {
+            foreach (LevelTileRun run in level.tiles)
+                ApplyTileRun(run);
+        }
 
-        AddEnemy(BranchChoice.None, new Vector2Int(15, 11), new Vector2Int(15, 11), new Vector2Int(17, 11), new Vector2Int(17, 9));
-        AddEnemy(BranchChoice.Combat, new Vector2Int(24, 5), new Vector2Int(24, 5), new Vector2Int(33, 5), new Vector2Int(33, 2));
-        AddEnemy(BranchChoice.Combat, new Vector2Int(31, 7), new Vector2Int(31, 7), new Vector2Int(21, 7), new Vector2Int(21, 3));
-        AddEnemy(BranchChoice.Combat, new Vector2Int(35, 3), new Vector2Int(35, 3), new Vector2Int(28, 3));
+        if (level.walls != null)
+        {
+            foreach (LevelPoint wall in level.walls)
+                SetWall(wall.ToVector2Int());
+        }
+
+        RegisterLevelExits(level);
+
+        if (level.objects != null)
+        {
+            foreach (LevelObject obj in level.objects)
+                ApplyLevelObject(obj);
+        }
+
+        if (level.enemies != null)
+        {
+            foreach (LevelEnemy enemy in level.enemies)
+                ApplyLevelEnemy(enemy);
+        }
+
+        if (level.logic != null)
+        {
+            if (level.logic.branchTriggers != null)
+                branchTriggers.AddRange(level.logic.branchTriggers);
+            if (level.logic.branchBlocks != null)
+                branchBlocks.AddRange(level.logic.branchBlocks);
+        }
 
         ResetPlayerTransformIfBound();
+    }
+
+    private LevelDefinition LoadLevelDefinition()
+    {
+        TextAsset asset = ResolveLevelAsset(currentLevelId);
+        if (asset == null)
+        {
+            Debug.LogError($"Prototype level asset '{currentLevelId}' is missing. Add it to Assets/Levels and rebuild the Prototype scene.");
+            enabled = false;
+            return null;
+        }
+
+        try
+        {
+            return JsonConvert.DeserializeObject<LevelDefinition>(asset.text);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Prototype level could not be parsed: {ex.Message}");
+            enabled = false;
+            return null;
+        }
+    }
+
+    private TextAsset ResolveLevelAsset(string levelId)
+    {
+        string key = NormalizeLevelId(levelId);
+        if (string.IsNullOrEmpty(key))
+            key = NormalizeLevelId(LevelAsset != null ? LevelAsset.name : StartingLevelId);
+
+        TextAsset direct = FindLevelAssetInList(key);
+        if (direct != null)
+            return direct;
+
+        if (LevelAsset != null && LevelAssetMatches(LevelAsset, key))
+            return LevelAsset;
+
+#if UNITY_EDITOR
+        string[] guids = AssetDatabase.FindAssets("t:TextAsset", new[] { "Assets/Levels" });
+        foreach (string guid in guids)
+        {
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            TextAsset candidate = AssetDatabase.LoadAssetAtPath<TextAsset>(path);
+            if (candidate != null && LevelAssetMatches(candidate, key))
+                return candidate;
+        }
+#endif
+
+        return null;
+    }
+
+    private TextAsset FindLevelAssetInList(string key)
+    {
+        if (LevelAssets == null)
+            return null;
+
+        foreach (TextAsset asset in LevelAssets)
+        {
+            if (asset != null && LevelAssetMatches(asset, key))
+                return asset;
+        }
+
+        return null;
+    }
+
+    private static bool LevelAssetMatches(TextAsset asset, string key)
+    {
+        if (asset == null || string.IsNullOrEmpty(key))
+            return false;
+
+        if (NormalizeLevelId(asset.name) == key)
+            return true;
+
+        try
+        {
+            LevelDefinition definition = JsonConvert.DeserializeObject<LevelDefinition>(asset.text);
+            return NormalizeLevelId(definition?.id) == key;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string NormalizeLevelId(string levelId)
+    {
+        if (string.IsNullOrWhiteSpace(levelId))
+            return string.Empty;
+
+        string value = levelId.Trim().Replace('\\', '/');
+        int slash = value.LastIndexOf('/');
+        if (slash >= 0)
+            value = value.Substring(slash + 1);
+        if (value.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            value = value.Substring(0, value.Length - 5);
+        return value;
+    }
+
+    private void ApplyTileRun(LevelTileRun run)
+    {
+        Tile tile = TileFromName(run.tile);
+        for (int offset = 0; offset < run.length; offset++)
+        {
+            Vector2Int cell = new Vector2Int(run.x + offset, run.y);
+            if (Inside(cell))
+            {
+                tiles[cell.x, cell.y] = tile;
+                tileVariants[cell.x, cell.y] = run.variant;
+            }
+        }
+    }
+
+    private Tile TileFromName(string name)
+    {
+        return name switch
+        {
+            "floor" => Tile.Floor,
+            "wall" => Tile.Wall,
+            "exit" => Tile.Exit,
+            "plate" => Tile.Plate,
+            "gate" => Tile.Gate,
+            "rubble" => Tile.Rubble,
+            "trap" => Tile.Trap,
+            "remote" => Tile.Remote,
+            "story" => Tile.Story,
+            "heal" => Tile.Heal,
+            _ => Tile.Wall,
+        };
+    }
+
+    private void RegisterLevelExits(LevelDefinition level)
+    {
+        bool hasNewExits = level.exits != null && level.exits.Count > 0;
+        if (hasNewExits)
+        {
+            foreach (LevelExit exit in level.exits)
+                RegisterExit(exit);
+            return;
+        }
+
+        if (level.exit.HasValue)
+        {
+            Vector2Int cell = level.exit.Value.ToVector2Int();
+            RegisterExit(new LevelExit
+            {
+                id = "exit_0",
+                branch = "none",
+                x = cell.x,
+                y = cell.y,
+            });
+        }
+    }
+
+    private void RegisterExit(LevelExit exit)
+    {
+        Vector2Int cell = exit.ToVector2Int();
+        if (!Inside(cell))
+            return;
+
+        tiles[cell.x, cell.y] = Tile.Exit;
+        tileVariants[cell.x, cell.y] = exit.variant;
+        exitsByCell[cell] = exit;
+    }
+
+    private void ApplyLevelObject(LevelObject obj)
+    {
+        Vector2Int cell = new Vector2Int(obj.x, obj.y);
+        if (!Inside(cell))
+            return;
+
+        switch (obj.type)
+        {
+            case "gate":
+                tileVariants[cell.x, cell.y] = obj.variant;
+                AddGateWithFrame(cell, obj.frame == "horizontal" ? Vector2Int.left : Vector2Int.up, obj.frame == "horizontal" ? Vector2Int.right : Vector2Int.down);
+                RegisterGate(cell, string.IsNullOrEmpty(obj.group) ? obj.id : obj.group, obj);
+                break;
+            case "remote":
+                tiles[cell.x, cell.y] = Tile.Remote;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                break;
+            case "trap":
+                tiles[cell.x, cell.y] = Tile.Trap;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                if (obj.direction != null)
+                    cameraDirectionsByCell[cell] = DirectionOrFallback(obj.direction.ToVector2(), Vector2.down);
+                break;
+            case "story":
+                tiles[cell.x, cell.y] = Tile.Story;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                storyObjectsByCell[cell] = obj;
+                break;
+            case "heal":
+                tiles[cell.x, cell.y] = Tile.Heal;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                break;
+            case "plate":
+                tileVariants[cell.x, cell.y] = obj.variant;
+                AddPlate(obj.group == "puzzle" ? puzzlePlates : startPlates, cell);
+                RegisterPlateGroup(cell, obj.group);
+                break;
+            case "stone":
+                tileVariants[cell.x, cell.y] = obj.variant;
+                AddStone(cell);
+                break;
+            case "rubble":
+                tiles[cell.x, cell.y] = Tile.Rubble;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                break;
+        }
+    }
+
+    private void RegisterGate(Vector2Int cell, string group, LevelObject gate)
+    {
+        if (string.IsNullOrEmpty(group))
+            group = "default";
+
+        gateGroupsByCell[cell] = group;
+        gateObjectsByCell[cell] = gate;
+        if (!gateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+        {
+            cells = new List<Vector2Int>();
+            gateCellsByGroup[group] = cells;
+        }
+
+        cells.Add(cell);
+    }
+
+    private void RegisterPlateGroup(Vector2Int cell, string group)
+    {
+        if (string.IsNullOrEmpty(group))
+            group = "default";
+
+        if (!plateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+        {
+            cells = new List<Vector2Int>();
+            plateCellsByGroup[group] = cells;
+        }
+
+        cells.Add(cell);
+    }
+
+    private void ApplyLevelEnemy(LevelEnemy data)
+    {
+        Vector2Int start = new Vector2Int(data.x, data.y);
+        var patrol = new List<Vector2Int>();
+        if (data.patrol == null)
+            data.patrol = new List<List<int>>();
+
+        foreach (List<int> point in data.patrol)
+        {
+            if (point == null || point.Count < 2)
+                continue;
+            patrol.Add(new Vector2Int(point[0], point[1]));
+        }
+
+        AddEnemy(ParseBranch(data.branch), start, patrol.ToArray());
     }
 
     private void ResetPlayerTransformIfBound()
@@ -1807,7 +2335,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (playerView == null)
             return;
 
-        playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        playerView.transform.position = ToWorld(playerStart);
         if (playerBody != null)
             playerBody.linearVelocity = Vector2.zero;
     }
@@ -1859,7 +2387,10 @@ public sealed class PrototypeGame : MonoBehaviour
     private void SetWall(Vector2Int cell)
     {
         if (Inside(cell))
+        {
             tiles[cell.x, cell.y] = Tile.Wall;
+            tileVariants[cell.x, cell.y] = -1;
+        }
     }
 
     private void AddStone(Vector2Int cell)
@@ -1925,11 +2456,10 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private void CreateEntityViews()
     {
-        ThrowIfPlayingBake("CreateEntityViews");
         if (playerView == null)
         {
             playerView = new GameObject("Player");
-            playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+            playerView.transform.position = ToWorld(playerStart);
             var renderer = playerView.AddComponent<SpriteRenderer>();
             renderer.sprite = playerSprite;
             SetLitMaterial(renderer);
@@ -1944,7 +2474,7 @@ public sealed class PrototypeGame : MonoBehaviour
         }
         else
         {
-            playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+            playerView.transform.position = ToWorld(playerStart);
         }
 
         foreach (Stone stone in stones)
@@ -2033,7 +2563,7 @@ public sealed class PrototypeGame : MonoBehaviour
         if (playerView.TryGetComponent(out CircleCollider2D playerCollider))
             playerCollider.enabled = true;
 
-        playerView.transform.position = ToWorld(new Vector2Int(3, 10));
+        playerView.transform.position = ToWorld(playerStart);
         playerBody.linearVelocity = Vector2.zero;
 
         for (int i = 0; i < stones.Count; i++)
@@ -2223,18 +2753,10 @@ public sealed class PrototypeGame : MonoBehaviour
         Urp2DLighting.RotateToward(enemy.BeamRenderer.transform, direction);
     }
 
-    private static Vector2 CameraDirectionForCell(Vector2Int cell)
+    private Vector2 CameraDirectionForCell(Vector2Int cell)
     {
-        if (cell == new Vector2Int(7, 13))
-            return DirectionOrFallback(new Vector2(-1.0f, -0.65f), Vector2.left);
-        if (cell == new Vector2Int(15, 9))
-            return Vector2.left;
-        if (cell == new Vector2Int(24, 15))
-            return DirectionOrFallback(new Vector2(-0.85f, 0.45f), Vector2.left);
-        if (cell == new Vector2Int(27, 5))
-            return Vector2.right;
-        if (cell == new Vector2Int(32, 3))
-            return DirectionOrFallback(new Vector2(-0.8f, 0.5f), Vector2.left);
+        if (cameraDirectionsByCell.TryGetValue(cell, out Vector2 direction))
+            return direction;
 
         return Vector2.down;
     }
@@ -2270,6 +2792,7 @@ public sealed class PrototypeGame : MonoBehaviour
                trapSprite != null &&
                remoteSprite != null &&
                storySprite != null &&
+               healSprite != null &&
                playerSprite != null &&
                stoneSprite != null &&
                enemySprite != null &&
@@ -2490,7 +3013,8 @@ public sealed class PrototypeGame : MonoBehaviour
             Tile.Trap => trapSprite,
             Tile.Remote => remoteSprite,
             Tile.Story => storySprite,
-            Tile.Exit => CanUseExit() ? openExitSprite ?? exitSprite : exitSprite,
+            Tile.Heal => healSprite,
+            Tile.Exit => CanUseExit(cell) ? openExitSprite ?? exitSprite : exitSprite,
             _ => null,
         };
     }
@@ -2498,7 +3022,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Color OverlayColorFor(Tile tile, Vector2Int cell)
     {
         if (tile == Tile.Exit)
-            return CanUseExit() ? new Color(1.35f, 1.58f, 1.74f, 1f) : new Color(0.48f, 0.55f, 0.62f, 0.72f);
+            return CanUseExit(cell) ? new Color(1.35f, 1.58f, 1.74f, 1f) : new Color(0.48f, 0.55f, 0.62f, 0.72f);
 
         if (tile == Tile.Gate && GateOpenForCell(cell))
             return new Color(1.18f, 1.38f, 1.52f, 1f);
@@ -2515,6 +3039,7 @@ public sealed class PrototypeGame : MonoBehaviour
         {
             Tile.Remote => new Vector3(1.25f, 1.25f, 1f),
             Tile.Story => new Vector3(1.15f, 1.15f, 1f),
+            Tile.Heal => new Vector3(1.18f, 1.18f, 1f),
             Tile.Exit => new Vector3(1.10f, 1.10f, 1f),
             _ => Vector3.one,
         };
@@ -2524,6 +3049,20 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         if (!WallVisibleFor(cell))
             return null;
+
+        int variant = tileVariants[cell.x, cell.y];
+        if (variant >= 0)
+        {
+            switch (variant % 3)
+            {
+                case 1:
+                    return wallVerticalSprite ?? wallSprite;
+                case 2:
+                    return wallCornerSprite ?? wallSprite;
+                default:
+                    return wallSprite;
+            }
+        }
 
         bool up = OpenTileAdjacent(cell + Vector2Int.up);
         bool down = OpenTileAdjacent(cell + Vector2Int.down);
@@ -2582,9 +3121,29 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool GateOpenForCell(Vector2Int cell)
     {
-        return cell == new Vector2Int(12, 10) && startGateOpen ||
-               cell == new Vector2Int(34, 12) && puzzleExitOpen ||
-               cell == new Vector2Int(34, 8) && combatExitOpen;
+        if (!gateGroupsByCell.TryGetValue(cell, out string group))
+            return false;
+
+        if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) && GateRequirementsMet(gate))
+            return true;
+
+        return group switch
+        {
+            "start" => startGateOpen,
+            "puzzle" => puzzleExitOpen,
+            "combat" => combatExitOpen,
+            _ => false,
+        };
+    }
+
+    private static BranchChoice ParseBranch(string branch)
+    {
+        return branch switch
+        {
+            "puzzle" => BranchChoice.Puzzle,
+            "combat" => BranchChoice.Combat,
+            _ => BranchChoice.None,
+        };
     }
 
     private bool WallVisibleFor(Vector2Int cell)
@@ -2654,6 +3213,7 @@ public sealed class PrototypeGame : MonoBehaviour
             storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note", true);
             trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap", true);
             rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble", true);
+            healSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 5, 4, "heal_cassette", true);
             TryApplyWallAtlas();
             return true;
         }
@@ -2937,6 +3497,7 @@ public sealed class PrototypeGame : MonoBehaviour
         trapSprite = PersistSpriteForEditor(folder, "camera_trap", trapSprite);
         remoteSprite = PersistSpriteForEditor(folder, "remote", remoteSprite);
         storySprite = PersistSpriteForEditor(folder, "story_note", storySprite);
+        healSprite = PersistSpriteForEditor(folder, "heal_cassette", healSprite);
         playerSprite = PersistSpriteForEditor(folder, "player_base", playerSprite);
         stoneSprite = PersistSpriteForEditor(folder, "signal_blocker", stoneSprite);
         enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);
@@ -3092,6 +3653,7 @@ public sealed class PrototypeGame : MonoBehaviour
         trapSprite = CreateSprite(new Color(0.18f, 0.10f, 0.13f), new Color(0.08f, 0.05f, 0.06f), new Color(0.94f, 0.18f, 0.28f), SpriteMark.Trap);
         remoteSprite = CreateSprite(new Color(0.12f, 0.13f, 0.14f), new Color(0.05f, 0.05f, 0.05f), new Color(1.00f, 0.86f, 0.25f), SpriteMark.Remote);
         storySprite = CreateSprite(new Color(0.12f, 0.17f, 0.20f), new Color(0.04f, 0.07f, 0.08f), new Color(0.68f, 0.94f, 1.00f), SpriteMark.Story);
+        healSprite = CreateSprite(new Color(0.10f, 0.20f, 0.18f), new Color(0.04f, 0.08f, 0.07f), new Color(0.74f, 1.00f, 0.74f), SpriteMark.Heal);
         playerSprite = CreateSprite(new Color(0.22f, 0.33f, 0.40f), new Color(0.07f, 0.10f, 0.13f), new Color(0.86f, 0.96f, 1.00f), SpriteMark.Player);
         for (int i = 0; i < playerIdleSprites.Length; i++)
         {
@@ -3229,6 +3791,12 @@ public sealed class PrototypeGame : MonoBehaviour
                 DrawRect(texture, 4, 3, 8, 10, color, false);
                 DrawLine(texture, 6, 6, 10, 6, color);
                 DrawLine(texture, 6, 9, 9, 9, color);
+                break;
+            case SpriteMark.Heal:
+                DrawRect(texture, 3, 5, 10, 6, color, false);
+                DrawRect(texture, 5, 7, 2, 2, color, false);
+                DrawRect(texture, 9, 7, 2, 2, color, false);
+                DrawLine(texture, 6, 12, 10, 12, color);
                 break;
             case SpriteMark.Player:
                 DrawLine(texture, 8, 3, 12, 8, color);
@@ -3406,6 +3974,10 @@ public sealed class PrototypeGame : MonoBehaviour
         if (floorSprites.Length == 0)
             return floorSprite;
 
+        int variant = tileVariants[cell.x, cell.y];
+        if (variant >= 0)
+            return floorSprites[variant % floorSprites.Length];
+
         return floorSprites[CellHash(cell, 11) % floorSprites.Length];
     }
 
@@ -3425,7 +3997,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private bool DecalSuppressed(Vector2Int cell)
     {
-        if (Manhattan(cell, new Vector2Int(3, 10)) <= 2 || StoneAt(cell) != null || EnemyAt(cell) != null)
+        if (Manhattan(cell, playerStart) <= 2 || StoneAt(cell) != null || EnemyAt(cell) != null)
             return true;
 
         foreach (Vector2Int next in NeighborCells(cell))
@@ -3448,6 +4020,7 @@ public sealed class PrototypeGame : MonoBehaviour
                tile == Tile.Trap ||
                tile == Tile.Remote ||
                tile == Tile.Story ||
+               tile == Tile.Heal ||
                tile == Tile.Exit;
     }
 
@@ -3564,7 +4137,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2Int PlayerCell()
     {
         if (playerView == null)
-            return new Vector2Int(3, 10);
+            return playerStart;
 
         return WorldToCell(playerView.transform.position);
     }

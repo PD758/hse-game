@@ -177,9 +177,21 @@ public static class ProjectBootstrap
         game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
         game.WallAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
         game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
+        game.LevelAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Levels/prototype_01.json");
+        game.LevelAssets = LoadLevelAssets();
+        game.StartingLevelId = "prototype_01";
         game.BakeSceneForEditor();
 
         EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+    }
+
+    private static TextAsset[] LoadLevelAssets()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:TextAsset", new[] { "Assets/Levels" });
+        var assets = new TextAsset[guids.Length];
+        for (int i = 0; i < guids.Length; i++)
+            assets[i] = AssetDatabase.LoadAssetAtPath<TextAsset>(AssetDatabase.GUIDToAssetPath(guids[i]));
+        return assets;
     }
 
     private static void EnsureSceneExists(string scenePath, SceneBuildAction buildScene)
