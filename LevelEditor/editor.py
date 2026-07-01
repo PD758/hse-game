@@ -397,6 +397,8 @@ def delete_selected(level: dict, ref: tuple[str, int]) -> None:
         del level["enemies"][index]
     elif kind == "exit" and 0 <= index < len(level.get("exits", [])):
         del level["exits"][index]
+    elif kind == "event" and 0 <= index < len(level.get("events", [])):
+        del level["events"][index]
 
 
 def move_selected(level: dict, ref: tuple[str, int], cell: tuple[int, int]) -> None:

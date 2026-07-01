@@ -15,6 +15,7 @@ public sealed class LevelDefinition
     public List<LevelPoint> walls = new List<LevelPoint>();
     public List<LevelObject> objects = new List<LevelObject>();
     public List<LevelEnemy> enemies = new List<LevelEnemy>();
+    public List<LevelEvent> events = new List<LevelEvent>();
     public LevelLogic logic = new LevelLogic();
     public List<LevelRegion> regions = new List<LevelRegion>();
 }
@@ -107,12 +108,44 @@ public sealed class LevelEnemy
 {
     public string id;
     public string type;
+    public string group;
     public string branch;
     public int level = 3;
     public int hp = 2;
     public int x;
     public int y;
     public List<List<int>> patrol = new List<List<int>>();
+}
+
+[Serializable]
+public sealed class LevelEvent
+{
+    public string id;
+    public bool enabled = true;
+    public bool once = true;
+    public string trigger;
+    public string region;
+    public string enemyId;
+    public string enemyGroup;
+    public List<List<object>> conditions = new List<List<object>>();
+    public List<LevelEventAction> actions = new List<LevelEventAction>();
+}
+
+[Serializable]
+public sealed class LevelEventAction
+{
+    public string type;
+    public string id;
+    public string group;
+    public string tile;
+    public string objectType;
+    public string effect;
+    public int x;
+    public int y;
+    public int variant = -1;
+    public LevelObject obj;
+    public LevelEnemy enemy;
+    public List<LevelEnemy> enemies = new List<LevelEnemy>();
 }
 
 [Serializable]

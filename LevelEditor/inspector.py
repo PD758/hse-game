@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -9,6 +10,7 @@ import pygame
 
 BRANCHES = ("none", "puzzle", "combat")
 FRAMES = ("vertical", "horizontal")
+EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 
 
 @dataclass
@@ -81,6 +83,7 @@ def draw_inspector(
         y = draw_text(screen, font, f"Tool: {selected_tool_label}", x + margin, y, (188, 196, 204))
         if hover_cell is not None:
             y = draw_text(screen, font, f"Cell: {hover_cell[0]}, {hover_cell[1]}", x + margin, y, (166, 212, 230))
+        y = draw_event_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(14 * scale), width - margin * 2, scale)
         return
 
@@ -120,6 +123,7 @@ def draw_inspector(
             y = draw_text(screen, font, "No editable properties", x + margin, y, (132, 140, 148))
     elif kind == "enemy":
         y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "level", target.get("level", 3), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "hp", target.get("hp", 2), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
@@ -136,6 +140,16 @@ def draw_inspector(
         y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
     elif kind == "player":
         y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
+    elif kind == "event":
+        y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_enum_buttons(screen, font, state, "trigger", target.get("trigger", "enterRegion"), EVENT_TRIGGERS, x + margin, y, width - margin * 2, scale)
+        y = draw_enum_buttons(screen, font, state, "once", str(bool(target.get("once", True))).lower(), ("true", "false"), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "region", target.get("region", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "enemyId", target.get("enemyId", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "enemyGroup", target.get("enemyGroup", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "conditions", target.get("conditions", []), x + margin, y, width - margin * 2, scale, multiline=True)
+        y = draw_text_field(screen, font, state, selected_ref, "actions", target.get("actions", []), x + margin, y, width - margin * 2, scale, multiline=True)
+        y = draw_button_row(screen, font, state, [("delete_event", "Delete event")], x + margin, y, width - margin * 2, scale)
 
     draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(16 * scale), width - margin * 2, scale)
 
@@ -145,7 +159,7 @@ def handle_key(state: InspectorState, level: dict, selected_ref: tuple[str, int]
         state.clear_text()
         return False
 
-    if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and state.active_field == "text" and not pygame.key.get_mods() & pygame.KMOD_CTRL:
+    if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and state.active_field in ("text", "actions", "conditions", "requiresStats") and not pygame.key.get_mods() & pygame.KMOD_CTRL:
         state.text += "\n"
     elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
         state.clear_text()
@@ -180,6 +194,16 @@ def handle_click(
         if action.kind == "issue":
             state.pending_select_ref = action.target
             return False, current_tile_variant
+        if action.kind == "select_ref":
+            state.pending_select_ref = action.target
+            state.clear_text()
+            return False, current_tile_variant
+        if action.kind == "add_event":
+            events = level.setdefault("events", [])
+            events.append({"id": f"event_{len(events) + 1}", "enabled": True, "once": True, "trigger": "enterRegion", "region": "", "enemyId": "", "enemyGroup": "", "conditions": [], "actions": []})
+            state.pending_select_ref = ("event", len(events) - 1)
+            state.clear_text()
+            return True, current_tile_variant
 
         if action.kind == "set_tile_variant":
             if selected_cell is None or not inside_tiles(tile_variants, selected_cell):
@@ -198,7 +222,7 @@ def handle_click(
             state.begin_text(selected_ref, action.field, target.get(action.field, ""))
             return False, current_tile_variant
         if action.kind == "set":
-            target[action.field] = action.value
+            target[action.field] = coerce_action_value(action.field, action.value)
             state.clear_text()
             return True, current_tile_variant
         if action.kind == "set_int":
@@ -219,6 +243,16 @@ def handle_click(
             if target.get("patrol"):
                 target["patrol"] = []
                 return True, current_tile_variant
+            return False, current_tile_variant
+        if action.kind == "delete_event":
+            if selected_ref is not None and selected_ref[0] == "event":
+                events = level.setdefault("events", [])
+                index = selected_ref[1]
+                if 0 <= index < len(events):
+                    del events[index]
+                    state.pending_select_ref = None
+                    state.clear_text()
+                    return True, current_tile_variant
             return False, current_tile_variant
 
     state.clear_text()
@@ -242,7 +276,24 @@ def target_for_ref(level: dict, ref: tuple[str, int] | None) -> dict | None:
         return level.setdefault("playerStart", {"x": 0, "y": 0})
     if kind == "exit" and 0 <= index < len(level.get("exits", [])):
         return level["exits"][index]
+    if kind == "event" and 0 <= index < len(level.get("events", [])):
+        return level["events"][index]
     return None
+
+
+def draw_event_list(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, level: dict, x: int, y: int, width: int, scale: float) -> int:
+    events = level.setdefault("events", [])
+    y = draw_text(screen, font, f"Events: {len(events)}", x, y, (166, 212, 230))
+    y = draw_button_row(screen, font, state, [("add_event", "Add event")], x, y, width, scale)
+    height = round(26 * scale)
+    for index, event in enumerate(events[:6]):
+        rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+        label = f"{event.get('id', f'event_{index}')} [{event.get('trigger', '')}]"
+        screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+        state.actions.append(InspectorAction(rect, "select_ref", target=("event", index)))
+        y += height + round(5 * scale)
+    return y
 
 
 def draw_text(screen: pygame.Surface, font: pygame.font.Font, text: str, x: int, y: int, color: tuple[int, int, int]) -> int:
@@ -377,6 +428,8 @@ def target_title(kind: str, target: dict) -> str:
         return "Player start"
     if kind == "exit":
         return "Exit"
+    if kind == "event":
+        return f"Event: {target.get('id', 'event')}"
     return kind
 
 
@@ -411,6 +464,8 @@ def display_text_value(value: object) -> str:
     if value is None:
         return ""
     if isinstance(value, list):
+        if value and all(isinstance(item, dict) for item in value):
+            return json.dumps(value, ensure_ascii=False, indent=2)
         if all(is_stat_condition(item) for item in value):
             return "; ".join(format_stat_condition(item) for item in value)
         return ", ".join(str(item) for item in value)
@@ -474,8 +529,14 @@ def fit_word(word: str, font: pygame.font.Font, max_width: int, result: list[str
 def coerce_text_value(field: str, value: str) -> object:
     if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return [part.strip() for part in value.split(",") if part.strip()]
-    if field == "requiresStats":
+    if field in ("requiresStats", "conditions"):
         return parse_stat_conditions(value)
+    if field == "actions":
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except json.JSONDecodeError:
+            return []
     if field == "level":
         try:
             return min(9, max(1, int(value)))
@@ -490,17 +551,23 @@ def coerce_text_value(field: str, value: str) -> object:
 
 
 def is_allowed_text(value: str, field: str) -> bool:
-    if field == "text":
+    if field in ("text", "actions"):
         return all(ch >= " " for ch in value)
     if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return all(ch.isalnum() or ch in "_-., " for ch in value)
-    if field == "requiresStats":
+    if field in ("requiresStats", "conditions"):
         return all(ch.isalnum() or ch in "_-.,;()[] " for ch in value)
     if field == "level":
         return value.isdigit()
     if field == "hp":
         return value.isdigit()
     return all(ch.isalnum() or ch in "_-." for ch in value)
+
+
+def coerce_action_value(field: str, value: object) -> object:
+    if field == "once":
+        return value == "true" or value is True
+    return value
 
 
 def inside_tiles(tiles: list, cell: tuple[int, int]) -> bool:

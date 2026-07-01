@@ -126,6 +126,7 @@ public sealed class PrototypeGame : MonoBehaviour
         public EnemyMode Mode;
         public Vector2Int LastSeen;
         public BranchChoice Branch;
+        public string Group;
         public int Level = EnemyBaseLevel;
         public int Hp = 2;
         public float StunTimer;
@@ -178,6 +179,11 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly Dictionary<Vector2Int, LevelExit> exitsByCell = new Dictionary<Vector2Int, LevelExit>();
     private readonly HashSet<string> readStoryIds = new HashSet<string>();
     private readonly HashSet<string> killedEnemyIds = new HashSet<string>();
+    private readonly HashSet<string> activeEnemyGroups = new HashSet<string>();
+    private readonly HashSet<string> clearedEnemyGroups = new HashSet<string>();
+    private readonly HashSet<string> executedEventIds = new HashSet<string>();
+    private readonly List<LevelEvent> levelEvents = new List<LevelEvent>();
+    private readonly Dictionary<string, HashSet<Vector2Int>> regionsById = new Dictionary<string, HashSet<Vector2Int>>();
     private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
 
     [SerializeField] private Sprite floorSprite;
@@ -233,6 +239,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2 lastAim = Vector2.right;
     private string currentLevelId;
     private Vector2Int playerStart = new Vector2Int(3, 10);
+    private Vector2Int lastEventPlayerCell = new Vector2Int(-1, -1);
     private Vector2Int lastNoiseCell;
     private int lastNoisePower;
     private int playerHp = 6;
@@ -244,7 +251,6 @@ public sealed class PrototypeGame : MonoBehaviour
     private float attackCooldown;
     private float remoteCooldown;
     private float remoteJamTimer;
-    private bool storyRead;
     private bool hasRemote;
     private bool gameEnded;
     private string message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
@@ -268,6 +274,7 @@ public sealed class PrototypeGame : MonoBehaviour
         EnsureGameplayLighting();
         UpdatePostProcessing();
         RedrawAll();
+        EvaluateEvents("levelStart", null, null);
     }
 
     private void Update()
@@ -555,7 +562,6 @@ public sealed class PrototypeGame : MonoBehaviour
         attackCooldown = 0f;
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
-        storyRead = false;
         hasRemote = false;
         gameEnded = false;
         lastNoisePower = 0;
@@ -579,6 +585,7 @@ public sealed class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        EvaluateEvents("levelStart", null, null);
     }
 
     private void ReadMoveInput()
@@ -692,7 +699,6 @@ public sealed class PrototypeGame : MonoBehaviour
                 LevelObject story = storyObjectsByCell.TryGetValue(next, out LevelObject storyData) ? storyData : null;
                 string storyId = string.IsNullOrEmpty(story?.id) ? $"story_{next.x}_{next.y}" : story.id;
                 readStoryIds.Add(storyId);
-                storyRead = true;
                 tiles[next.x, next.y] = Tile.Floor;
                 tileVariants[next.x, next.y] = -1;
                 NarrativeRunState.RecordPuzzleReflection();
@@ -853,6 +859,8 @@ public sealed class PrototypeGame : MonoBehaviour
         if (target.View != null)
             target.View.SetActive(false);
         enemies.Remove(target);
+        EvaluateEvents("enemyKilled", target.Id, target.Group);
+        CheckEnemyGroupCleared(target.Group);
         RedrawGateGroups();
         RedrawExits();
     }
@@ -967,6 +975,12 @@ public sealed class PrototypeGame : MonoBehaviour
 
         if (tile == Tile.Exit)
             TryUseExit(playerCell);
+
+        if (playerCell != lastEventPlayerCell)
+        {
+            lastEventPlayerCell = playerCell;
+            EvaluateEvents("enterRegion", null, null);
+        }
     }
 
     private void BlockRectangle(int minX, int minY, int maxX, int maxY)
@@ -1033,12 +1047,12 @@ public sealed class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        EvaluateEvents("levelStart", null, null);
         message = $"Канал переключён: {currentLevelId}.";
     }
 
     private void ResetLevelLocalState()
     {
-        storyRead = false;
         attackCooldown = 0f;
         remoteJamTimer = 0f;
         lastNoisePower = 0;
@@ -1286,6 +1300,233 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         RedrawGateGroups();
         RedrawExits();
+        EvaluateEvents("statsChanged", null, null);
+    }
+
+    private void CheckEnemyGroupCleared(string group)
+    {
+        if (string.IsNullOrEmpty(group) || !activeEnemyGroups.Contains(group) || clearedEnemyGroups.Contains(group))
+            return;
+
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy.Group == group)
+                return;
+        }
+
+        clearedEnemyGroups.Add(group);
+        EvaluateEvents("enemyGroupCleared", null, group);
+    }
+
+    private void EvaluateEvents(string trigger, string enemyId, string enemyGroup)
+    {
+        if (levelEvents.Count == 0)
+            return;
+
+        foreach (LevelEvent levelEvent in levelEvents.ToArray())
+        {
+            if (!EventMatches(levelEvent, trigger, enemyId, enemyGroup))
+                continue;
+
+            ExecuteEvent(levelEvent);
+        }
+    }
+
+    private bool EventMatches(LevelEvent levelEvent, string trigger, string enemyId, string enemyGroup)
+    {
+        if (levelEvent == null || levelEvent.enabled == false)
+            return false;
+        if (levelEvent.once && !string.IsNullOrEmpty(levelEvent.id) && executedEventIds.Contains(levelEvent.id))
+            return false;
+        if (!string.Equals(levelEvent.trigger, trigger, StringComparison.Ordinal))
+            return false;
+
+        if (trigger == "enterRegion")
+        {
+            if (string.IsNullOrEmpty(levelEvent.region) || !regionsById.TryGetValue(levelEvent.region, out HashSet<Vector2Int> cells) || !cells.Contains(PlayerCell()))
+                return false;
+        }
+        else if (trigger == "enemyKilled")
+        {
+            if (!string.Equals(levelEvent.enemyId, enemyId, StringComparison.Ordinal))
+                return false;
+        }
+        else if (trigger == "enemyGroupCleared")
+        {
+            if (!string.Equals(levelEvent.enemyGroup, enemyGroup, StringComparison.Ordinal))
+                return false;
+        }
+
+        if (levelEvent.conditions != null)
+        {
+            foreach (List<object> condition in levelEvent.conditions)
+            {
+                if (!GateStatConditionMet(condition))
+                    return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void ExecuteEvent(LevelEvent levelEvent)
+    {
+        if (levelEvent.once && !string.IsNullOrEmpty(levelEvent.id))
+            executedEventIds.Add(levelEvent.id);
+
+        if (levelEvent.actions == null)
+            return;
+
+        bool rebuildColliders = false;
+        foreach (LevelEventAction action in levelEvent.actions)
+        {
+            if (ExecuteEventAction(action))
+                rebuildColliders = true;
+        }
+
+        if (rebuildColliders)
+            RebuildTileColliders();
+        RedrawGateGroups();
+        RedrawExits();
+    }
+
+    private bool ExecuteEventAction(LevelEventAction action)
+    {
+        if (action == null)
+            return false;
+
+        switch (action.type)
+        {
+            case "spawnEnemy":
+                SpawnEventEnemy(action.enemy ?? EnemyFromAction(action));
+                return false;
+            case "spawnEnemies":
+                if (action.enemies != null)
+                {
+                    foreach (LevelEnemy enemy in action.enemies)
+                        SpawnEventEnemy(enemy);
+                }
+                return false;
+            case "fallStone":
+                SpawnEventStone(new Vector2Int(action.x, action.y), true);
+                return true;
+            case "setTile":
+                SetEventTile(new Vector2Int(action.x, action.y), action.tile, action.variant);
+                return true;
+            case "spawnObject":
+                SpawnEventObject(action);
+                return true;
+            case "removeObject":
+                RemoveEventObject(action);
+                return true;
+            case "playEffect":
+                SpawnHitBurst(ToWorld(new Vector2Int(action.x, action.y)), true);
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private LevelEnemy EnemyFromAction(LevelEventAction action)
+    {
+        return new LevelEnemy
+        {
+            id = action.id,
+            group = action.group,
+            x = action.x,
+            y = action.y,
+            level = action.enemy?.level ?? 3,
+            hp = action.enemy?.hp ?? 2,
+            patrol = action.enemy?.patrol ?? new List<List<int>> { new List<int> { action.x, action.y } },
+        };
+    }
+
+    private void SpawnEventEnemy(LevelEnemy data)
+    {
+        if (data == null)
+            return;
+
+        Vector2Int start = new Vector2Int(data.x, data.y);
+        if (!Inside(start) || IsSolidCell(start) || EnemyAt(start) != null)
+            return;
+
+        int before = enemies.Count;
+        ApplyLevelEnemy(data);
+        if (enemies.Count <= before)
+            return;
+
+        Enemy spawned = enemies[enemies.Count - 1];
+        if (Application.isPlaying || playerView != null)
+            CreateEnemyView(spawned, enemies.Count - 1);
+    }
+
+    private void SpawnEventStone(Vector2Int cell, bool falling)
+    {
+        if (!Inside(cell) || StoneAt(cell) != null)
+            return;
+
+        AddStone(cell);
+        Stone stone = stones[stones.Count - 1];
+        if (falling)
+            SpawnHitBurst(ToWorld(cell), false);
+        CreateStoneView(stone);
+    }
+
+    private void SetEventTile(Vector2Int cell, string tileName, int variant)
+    {
+        if (!Inside(cell))
+            return;
+
+        tiles[cell.x, cell.y] = TileFromName(tileName);
+        tileVariants[cell.x, cell.y] = variant;
+        RedrawTile(cell);
+    }
+
+    private void SpawnEventObject(LevelEventAction action)
+    {
+        LevelObject obj = action.obj ?? new LevelObject
+        {
+            type = string.IsNullOrEmpty(action.objectType) ? action.type : action.objectType,
+            id = action.id,
+            group = action.group,
+            x = action.x,
+            y = action.y,
+            variant = action.variant,
+        };
+        ApplyLevelObject(obj);
+        RedrawTile(new Vector2Int(obj.x, obj.y));
+    }
+
+    private void RemoveEventObject(LevelEventAction action)
+    {
+        Vector2Int cell = new Vector2Int(action.x, action.y);
+        if (!string.IsNullOrEmpty(action.id))
+        {
+            foreach (KeyValuePair<Vector2Int, LevelObject> item in gateObjectsByCell)
+            {
+                if (item.Value != null && item.Value.id == action.id)
+                {
+                    cell = item.Key;
+                    break;
+                }
+            }
+        }
+
+        if (!Inside(cell))
+            return;
+
+        if (StoneAt(cell) is Stone stone)
+        {
+            DestroyRuntimeObject(stone.View);
+            stones.Remove(stone);
+        }
+        gateGroupsByCell.Remove(cell);
+        gateObjectsByCell.Remove(cell);
+        storyObjectsByCell.Remove(cell);
+        cameraDirectionsByCell.Remove(cell);
+        tiles[cell.x, cell.y] = Tile.Floor;
+        tileVariants[cell.x, cell.y] = -1;
+        RedrawTile(cell);
     }
 
     private void UpdateEnemies(float dt)
@@ -2082,6 +2323,11 @@ public sealed class PrototypeGame : MonoBehaviour
         stones.Clear();
         enemies.Clear();
         killedEnemyIds.Clear();
+        activeEnemyGroups.Clear();
+        clearedEnemyGroups.Clear();
+        executedEventIds.Clear();
+        levelEvents.Clear();
+        regionsById.Clear();
         levelEnemiesKilled = 0;
         gateGroupsByCell.Clear();
         gateCellsByGroup.Clear();
@@ -2140,7 +2386,17 @@ public sealed class PrototypeGame : MonoBehaviour
                 ApplyLevelEnemy(enemy);
         }
 
+        if (level.regions != null)
+        {
+            foreach (LevelRegion region in level.regions)
+                RegisterRegion(region);
+        }
+
+        if (level.events != null)
+            levelEvents.AddRange(level.events);
+
         ResetPlayerTransformIfBound();
+        lastEventPlayerCell = playerStart;
     }
 
     private LevelDefinition LoadLevelDefinition()
@@ -2251,6 +2507,28 @@ public sealed class PrototypeGame : MonoBehaviour
                 tileVariants[cell.x, cell.y] = run.variant;
             }
         }
+    }
+
+    private void RegisterRegion(LevelRegion region)
+    {
+        if (region == null || string.IsNullOrWhiteSpace(region.id))
+            return;
+
+        var cells = new HashSet<Vector2Int>();
+        if (region.runs != null)
+        {
+            foreach (LevelTileRun run in region.runs)
+            {
+                for (int offset = 0; offset < run.length; offset++)
+                {
+                    Vector2Int cell = new Vector2Int(run.x + offset, run.y);
+                    if (Inside(cell))
+                        cells.Add(cell);
+                }
+            }
+        }
+
+        regionsById[region.id.Trim()] = cells;
     }
 
     private Tile TileFromName(string name)
@@ -2399,7 +2677,7 @@ public sealed class PrototypeGame : MonoBehaviour
         string id = string.IsNullOrWhiteSpace(data.id) ? $"enemy_{start.x}_{start.y}_{enemies.Count}" : data.id.Trim();
         int level = Mathf.Clamp(data.level <= 0 ? EnemyBaseLevel : data.level, EnemyMinLevel, EnemyMaxLevel);
         int hp = Mathf.Max(1, data.hp <= 0 ? 2 : data.hp);
-        AddEnemy(id, ParseBranch(data.branch), level, hp, start, patrol.ToArray());
+        AddEnemy(id, data.group, ParseBranch(data.branch), level, hp, start, patrol.ToArray());
     }
 
     private void ResetPlayerTransformIfBound()
@@ -2448,11 +2726,12 @@ public sealed class PrototypeGame : MonoBehaviour
         });
     }
 
-    private void AddEnemy(string id, BranchChoice branch, int level, int hp, Vector2Int start, params Vector2Int[] patrol)
+    private Enemy AddEnemy(string id, string group, BranchChoice branch, int level, int hp, Vector2Int start, params Vector2Int[] patrol)
     {
         var enemy = new Enemy
         {
             Id = id,
+            Group = string.IsNullOrWhiteSpace(group) ? string.Empty : group.Trim(),
             Position = ToWorld(start),
             LastSeen = start,
             Mode = EnemyMode.Patrol,
@@ -2463,6 +2742,9 @@ public sealed class PrototypeGame : MonoBehaviour
         };
         enemy.Patrol.AddRange(patrol);
         enemies.Add(enemy);
+        if (!string.IsNullOrEmpty(enemy.Group))
+            activeEnemyGroups.Add(enemy.Group);
+        return enemy;
     }
 
     private void CreateViews()
@@ -2527,33 +2809,38 @@ public sealed class PrototypeGame : MonoBehaviour
         }
 
         foreach (Stone stone in stones)
-        {
-            GameObject view = new GameObject($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
-            view.transform.position = ToWorld(stone.Cell);
-            view.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
-            var renderer = view.AddComponent<SpriteRenderer>();
-            renderer.sprite = stoneSprite;
-            SetLitMaterial(renderer);
-            renderer.sortingOrder = 12;
-            var collider = view.AddComponent<BoxCollider2D>();
-            collider.size = new Vector2(0.95f, 0.95f);
-            Urp2DLighting.AddShadowCaster(view);
-            stone.View = view;
-        }
+            CreateStoneView(stone);
 
         for (int i = 0; i < enemies.Count; i++)
-        {
-            Enemy enemy = enemies[i];
-            enemy.View = new GameObject($"Enemy {i}");
-            enemy.View.transform.position = enemy.Position;
-            var renderer = enemy.View.AddComponent<SpriteRenderer>();
-            renderer.sprite = enemySprite;
-            SetLitMaterial(renderer);
-            renderer.sortingOrder = 15;
-            enemy.Light = EnsureEnemyLight(enemy.View);
-            enemy.BeamRenderer = EnsureEnemyBeam(enemy.View);
-            ConfigureEnemyLight(enemy);
-        }
+            CreateEnemyView(enemies[i], i);
+    }
+
+    private void CreateEnemyView(Enemy enemy, int index)
+    {
+        enemy.View = new GameObject($"Enemy {index}");
+        enemy.View.transform.position = enemy.Position;
+        var renderer = enemy.View.AddComponent<SpriteRenderer>();
+        renderer.sprite = enemySprite;
+        SetLitMaterial(renderer);
+        renderer.sortingOrder = 15;
+        enemy.Light = EnsureEnemyLight(enemy.View);
+        enemy.BeamRenderer = EnsureEnemyBeam(enemy.View);
+        ConfigureEnemyLight(enemy);
+    }
+
+    private void CreateStoneView(Stone stone)
+    {
+        GameObject view = new GameObject($"Signal Blocker {stone.Cell.x},{stone.Cell.y}");
+        view.transform.position = ToWorld(stone.Cell);
+        view.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
+        var renderer = view.AddComponent<SpriteRenderer>();
+        renderer.sprite = stoneSprite;
+        SetLitMaterial(renderer);
+        renderer.sortingOrder = 12;
+        var collider = view.AddComponent<BoxCollider2D>();
+        collider.size = new Vector2(0.95f, 0.95f);
+        Urp2DLighting.AddShadowCaster(view);
+        stone.View = view;
     }
 
     private void CreateLighting()

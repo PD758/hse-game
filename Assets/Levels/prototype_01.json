@@ -560,6 +560,7 @@
       ]
     }
   ],
+  "events": [],
   "logic": {
     "gates": [],
     "branchTriggers": [],

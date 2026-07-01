@@ -5,10 +5,12 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 
-from schema import ENEMY_TYPE, TILE_WALL, object_at
+from schema import ENEMY_TYPE, OBJECT_TYPES, TILE_TYPES, TILE_WALL, object_at
 
 STAT_OPERATORS = {"gt", "lt", "ge", "le", "eq", "ne"}
 STAT_NAMES = {"enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating"}
+EVENT_TRIGGERS = {"levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared"}
+EVENT_ACTIONS = {"spawnEnemy", "spawnEnemies", "fallStone", "setTile", "spawnObject", "removeObject", "playEffect"}
 
 
 @dataclass
@@ -37,6 +39,8 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
     story_ids = set()
     gate_ids = set()
     enemy_ids = set()
+    enemy_groups = set()
+    region_ids = set()
     existing_levels = collect_level_ids()
 
     exit_ids = set()
@@ -125,6 +129,9 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
             issues.append(ValidationIssue("error", f"duplicate enemy id '{enemy_id}'", cell, target))
         else:
             enemy_ids.add(enemy_id)
+        enemy_group = str(enemy.get("group", "")).strip()
+        if enemy_group:
+            enemy_groups.add(enemy_group)
 
         try:
             enemy_level = int(enemy.get("level", 3))
@@ -154,6 +161,13 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
                 issues.append(ValidationIssue("warning", "enemy patrol segment is not reachable", patrol_cell, target))
             previous_patrol_cell = patrol_cell
 
+    for region in level.get("regions", []) or []:
+        region_id = str(region.get("id", "")).strip()
+        if region_id:
+            region_ids.add(region_id)
+        else:
+            issues.append(ValidationIssue("error", "region has no id"))
+
     for index, obj in enumerate(level.get("objects", [])):
         if obj.get("type") != "gate":
             continue
@@ -164,6 +178,12 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
                 issues.append(ValidationIssue("error", f"gate requires missing enemy '{enemy_id}'", cell, target))
         for condition in obj.get("requiresStats", []) or []:
             validate_stat_condition(issues, condition, cell, target)
+
+    event_ids = set()
+    spawned_enemy_ids = set()
+    spawned_enemy_groups = set()
+    for index, event in enumerate(level.get("events", []) or []):
+        validate_event(issues, event, index, tiles, event_ids, enemy_ids | spawned_enemy_ids, enemy_groups | spawned_enemy_groups, region_ids, spawned_enemy_ids, spawned_enemy_groups)
 
     for cell, targets in occupied.items():
         if len(targets) > 1:
@@ -231,6 +251,103 @@ def validate_stat_condition(issues: list[ValidationIssue], condition: object, ce
 
     if stat_name == "currentRating" and not 0 <= target_value <= 100:
         issues.append(ValidationIssue("warning", "currentRating condition target should be 0..100", cell, target))
+
+
+def validate_event(
+    issues: list[ValidationIssue],
+    event: dict,
+    index: int,
+    tiles: list[list[str]],
+    event_ids: set[str],
+    known_enemy_ids: set[str],
+    known_enemy_groups: set[str],
+    region_ids: set[str],
+    spawned_enemy_ids: set[str],
+    spawned_enemy_groups: set[str],
+) -> None:
+    target = ("event", index)
+    event_id = str(event.get("id", "")).strip()
+    if event_id in event_ids:
+        issues.append(ValidationIssue("error", f"duplicate event id '{event_id}'", target=target))
+    elif event_id:
+        event_ids.add(event_id)
+    else:
+        issues.append(ValidationIssue("warning", "event has no id", target=target))
+
+    trigger = str(event.get("trigger", "")).strip()
+    if trigger not in EVENT_TRIGGERS:
+        issues.append(ValidationIssue("error", f"unknown event trigger '{trigger}'", target=target))
+    if trigger == "enterRegion" and event.get("region", "") not in region_ids:
+        issues.append(ValidationIssue("error", f"event region '{event.get('region', '')}' was not found", target=target))
+    if trigger == "enemyKilled" and event.get("enemyId", "") not in known_enemy_ids:
+        issues.append(ValidationIssue("warning", f"event enemyId '{event.get('enemyId', '')}' is not present before this event", target=target))
+    if trigger == "enemyGroupCleared" and event.get("enemyGroup", "") not in known_enemy_groups:
+        issues.append(ValidationIssue("warning", f"event enemyGroup '{event.get('enemyGroup', '')}' is not present before this event", target=target))
+
+    for condition in event.get("conditions", []) or []:
+        validate_stat_condition(issues, condition, None, target)
+
+    for action in event.get("actions", []) or []:
+        validate_event_action(issues, action, target, tiles, known_enemy_ids, spawned_enemy_ids, spawned_enemy_groups)
+
+
+def validate_event_action(
+    issues: list[ValidationIssue],
+    action: dict,
+    target: tuple[str, int],
+    tiles: list[list[str]],
+    known_enemy_ids: set[str],
+    spawned_enemy_ids: set[str],
+    spawned_enemy_groups: set[str],
+) -> None:
+    action_type = str(action.get("type", "")).strip()
+    if action_type not in EVENT_ACTIONS:
+        issues.append(ValidationIssue("error", f"unknown event action '{action_type}'", target=target))
+        return
+
+    if action_type in {"fallStone", "setTile", "spawnObject", "removeObject", "playEffect", "spawnEnemy"}:
+        cell = (int(action.get("x", 0)), int(action.get("y", 0)))
+        if not inside(tiles, cell):
+            issues.append(ValidationIssue("error", f"event action '{action_type}' target is outside level", cell, target))
+
+    if action_type == "setTile" and action.get("tile", "") not in TILE_TYPES:
+        issues.append(ValidationIssue("error", f"setTile uses unknown tile '{action.get('tile', '')}'", target=target))
+    if action_type == "spawnObject" and action.get("objectType", action.get("type", "")) not in OBJECT_TYPES:
+        issues.append(ValidationIssue("error", f"spawnObject uses unknown object type '{action.get('objectType', '')}'", target=target))
+
+    enemies = []
+    if action_type == "spawnEnemy":
+        enemies = [action.get("enemy") or action]
+    elif action_type == "spawnEnemies":
+        enemies = action.get("enemies", []) or []
+    for enemy in enemies:
+        validate_spawned_enemy(issues, enemy, target, tiles, known_enemy_ids, spawned_enemy_ids, spawned_enemy_groups)
+
+
+def validate_spawned_enemy(
+    issues: list[ValidationIssue],
+    enemy: dict,
+    target: tuple[str, int],
+    tiles: list[list[str]],
+    known_enemy_ids: set[str],
+    spawned_enemy_ids: set[str],
+    spawned_enemy_groups: set[str],
+) -> None:
+    if not isinstance(enemy, dict):
+        issues.append(ValidationIssue("error", "spawned enemy must be an object", target=target))
+        return
+    cell = (int(enemy.get("x", 0)), int(enemy.get("y", 0)))
+    validate_walkable_cell(issues, tiles, cell, target, "spawned enemy")
+    enemy_id = str(enemy.get("id", "")).strip()
+    if not enemy_id:
+        issues.append(ValidationIssue("error", "spawned enemy has no id", cell, target))
+    elif enemy_id in known_enemy_ids or enemy_id in spawned_enemy_ids:
+        issues.append(ValidationIssue("error", f"duplicate spawned enemy id '{enemy_id}'", cell, target))
+    else:
+        spawned_enemy_ids.add(enemy_id)
+    enemy_group = str(enemy.get("group", "")).strip()
+    if enemy_group:
+        spawned_enemy_groups.add(enemy_group)
 
 
 def validate_walkable_cell(issues: list[ValidationIssue], tiles: list[list[str]], cell: tuple[int, int], target: tuple[str, int], label: str) -> None:

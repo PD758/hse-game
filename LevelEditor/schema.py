@@ -33,6 +33,7 @@ def default_level() -> dict:
         "walls": [],
         "objects": [],
         "enemies": [],
+        "events": [],
         "logic": {
             "gates": [],
             "branchTriggers": [],
