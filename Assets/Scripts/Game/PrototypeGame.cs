@@ -3976,7 +3976,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
         int variant = tileVariants[cell.x, cell.y];
         if (variant >= 0)
-            return floorSprites[variant % floorSprites.Length];
+            return floorSprites[0];
 
         return floorSprites[CellHash(cell, 11) % floorSprites.Length];
     }
@@ -3985,6 +3985,12 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         if (floorDecalSprites.Length == 0 || DecalSuppressed(cell))
             return null;
+
+        int variant = tileVariants[cell.x, cell.y];
+        if (variant == 0)
+            return null;
+        if (variant > 0)
+            return floorDecalSprites[(variant - 1) % floorDecalSprites.Length];
 
         int adjacentWalls = NearbyWallWeight(cell);
         int roll = CellHash(cell, 29) % 100;

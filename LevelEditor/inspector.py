@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 import pygame
 
 
 BRANCHES = ("none", "puzzle", "combat")
 FRAMES = ("vertical", "horizontal")
-VARIANT_LABELS = ("auto", "0", "1", "2", "3")
 
 
 @dataclass
@@ -57,6 +56,7 @@ def draw_inspector(
     hover_cell: tuple[int, int] | None,
     selected_tool_label: str,
     patrol_mode: bool,
+    variant_count_for: Callable[[str], int],
     validation_issues: list[Any] | None = None,
     scale: float = 1.0,
 ) -> None:
@@ -76,7 +76,7 @@ def draw_inspector(
             tx, ty = selected_cell
             y = draw_text(screen, font, f"Tile: {tiles[tx][ty]}", x + margin, y, (166, 212, 230))
             y = draw_text(screen, font, f"x: {tx}   y: {ty}", x + margin, y, (188, 196, 204))
-            y = draw_variant_buttons(screen, font, state, tile_variants[tx][ty], x + margin, y + round(8 * scale), width - margin * 2, scale, "set_tile_variant")
+            y = draw_variant_buttons(screen, font, state, tile_variants[tx][ty], variant_count_for(tiles[tx][ty]), x + margin, y + round(8 * scale), width - margin * 2, scale, "set_tile_variant")
             y += round(6 * scale)
         y = draw_text(screen, font, f"Tool: {selected_tool_label}", x + margin, y, (188, 196, 204))
         if hover_cell is not None:
@@ -97,7 +97,7 @@ def draw_inspector(
 
     if kind == "object":
         obj_type = target.get("type", "")
-        y = draw_variant_buttons(screen, font, state, int(target.get("variant", -1)), x + margin, y, width - margin * 2, scale, "set_int", field="variant")
+        y = draw_variant_buttons(screen, font, state, int(target.get("variant", -1)), variant_count_for(obj_type), x + margin, y, width - margin * 2, scale, "set_int", field="variant")
         if obj_type == "gate":
             y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
@@ -315,6 +315,7 @@ def draw_variant_buttons(
     font: pygame.font.Font,
     state: InspectorState,
     current: int,
+    count: int,
     x: int,
     y: int,
     width: int,
@@ -322,11 +323,15 @@ def draw_variant_buttons(
     kind: str,
     field: str = "",
 ) -> int:
+    if count <= 1:
+        return y
+
     y = draw_text(screen, font, "variant:", x, y, (188, 196, 204))
-    button_width = max(round(50 * scale), width // len(VARIANT_LABELS) - round(5 * scale))
+    labels = ["auto"] + [str(index) for index in range(count)]
+    button_width = max(round(50 * scale), width // len(labels) - round(5 * scale))
     height = round(28 * scale)
     bx = x
-    for label in VARIANT_LABELS:
+    for label in labels:
         value = -1 if label == "auto" else int(label)
         rect = pygame.Rect(bx, y, button_width, height)
         color = (68, 88, 96) if value == current else (36, 40, 46)

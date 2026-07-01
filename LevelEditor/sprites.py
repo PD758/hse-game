@@ -22,7 +22,6 @@ SPRITE_NAMES = {
 }
 
 VARIANT_FILES = {
-    "floor": ("floor_base.png", "floor_0.png"),
     "wall": (
         "wall_horizontal.png",
         "wall_vertical.png",
@@ -69,6 +68,9 @@ class SpriteBank:
         return scaled
 
     def variant_count(self, name: str) -> int:
+        if name == "floor":
+            return self._floor_variant_count()
+
         if name in VARIANT_FILES:
             return sum(1 for filename in VARIANT_FILES[name] if (self.source_dir / filename).exists())
 
@@ -78,32 +80,59 @@ class SpriteBank:
         return count
 
     def _load(self, name: str, variant: int) -> pygame.Surface:
+        if name == "floor" and variant >= 0:
+            return self._load_floor_variant(variant)
+
         if variant >= 0:
             filenames = VARIANT_FILES.get(name)
             if filenames is not None and variant < len(filenames):
                 variant_path = self.source_dir / filenames[variant]
                 if variant_path.exists():
-                    surface = self._load_image(variant_path)
-                    return self._variant_tint(surface, variant) if variant > 0 else surface
+                    return self._load_image(variant_path)
 
             variant_path = self.source_dir / f"{name}_{variant}.png"
             if variant_path.exists():
-                surface = self._load_image(variant_path)
-                return self._variant_tint(surface, variant) if variant > 0 else surface
+                return self._load_image(variant_path)
 
         filename = SPRITE_NAMES.get(name)
         if filename:
             path = self.source_dir / filename
             if path.exists():
-                surface = self._load_image(path)
-                return self._variant_tint(surface, variant) if variant >= 0 else surface
+                return self._load_image(path)
 
         color = FALLBACK_COLORS.get(name, (255, 0, 255))
         surface = pygame.Surface((32, 32), pygame.SRCALPHA)
         surface.fill(color)
-        if variant >= 0:
-            return self._variant_tint(surface, variant)
         return surface
+
+    def _floor_variant_count(self) -> int:
+        base = self.source_dir / SPRITE_NAMES["floor"]
+        if not base.exists():
+            return 0
+
+        count = 1
+        while (self.source_dir / f"floor_decal_{count - 1}.png").exists():
+            count += 1
+        return count
+
+    def _load_floor_variant(self, variant: int) -> pygame.Surface:
+        base_path = self.source_dir / SPRITE_NAMES["floor"]
+        if base_path.exists():
+            base = self._load_image(base_path).copy()
+        else:
+            base = pygame.Surface((32, 32), pygame.SRCALPHA)
+            base.fill(FALLBACK_COLORS["floor"])
+
+        if variant <= 0:
+            return base
+
+        decal_path = self.source_dir / f"floor_decal_{variant - 1}.png"
+        if decal_path.exists():
+            decal = self._load_image(decal_path)
+            if decal.get_size() != base.get_size():
+                decal = pygame.transform.scale(decal, base.get_size())
+            base.blit(decal, (0, 0))
+        return base
 
     @staticmethod
     def _load_image(path: Path) -> pygame.Surface:
@@ -111,26 +140,3 @@ class SpriteBank:
         if pygame.display.get_surface() is None:
             return surface
         return surface.convert_alpha()
-
-    @staticmethod
-    def _variant_tint(surface: pygame.Surface, variant: int) -> pygame.Surface:
-        if variant <= 0:
-            return surface
-
-        result = surface.copy()
-        overlays = (
-            (42, 70, 86, 34),
-            (88, 56, 42, 38),
-            (70, 88, 50, 42),
-            (94, 82, 38, 46),
-        )
-        overlay = pygame.Surface(result.get_size(), pygame.SRCALPHA)
-        overlay.fill(overlays[(variant - 1) % len(overlays)])
-        result.blit(overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-        width, height = result.get_size()
-        mark_color = (255, 255, 255, 76)
-        step = max(5, min(width, height) // 5)
-        for offset in range(-height, width, step * 2):
-            pygame.draw.line(result, mark_color, (offset, height), (offset + height, 0), 1)
-        return result
