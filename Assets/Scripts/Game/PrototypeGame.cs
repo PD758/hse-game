@@ -2244,8 +2244,8 @@ public sealed class PrototypeGame : MonoBehaviour
         switch (obj.type)
         {
             case "gate":
+                tiles[cell.x, cell.y] = Tile.Gate;
                 tileVariants[cell.x, cell.y] = obj.variant;
-                AddGateWithFrame(cell, obj.frame == "horizontal" ? Vector2Int.left : Vector2Int.up, obj.frame == "horizontal" ? Vector2Int.right : Vector2Int.down);
                 RegisterGate(cell, string.IsNullOrEmpty(obj.group) ? obj.id : obj.group, obj);
                 break;
             case "remote":
@@ -2356,32 +2356,6 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         list.Add(cell);
         tiles[cell.x, cell.y] = Tile.Plate;
-    }
-
-    private void AddGateWithFrame(Vector2Int gate, Vector2Int sideA, Vector2Int sideB)
-    {
-        tiles[gate.x, gate.y] = Tile.Gate;
-        SetWall(gate + sideA);
-        SetWall(gate + sideB);
-        SealGateCorners(gate, sideA, sideB);
-    }
-
-    private void SealGateCorners(Vector2Int gate, Vector2Int sideA, Vector2Int sideB)
-    {
-        if (sideA.x == 0 && sideB.x == 0)
-        {
-            SetWall(gate + Vector2Int.left + sideA);
-            SetWall(gate + Vector2Int.left + sideB);
-            SetWall(gate + Vector2Int.right + sideA);
-            SetWall(gate + Vector2Int.right + sideB);
-        }
-        else
-        {
-            SetWall(gate + Vector2Int.up + sideA);
-            SetWall(gate + Vector2Int.up + sideB);
-            SetWall(gate + Vector2Int.down + sideA);
-            SetWall(gate + Vector2Int.down + sideB);
-        }
     }
 
     private void SetWall(Vector2Int cell)
@@ -3151,7 +3125,11 @@ public sealed class PrototypeGame : MonoBehaviour
         return OpenTileAdjacent(cell + Vector2Int.up) ||
                OpenTileAdjacent(cell + Vector2Int.down) ||
                OpenTileAdjacent(cell + Vector2Int.left) ||
-               OpenTileAdjacent(cell + Vector2Int.right);
+               OpenTileAdjacent(cell + Vector2Int.right) ||
+               OpenTileAdjacent(cell + Vector2Int.up + Vector2Int.left) ||
+               OpenTileAdjacent(cell + Vector2Int.up + Vector2Int.right) ||
+               OpenTileAdjacent(cell + Vector2Int.down + Vector2Int.left) ||
+               OpenTileAdjacent(cell + Vector2Int.down + Vector2Int.right);
     }
 
     private bool OpenTileAdjacent(Vector2Int cell)

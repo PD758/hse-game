@@ -503,8 +503,6 @@ def draw_level(
             if selected_cell == (x, y):
                 pygame.draw.rect(screen, (255, 238, 120), rect, 3)
 
-    draw_gate_preview_walls(screen, viewport, sprites, level, cell_size, width, height)
-
     for index, exit_cell in enumerate(level.get("exits", [])):
         draw_marker(screen, viewport, sprites, "exit", exit_cell, cell_size, selected_ref == ("exit", index))
     draw_marker(screen, viewport, sprites, "player", level.get("playerStart", {}), cell_size, selected_ref == ("player", 0))
@@ -516,40 +514,6 @@ def draw_level(
     for index, enemy in enumerate(level.get("enemies", [])):
         draw_marker(screen, viewport, sprites, "enemy", enemy, cell_size, selected_ref == (ENEMY_TYPE, index))
         draw_patrol(screen, viewport, enemy)
-
-
-def draw_gate_preview_walls(screen: pygame.Surface, viewport: Viewport, sprites: SpriteBank, level: dict, cell_size: int, width: int, height: int) -> None:
-    for obj in level.get("objects", []):
-        if obj.get("type") != "gate":
-            continue
-
-        gate = (int(obj.get("x", 0)), int(obj.get("y", 0)))
-        for cell, variant in gate_wall_preview_cells(gate, obj.get("frame", "vertical")):
-            x, y = cell
-            if 0 <= x < width and 0 <= y < height:
-                screen.blit(sprites.get("wall", cell_size, variant), viewport.cell_to_screen(x, y))
-
-
-def gate_wall_preview_cells(gate: tuple[int, int], frame: str) -> list[tuple[tuple[int, int], int]]:
-    x, y = gate
-    if frame == "horizontal":
-        return [
-            ((x - 1, y), 0),
-            ((x + 1, y), 0),
-            ((x - 1, y + 1), 2),
-            ((x + 1, y + 1), 2),
-            ((x - 1, y - 1), 2),
-            ((x + 1, y - 1), 2),
-        ]
-
-    return [
-        ((x, y + 1), 1),
-        ((x, y - 1), 1),
-        ((x - 1, y + 1), 2),
-        ((x - 1, y - 1), 2),
-        ((x + 1, y + 1), 2),
-        ((x + 1, y - 1), 2),
-    ]
 
 
 def draw_marker(screen: pygame.Surface, viewport: Viewport, sprites: SpriteBank, name: str, data: dict, cell_size: int, selected: bool = False) -> None:
