@@ -30,6 +30,9 @@ public sealed class PrototypeGame : MonoBehaviour
     private const float EnemyAttackWindup = 0.45f;
     private const float EnemyAttackStrike = 0.12f;
     private const float EnemyAttackRecovery = 0.76f;
+    private const int EnemyBaseLevel = 3;
+    private const int EnemyMinLevel = 1;
+    private const int EnemyMaxLevel = 9;
     private const float EnemyStunDuration = 0.24f;
     private const float EnemyHitFlashDuration = 0.18f;
     private const float EnemyKnockbackSpeed = 4.8f;
@@ -116,12 +119,14 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private sealed class Enemy
     {
+        public string Id;
         public Vector2 Position;
         public readonly List<Vector2Int> Patrol = new List<Vector2Int>();
         public int PatrolIndex;
         public EnemyMode Mode;
         public Vector2Int LastSeen;
         public BranchChoice Branch;
+        public int Level = EnemyBaseLevel;
         public int Hp = 2;
         public float StunTimer;
         public float HitFlashTimer;
@@ -174,6 +179,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private readonly Dictionary<Vector2Int, LevelObject> storyObjectsByCell = new Dictionary<Vector2Int, LevelObject>();
     private readonly Dictionary<Vector2Int, LevelExit> exitsByCell = new Dictionary<Vector2Int, LevelExit>();
     private readonly HashSet<string> readStoryIds = new HashSet<string>();
+    private readonly HashSet<string> killedEnemyIds = new HashSet<string>();
     private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
     private readonly List<LevelBranchArea> branchTriggers = new List<LevelBranchArea>();
     private readonly List<LevelBranchArea> branchBlocks = new List<LevelBranchArea>();
@@ -540,6 +546,7 @@ public sealed class PrototypeGame : MonoBehaviour
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
         currentLevelId = NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+        killedEnemyIds.Clear();
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
@@ -657,7 +664,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 return;
             }
 
-            if (tile == Tile.Story && NarrativeRunState.Branch == BranchChoice.Puzzle)
+            if (tile == Tile.Story)
             {
                 LevelObject story = storyObjectsByCell.TryGetValue(next, out LevelObject storyData) ? storyData : null;
                 string storyId = string.IsNullOrEmpty(story?.id) ? $"story_{next.x}_{next.y}" : story.id;
@@ -772,6 +779,8 @@ public sealed class PrototypeGame : MonoBehaviour
             Vector2 toEnemy = (enemy.Position - player).normalized;
             if (Vector2.Dot(lastAim, toEnemy) < PlayerAttackConeMinDot)
                 continue;
+            if (!HasSightLine(PlayerCell(), WorldToCell(enemy.Position)))
+                continue;
 
             target = enemy;
             best = distance;
@@ -813,12 +822,16 @@ public sealed class PrototypeGame : MonoBehaviour
             return;
 
         NarrativeRunState.RecordKill();
+        if (!string.IsNullOrEmpty(target.Id))
+            killedEnemyIds.Add(target.Id);
         RestoreRating(12f);
         DestroyEnemyTelegraph(target);
         if (target.View != null)
             target.View.SetActive(false);
         enemies.Remove(target);
         UpdateBranchObjective();
+        RedrawGateGroups();
+        RedrawExits();
     }
 
     private bool TryBreakTrap(Vector2 player)
@@ -846,6 +859,8 @@ public sealed class PrototypeGame : MonoBehaviour
 
                 Vector2 toTrap = (target - player).normalized;
                 if (Vector2.Dot(lastAim, toTrap) < PlayerAttackConeMinDot)
+                    continue;
+                if (!HasSightLine(playerCell, cell))
                     continue;
 
                 found = true;
@@ -1052,6 +1067,7 @@ public sealed class PrototypeGame : MonoBehaviour
         attackCooldown = 0f;
         remoteJamTimer = 0f;
         lastNoisePower = 0;
+        killedEnemyIds.Clear();
     }
 
     private void ClearLevelEntityViews()
@@ -1128,8 +1144,9 @@ public sealed class PrototypeGame : MonoBehaviour
             RedrawGateGroup("start");
         }
 
-        bool puzzleSolved = GateGroupRequirementsMet("puzzle") || ArePlatesCovered(puzzlePlates) && storyRead;
-        if (NarrativeRunState.Branch == BranchChoice.Puzzle && puzzleSolved && storyRead && !puzzleExitOpen)
+        bool explicitPuzzleSolved = GateGroupRequirementsMet("puzzle");
+        bool legacyPuzzleSolved = ArePlatesCovered(puzzlePlates) && storyRead;
+        if (NarrativeRunState.Branch == BranchChoice.Puzzle && (explicitPuzzleSolved || legacyPuzzleSolved) && !puzzleExitOpen)
         {
             puzzleExitOpen = true;
             NarrativeRunState.RecordPuzzleSolved();
@@ -1157,7 +1174,8 @@ public sealed class PrototypeGame : MonoBehaviour
     private bool GateRequirementsMet(LevelObject gate)
     {
         bool hasExplicitRequirements = gate.requiresPlates != null && gate.requiresPlates.Count > 0 ||
-                                       gate.requiresStories != null && gate.requiresStories.Count > 0;
+                                       gate.requiresStories != null && gate.requiresStories.Count > 0 ||
+                                       gate.requiresEnemies != null && gate.requiresEnemies.Count > 0;
         if (!hasExplicitRequirements)
             return false;
 
@@ -1175,6 +1193,15 @@ public sealed class PrototypeGame : MonoBehaviour
             foreach (string storyId in gate.requiresStories)
             {
                 if (string.IsNullOrEmpty(storyId) || !readStoryIds.Contains(storyId))
+                    return false;
+            }
+        }
+
+        if (gate.requiresEnemies != null)
+        {
+            foreach (string enemyId in gate.requiresEnemies)
+            {
+                if (string.IsNullOrEmpty(enemyId) || !killedEnemyIds.Contains(enemyId))
                     return false;
             }
         }
@@ -1208,6 +1235,8 @@ public sealed class PrototypeGame : MonoBehaviour
     {
         if (NarrativeRunState.Branch != BranchChoice.Combat || combatExitOpen)
             return;
+        if (GateGroupHasEnemyRequirements("combat"))
+            return;
 
         foreach (Enemy enemy in enemies)
         {
@@ -1220,6 +1249,22 @@ public sealed class PrototypeGame : MonoBehaviour
         message = "Боевой эфир стихает. Нижний выход открывается, но шум уже похож на вас.";
         RedrawGateGroup("combat");
         RedrawExits();
+    }
+
+    private bool GateGroupHasEnemyRequirements(string group)
+    {
+        if (!gateCellsByGroup.TryGetValue(group, out List<Vector2Int> cells))
+            return false;
+
+        foreach (Vector2Int cell in cells)
+        {
+            if (gateObjectsByCell.TryGetValue(cell, out LevelObject gate) &&
+                gate.requiresEnemies != null &&
+                gate.requiresEnemies.Count > 0)
+                return true;
+        }
+
+        return false;
     }
 
     private void RedrawExits()
@@ -1235,6 +1280,12 @@ public sealed class PrototypeGame : MonoBehaviour
 
         foreach (Vector2Int cell in cells)
             RedrawTile(cell);
+    }
+
+    private void RedrawGateGroups()
+    {
+        foreach (string group in gateCellsByGroup.Keys)
+            RedrawGateGroup(group);
     }
 
     private void UpdateEnemies(float dt)
@@ -1264,6 +1315,7 @@ public sealed class PrototypeGame : MonoBehaviour
 
             Vector2 target = ChooseEnemyTarget(enemy);
             float speed = enemy.Mode == EnemyMode.Hunt ? 2.55f : enemy.Mode == EnemyMode.Investigate ? 2.1f : 1.55f;
+            speed *= EnemySpeedScale(enemy);
             if (RemoteJamActive())
                 speed *= RemoteEnemySpeedMultiplier;
             Vector2 steeringTarget = EnemySteeringTarget(enemy, target);
@@ -1351,12 +1403,12 @@ public sealed class PrototypeGame : MonoBehaviour
             {
                 enemy.AttackApplied = true;
                 if (!RemoteJamActive() && PlayerInEnemyAttackZone(enemy))
-                    DamagePlayer(1, enemy.Mode == EnemyMode.Hunt ? "Диктор ловит вас в кадре после замаха." : "Диктор бьёт микрофоном после паузы.");
+                    DamagePlayer(EnemyAttackDamageFor(enemy), enemy.Mode == EnemyMode.Hunt ? "Диктор ловит вас в кадре после замаха." : "Диктор бьёт микрофоном после паузы.");
             }
 
             if (enemy.AttackStrikeTimer <= 0f)
             {
-                enemy.AttackRecoveryTimer = EnemyAttackRecovery;
+                enemy.AttackRecoveryTimer = EnemyAttackRecoveryFor(enemy);
                 HideEnemyTelegraph(enemy);
             }
 
@@ -1387,7 +1439,7 @@ public sealed class PrototypeGame : MonoBehaviour
         Vector2 direction = (Vector2)playerView.transform.position - enemy.Position;
         enemy.AttackDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector2.down;
         enemy.LookDirection = enemy.AttackDirection;
-        enemy.AttackWindupTimer = EnemyAttackWindup;
+        enemy.AttackWindupTimer = EnemyAttackWindupFor(enemy);
         enemy.AttackStrikeTimer = 0f;
         enemy.AttackRecoveryTimer = 0f;
         enemy.AttackApplied = false;
@@ -1417,6 +1469,36 @@ public sealed class PrototypeGame : MonoBehaviour
 
         Vector2 direction = enemy.AttackDirection.sqrMagnitude > 0.001f ? enemy.AttackDirection.normalized : toPlayer.normalized;
         return Vector2.Dot(direction, toPlayer.normalized) >= EnemyAttackConeMinDot;
+    }
+
+    private static int EnemyLevel(Enemy enemy)
+    {
+        return Mathf.Clamp(enemy?.Level ?? EnemyBaseLevel, EnemyMinLevel, EnemyMaxLevel);
+    }
+
+    private static float EnemyLevelOffset(Enemy enemy)
+    {
+        return EnemyLevel(enemy) - EnemyBaseLevel;
+    }
+
+    private static float EnemySpeedScale(Enemy enemy)
+    {
+        return Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.10f, 0.70f, 1.60f);
+    }
+
+    private static float EnemyAttackWindupFor(Enemy enemy)
+    {
+        return EnemyAttackWindup / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.08f, 0.70f, 1.60f);
+    }
+
+    private static float EnemyAttackRecoveryFor(Enemy enemy)
+    {
+        return EnemyAttackRecovery / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.15f, 0.60f, 1.90f);
+    }
+
+    private static int EnemyAttackDamageFor(Enemy enemy)
+    {
+        return 1 + Mathf.FloorToInt((EnemyLevel(enemy) - 1) / 4f);
     }
 
     private void UpdateEnemyVisual(Enemy enemy)
@@ -1459,7 +1541,8 @@ public sealed class PrototypeGame : MonoBehaviour
         if (renderer == null)
             return;
 
-        float windupRatio = enemy.AttackWindupTimer > 0f ? 1f - enemy.AttackWindupTimer / EnemyAttackWindup : 1f;
+        float windup = EnemyAttackWindupFor(enemy);
+        float windupRatio = enemy.AttackWindupTimer > 0f ? 1f - enemy.AttackWindupTimer / windup : 1f;
         renderer.color = striking
             ? new Color(1f, 0.18f, 0.12f, 0.58f)
             : Color.Lerp(new Color(1f, 0.80f, 0.20f, 0.22f), new Color(1f, 0.28f, 0.14f, 0.46f), windupRatio);
@@ -1744,9 +1827,6 @@ public sealed class PrototypeGame : MonoBehaviour
 
     private Vector2 EnemySteeringTarget(Enemy enemy, Vector2 directTarget)
     {
-        if (enemy.Mode == EnemyMode.Patrol)
-            return directTarget;
-
         Vector2Int from = WorldToCell(enemy.Position);
         Vector2Int to = WorldToCell(directTarget);
         if (from == to || HasStraightWalkLine(from, to))
@@ -1761,7 +1841,7 @@ public sealed class PrototypeGame : MonoBehaviour
     private Vector2 EnemyFallbackStep(Enemy enemy, float distance)
     {
         Vector2Int cell = WorldToCell(enemy.Position);
-        Vector2Int goal = enemy.Mode == EnemyMode.Hunt ? PlayerCell() : enemy.LastSeen;
+        Vector2Int goal = WorldToCell(ChooseEnemyTarget(enemy));
         Vector2Int bestCell = cell;
         int bestScore = Manhattan(cell, goal);
 
@@ -2003,6 +2083,7 @@ public sealed class PrototypeGame : MonoBehaviour
         puzzlePlates.Clear();
         stones.Clear();
         enemies.Clear();
+        killedEnemyIds.Clear();
         gateGroupsByCell.Clear();
         gateCellsByGroup.Clear();
         gateObjectsByCell.Clear();
@@ -2327,7 +2408,9 @@ public sealed class PrototypeGame : MonoBehaviour
             patrol.Add(new Vector2Int(point[0], point[1]));
         }
 
-        AddEnemy(ParseBranch(data.branch), start, patrol.ToArray());
+        string id = string.IsNullOrWhiteSpace(data.id) ? $"enemy_{start.x}_{start.y}_{enemies.Count}" : data.id.Trim();
+        int level = Mathf.Clamp(data.level <= 0 ? EnemyBaseLevel : data.level, EnemyMinLevel, EnemyMaxLevel);
+        AddEnemy(id, ParseBranch(data.branch), level, start, patrol.ToArray());
     }
 
     private void ResetPlayerTransformIfBound()
@@ -2376,14 +2459,16 @@ public sealed class PrototypeGame : MonoBehaviour
         });
     }
 
-    private void AddEnemy(BranchChoice branch, Vector2Int start, params Vector2Int[] patrol)
+    private void AddEnemy(string id, BranchChoice branch, int level, Vector2Int start, params Vector2Int[] patrol)
     {
         var enemy = new Enemy
         {
+            Id = id,
             Position = ToWorld(start),
             LastSeen = start,
             Mode = EnemyMode.Patrol,
             Branch = branch,
+            Level = level,
             LookDirection = InitialEnemyLookDirection(start, patrol),
         };
         enemy.Patrol.AddRange(patrol);

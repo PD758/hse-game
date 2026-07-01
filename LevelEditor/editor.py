@@ -56,6 +56,8 @@ def main() -> int:
     panning = False
     paint_snapshot_pushed = False
     angle_drag = False
+    drag_ref: tuple[str, int] | None = None
+    drag_last_cell: tuple[int, int] | None = None
     show_validation = True
     show_logic = False
     last_mouse = (0, 0)
@@ -163,6 +165,15 @@ def main() -> int:
                     cell = viewport.screen_to_cell(event.pos)
                     if cell is not None:
                         inspector_state.clear_text()
+                        if TOOLS[selected_tool]["kind"] == "cursor" and not patrol_mode:
+                            existing = find_at(level, cell)
+                            if existing is not None:
+                                push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
+                                selected_ref = existing
+                                selected_cell = None
+                                drag_ref = existing
+                                drag_last_cell = cell
+                                continue
                         if directional_handle_hit(level, viewport, selected_ref, event.pos) or (pygame.key.get_mods() & pygame.KMOD_ALT and selected_directional_object(level, selected_ref) is not None):
                             push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
                             angle_drag = True
@@ -184,11 +195,21 @@ def main() -> int:
                     discard_unchanged_undo(undo_stack, level, tiles, tile_variants)
                     paint_snapshot_pushed = False
                     angle_drag = False
+                    drag_ref = None
+                    drag_last_cell = None
             elif event.type == pygame.MOUSEMOTION:
                 if panning or (pygame.mouse.get_pressed()[0] and pygame.key.get_pressed()[pygame.K_SPACE]):
                     viewport.pan(event.rel)
                 elif angle_drag:
                     dirty = update_direction_from_mouse(level, viewport, selected_ref, event.pos) or dirty
+                elif drag_ref is not None:
+                    cell = viewport.screen_to_cell(event.pos)
+                    if cell is not None and cell != drag_last_cell and can_drop_entity(level, tiles, drag_ref, cell):
+                        move_selected(level, drag_ref, cell)
+                        selected_ref = drag_ref
+                        selected_cell = None
+                        drag_last_cell = cell
+                        dirty = True
                 elif pygame.mouse.get_pressed()[0]:
                     cell = viewport.screen_to_cell(event.pos)
                     if cell is not None and TOOLS[selected_tool]["kind"] == "tile":
@@ -308,7 +329,7 @@ def handle_left_click(
         return selected_ref, None, True
 
     if tool["kind"] == "enemy":
-        level["enemies"].append({"type": "announcer", "branch": "none", "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
+        level["enemies"].append({"id": f"enemy_{cell[0]}_{cell[1]}", "type": "announcer", "branch": "none", "level": 3, "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
         return (ENEMY_TYPE, len(level["enemies"]) - 1), None, True
 
     if tool["kind"] == "exit":
@@ -325,7 +346,7 @@ def handle_left_click(
 
     obj = {"type": tool["value"], "x": cell[0], "y": cell[1], "variant": current_tile_variant}
     if tool["value"] == "gate":
-        obj.update({"id": f"gate_{cell[0]}_{cell[1]}", "group": "start", "frame": "vertical", "requiresPlates": [], "requiresStories": []})
+        obj.update({"id": f"gate_{cell[0]}_{cell[1]}", "group": "start", "frame": "vertical", "requiresPlates": [], "requiresStories": [], "requiresEnemies": []})
     if tool["value"] == "plate":
         obj["group"] = "start"
     if tool["value"] == "trap":
@@ -357,6 +378,17 @@ def find_at(level: dict, cell: tuple[int, int]) -> tuple[str, int] | None:
     if (int(player.get("x", -1)), int(player.get("y", -1))) == cell:
         return "player", 0
     return None
+
+
+def can_drop_entity(level: dict, tiles: list[list[str]], ref: tuple[str, int], cell: tuple[int, int]) -> bool:
+    x, y = cell
+    if x < 0 or x >= len(tiles) or not tiles or y < 0 or y >= len(tiles[x]):
+        return False
+    if tiles[x][y] == "wall":
+        return False
+
+    existing = find_at(level, cell)
+    return existing is None or existing == ref
 
 
 def delete_selected(level: dict, ref: tuple[str, int]) -> None:
@@ -583,6 +615,7 @@ def draw_logic_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, 
             continue
         labels = [f"P:{value}" for value in obj.get("requiresPlates", []) or []]
         labels.extend(f"S:{value}" for value in obj.get("requiresStories", []) or [])
+        labels.extend(f"E:{value}" for value in obj.get("requiresEnemies", []) or [])
         if not labels:
             continue
         rect = viewport.cell_to_screen(int(obj.get("x", 0)), int(obj.get("y", 0)))

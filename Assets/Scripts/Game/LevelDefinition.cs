@@ -81,6 +81,7 @@ public sealed class LevelObject
     public LevelDirection direction;
     public List<string> requiresPlates = new List<string>();
     public List<string> requiresStories = new List<string>();
+    public List<string> requiresEnemies = new List<string>();
 }
 
 [Serializable]
@@ -103,8 +104,10 @@ public sealed class LevelExit
 [Serializable]
 public sealed class LevelEnemy
 {
+    public string id;
     public string type;
     public string branch;
+    public int level = 3;
     public int x;
     public int y;
     public List<List<int>> patrol = new List<List<int>>();

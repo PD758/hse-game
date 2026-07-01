@@ -33,6 +33,7 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
     plate_groups = set()
     story_ids = set()
     gate_ids = set()
+    enemy_ids = set()
     existing_levels = collect_level_ids()
 
     exit_ids = set()
@@ -111,15 +112,44 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
         cell = (int(enemy.get("x", 0)), int(enemy.get("y", 0)))
         add_occupied(cell, target)
         validate_walkable_cell(issues, tiles, cell, target, "enemy")
+
+        enemy_id = str(enemy.get("id", "")).strip()
+        if not enemy_id:
+            issues.append(ValidationIssue("error", "enemy has no id", cell, target))
+        elif enemy_id in enemy_ids:
+            issues.append(ValidationIssue("error", f"duplicate enemy id '{enemy_id}'", cell, target))
+        else:
+            enemy_ids.add(enemy_id)
+
+        try:
+            enemy_level = int(enemy.get("level", 3))
+        except (TypeError, ValueError):
+            enemy_level = 0
+        if enemy_level < 1 or enemy_level > 9:
+            issues.append(ValidationIssue("error", "enemy level must be 1..9", cell, target))
+
         patrol = enemy.get("patrol", [])
         if not patrol:
             issues.append(ValidationIssue("warning", "enemy has no patrol", cell, target))
+        previous_patrol_cell = cell
         for point in patrol:
             if len(point) < 2:
                 issues.append(ValidationIssue("error", "enemy patrol point is malformed", cell, target))
                 continue
             patrol_cell = (int(point[0]), int(point[1]))
             validate_walkable_cell(issues, tiles, patrol_cell, target, "enemy patrol point")
+            if not reachable(tiles, previous_patrol_cell, patrol_cell):
+                issues.append(ValidationIssue("warning", "enemy patrol segment is not reachable", patrol_cell, target))
+            previous_patrol_cell = patrol_cell
+
+    for index, obj in enumerate(level.get("objects", [])):
+        if obj.get("type") != "gate":
+            continue
+        target = ("object", index)
+        cell = object_at(obj)
+        for enemy_id in obj.get("requiresEnemies", []) or []:
+            if enemy_id not in enemy_ids:
+                issues.append(ValidationIssue("error", f"gate requires missing enemy '{enemy_id}'", cell, target))
 
     for cell, targets in occupied.items():
         if len(targets) > 1:

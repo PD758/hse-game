@@ -25,6 +25,7 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 - Middle mouse or `Space` + drag: pan
 - Mouse wheel: zoom
 - `+/-`: zoom
+- Cursor tool + left drag entity: move player start, objects, enemies, or exits
 - `P`: toggle patrol edit mode for selected enemy
 - Drag selected camera arrow handle: rotate direction
 - `Alt` + left drag selected camera cell: rotate direction
@@ -42,13 +43,13 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 
 The right panel shows editable properties for the current selection.
 
-- Gate: `id`, `group`, `requiresPlates`, `requiresStories`, vertical/horizontal frame
+- Gate: `id`, `group`, `requiresPlates`, `requiresStories`, `requiresEnemies`, vertical/horizontal frame
 - Plate: `group`
 - Camera: drag the arrow handle on the map to rotate
 - Story: `id`, text
 - Exit: `id`, `targetLevel`, `requiresGate`, branch
-- Enemy: branch and patrol controls
-- Player start / selected exit: click an empty cell to move
+- Enemy: `id`, `level`, branch and patrol controls
+- Player start / objects / exits / enemies: use Cursor drag to move
 
 ## Validation
 

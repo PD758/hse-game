@@ -32,7 +32,7 @@ class InspectorState:
     def begin_text(self, ref: tuple[str, int], field: str, value: object) -> None:
         self.active_ref = ref
         self.active_field = field
-        self.text = "" if value is None else str(value)
+        self.text = display_text_value(value)
 
     def clear_text(self) -> None:
         self.active_ref = None
@@ -103,6 +103,7 @@ def draw_inspector(
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "requiresPlates", target.get("requiresPlates", []), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "requiresStories", target.get("requiresStories", []), x + margin, y, width - margin * 2, scale)
+            y = draw_text_field(screen, font, state, selected_ref, "requiresEnemies", target.get("requiresEnemies", []), x + margin, y, width - margin * 2, scale)
             y = draw_enum_buttons(screen, font, state, "frame", target.get("frame", "vertical"), FRAMES, x + margin, y, width - margin * 2, scale)
         elif obj_type == "plate":
             y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
@@ -117,6 +118,8 @@ def draw_inspector(
         else:
             y = draw_text(screen, font, "No editable properties", x + margin, y, (132, 140, 148))
     elif kind == "enemy":
+        y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "level", target.get("level", 3), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
         patrol = target.setdefault("patrol", [])
         y = draw_text(screen, font, f"patrol points: {len(patrol)}", x + margin, y, (188, 196, 204))
@@ -128,9 +131,9 @@ def draw_inspector(
         y = draw_text_field(screen, font, state, selected_ref, "targetLevel", target.get("targetLevel", ""), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "requiresGate", target.get("requiresGate", ""), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
-        y = draw_text(screen, font, "Click an empty cell to move.", x + margin, y, (188, 196, 204))
+        y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
     elif kind == "player":
-        y = draw_text(screen, font, "Click an empty cell to move.", x + margin, y, (188, 196, 204))
+        y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
 
     draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(16 * scale), width - margin * 2, scale)
 
@@ -408,25 +411,67 @@ def display_text_value(value: object) -> str:
 def draw_field_value(screen: pygame.Surface, font: pygame.font.Font, value: str, rect: pygame.Rect, scale: float) -> None:
     x = rect.x + round(8 * scale)
     y = rect.y + round(6 * scale)
+    max_width = max(10, rect.width - round(16 * scale))
     max_lines = max(1, (rect.height - round(8 * scale)) // max(1, font.get_height()))
-    lines = value.splitlines() or [""]
+    lines = wrap_text(value, font, max_width)
     for line in lines[:max_lines]:
-        clipped = line if len(line) <= 38 else line[:35] + "..."
-        screen.blit(font.render(clipped, True, (230, 234, 238)), (x, y))
+        screen.blit(font.render(line, True, (230, 234, 238)), (x, y))
         y += font.get_height() + 2
 
 
+def wrap_text(value: str, font: pygame.font.Font, max_width: int) -> list[str]:
+    source_lines = value.splitlines() or [""]
+    result: list[str] = []
+    for source in source_lines:
+        if not source:
+            result.append("")
+            continue
+        current = ""
+        for word in source.split(" "):
+            candidate = word if not current else f"{current} {word}"
+            if font.size(candidate)[0] <= max_width:
+                current = candidate
+                continue
+            if current:
+                result.append(current)
+            current = fit_word(word, font, max_width, result)
+        result.append(current)
+    return result
+
+
+def fit_word(word: str, font: pygame.font.Font, max_width: int, result: list[str]) -> str:
+    if font.size(word)[0] <= max_width:
+        return word
+
+    current = ""
+    for char in word:
+        candidate = current + char
+        if current and font.size(candidate)[0] > max_width:
+            result.append(current)
+            current = char
+        else:
+            current = candidate
+    return current
+
+
 def coerce_text_value(field: str, value: str) -> object:
-    if field in ("requiresPlates", "requiresStories"):
+    if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return [part.strip() for part in value.split(",") if part.strip()]
+    if field == "level":
+        try:
+            return min(9, max(1, int(value)))
+        except ValueError:
+            return 3
     return value
 
 
 def is_allowed_text(value: str, field: str) -> bool:
     if field == "text":
         return all(ch >= " " for ch in value)
-    if field in ("requiresPlates", "requiresStories"):
+    if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return all(ch.isalnum() or ch in "_-., " for ch in value)
+    if field == "level":
+        return value.isdigit()
     return all(ch.isalnum() or ch in "_-." for ch in value)
 
 
