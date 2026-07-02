@@ -2634,6 +2634,7 @@ public sealed class PrototypeGame : MonoBehaviour
                 tileVariants[cell.x, cell.y] = obj.variant;
                 break;
             case "plate":
+                tiles[cell.x, cell.y] = Tile.Plate;
                 tileVariants[cell.x, cell.y] = obj.variant;
                 RegisterPlateGroup(cell, obj.group);
                 break;
