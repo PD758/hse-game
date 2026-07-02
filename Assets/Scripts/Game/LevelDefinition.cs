@@ -1,8 +1,6 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-[Serializable]
 public sealed class LevelDefinition
 {
     public int version;
@@ -20,14 +18,12 @@ public sealed class LevelDefinition
     public List<LevelRegion> regions = new List<LevelRegion>();
 }
 
-[Serializable]
 public struct LevelSize
 {
     public int width;
     public int height;
 }
 
-[Serializable]
 public struct LevelPoint
 {
     public int x;
@@ -45,7 +41,6 @@ public struct LevelPoint
     }
 }
 
-[Serializable]
 public sealed class LevelDirection
 {
     public float x;
@@ -57,7 +52,6 @@ public sealed class LevelDirection
     }
 }
 
-[Serializable]
 public sealed class LevelTileRun
 {
     public string tile;
@@ -67,7 +61,6 @@ public sealed class LevelTileRun
     public int variant = -1;
 }
 
-[Serializable]
 public sealed class LevelObject
 {
     public string type;
@@ -86,7 +79,6 @@ public sealed class LevelObject
     public List<List<object>> requiresStats = new List<List<object>>();
 }
 
-[Serializable]
 public sealed class LevelExit
 {
     public string id;
@@ -103,7 +95,6 @@ public sealed class LevelExit
     }
 }
 
-[Serializable]
 public sealed class LevelEnemy
 {
     public string id;
@@ -117,7 +108,6 @@ public sealed class LevelEnemy
     public List<List<int>> patrol = new List<List<int>>();
 }
 
-[Serializable]
 public sealed class LevelEvent
 {
     public string id;
@@ -131,7 +121,6 @@ public sealed class LevelEvent
     public List<LevelEventAction> actions = new List<LevelEventAction>();
 }
 
-[Serializable]
 public sealed class LevelEventAction
 {
     public string type;
@@ -148,7 +137,6 @@ public sealed class LevelEventAction
     public List<LevelEnemy> enemies = new List<LevelEnemy>();
 }
 
-[Serializable]
 public sealed class LevelLogic
 {
     public List<LevelGateRule> gates = new List<LevelGateRule>();
@@ -157,7 +145,6 @@ public sealed class LevelLogic
     public List<LevelExitRule> exitRules = new List<LevelExitRule>();
 }
 
-[Serializable]
 public sealed class LevelGateRule
 {
     public string id;
@@ -165,28 +152,24 @@ public sealed class LevelGateRule
     public string openWhen;
 }
 
-[Serializable]
 public sealed class LevelBranchArea
 {
     public string branch;
     public LevelRect area;
 }
 
-[Serializable]
 public sealed class LevelExitRule
 {
     public string branch;
     public string gate;
 }
 
-[Serializable]
 public sealed class LevelRegion
 {
     public string id;
     public List<LevelTileRun> runs = new List<LevelTileRun>();
 }
 
-[Serializable]
 public struct LevelRect
 {
     public int x1;

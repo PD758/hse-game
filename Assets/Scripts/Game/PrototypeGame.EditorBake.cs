@@ -2,9 +2,9 @@ using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
+
 #if UNITY_EDITOR
 using UnityEditor;
-#endif
 
 public sealed partial class PrototypeGame
 {
@@ -192,3 +192,4 @@ public sealed partial class PrototypeGame
         }
     }
 }
+#endif
