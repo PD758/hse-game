@@ -517,6 +517,8 @@
       ]
     }
   ],
+  "decorations": [],
+  "lights": [],
   "events": [],
   "logic": {
     "gates": [],
