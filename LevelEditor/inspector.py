@@ -35,6 +35,8 @@ class InspectorState:
         self.text = ""
         self.actions: list[InspectorAction] = []
         self.pending_select_ref: tuple[str, int] | None = None
+        self.scroll_y = 0
+        self.content_height = 0
 
     def begin_text(self, ref: tuple[str, int], field: str, value: object) -> None:
         self.active_ref = ref
@@ -45,6 +47,18 @@ class InspectorState:
         self.active_ref = None
         self.active_field = ""
         self.text = ""
+
+    def reset_scroll(self) -> None:
+        self.scroll_y = 0
+
+    def scroll(self, wheel_delta: int, visible_height: int, scale: float) -> None:
+        step = max(24, round(56 * scale))
+        self.scroll_y -= wheel_delta * step
+        self.clamp_scroll(visible_height)
+
+    def clamp_scroll(self, visible_height: int) -> None:
+        max_scroll = max(0, self.content_height - visible_height)
+        self.scroll_y = max(0, min(self.scroll_y, max_scroll))
 
 
 def inspector_width(scale: float = 1.0) -> int:
@@ -71,9 +85,18 @@ def draw_inspector(
     width = inspector_width(scale)
     x = screen.get_width() - width
     margin = round(14 * scale)
-    y = round(14 * scale)
     panel = pygame.Rect(x, 0, width, screen.get_height())
     pygame.draw.rect(screen, (22, 24, 28), panel)
+    previous_clip = screen.get_clip()
+    screen.set_clip(panel)
+    y = round(14 * scale) - state.scroll_y
+
+    def finish(final_y: int) -> None:
+        content_height = max(panel.height, final_y + state.scroll_y + margin)
+        state.content_height = content_height
+        state.clamp_scroll(panel.height)
+        screen.set_clip(previous_clip)
+        draw_inspector_scrollbar(screen, state, panel, scale)
 
     y = draw_text(screen, font, "Inspector", x + margin, y, (230, 234, 238))
     y += round(10 * scale)
@@ -90,12 +113,14 @@ def draw_inspector(
             y = draw_text(screen, font, f"Cell: {hover_cell[0]}, {hover_cell[1]}", x + margin, y, (166, 212, 230))
         y = draw_region_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         y = draw_event_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
-        draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(14 * scale), width - margin * 2, scale)
+        y = draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(14 * scale), width - margin * 2, scale)
+        finish(y)
         return
 
     target = target_for_ref(level, selected_ref)
     if target is None:
-        draw_text(screen, font, "Nothing selected", x + margin, y, (188, 196, 204))
+        y = draw_text(screen, font, "Nothing selected", x + margin, y, (188, 196, 204))
+        finish(y)
         return
 
     options = collect_level_options(level)
@@ -169,7 +194,8 @@ def draw_inspector(
         y = draw_text(screen, font, "Drag to add cells", x + margin, y, (132, 140, 148))
         y = draw_button_row(screen, font, state, [("clear_region", "Clear cells"), ("delete_region", "Delete")], x + margin, y, width - margin * 2, scale)
 
-    draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(16 * scale), width - margin * 2, scale)
+    y = draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(16 * scale), width - margin * 2, scale)
+    finish(y)
 
 
 def handle_key(state: InspectorState, level: dict, selected_ref: tuple[str, int] | None, event: pygame.event.Event) -> bool:
@@ -366,6 +392,19 @@ def point_inside(screen: pygame.Surface, pos: tuple[int, int], scale: float = 1.
     return pos[0] >= screen.get_width() - inspector_width(scale)
 
 
+def draw_inspector_scrollbar(screen: pygame.Surface, state: InspectorState, panel: pygame.Rect, scale: float) -> None:
+    if state.content_height <= panel.height:
+        return
+
+    track_width = max(4, round(5 * scale))
+    track = pygame.Rect(panel.right - track_width - round(4 * scale), round(8 * scale), track_width, panel.height - round(16 * scale))
+    pygame.draw.rect(screen, (36, 40, 46), track, border_radius=max(2, track_width // 2))
+    thumb_height = max(round(42 * scale), int(track.height * panel.height / max(1, state.content_height)))
+    max_scroll = max(1, state.content_height - panel.height)
+    thumb_y = track.y + int((track.height - thumb_height) * state.scroll_y / max_scroll)
+    pygame.draw.rect(screen, (100, 122, 132), pygame.Rect(track.x, thumb_y, track.width, thumb_height), border_radius=max(2, track_width // 2))
+
+
 def target_for_ref(level: dict, ref: tuple[str, int] | None) -> dict | None:
     if ref is None:
         return None
@@ -391,7 +430,7 @@ def draw_region_list(screen: pygame.Surface, font: pygame.font.Font, state: Insp
     y = draw_text(screen, font, f"Regions: {len(regions)}", x, y, (166, 212, 230))
     y = draw_button_row(screen, font, state, [("add_region", "Add region")], x, y, width, scale)
     height = round(26 * scale)
-    for index, region in enumerate(regions[:6]):
+    for index, region in enumerate(regions):
         rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
         label = f"{region.get('id', f'region_{index + 1}')} ({region_cell_count(region)} cells)"
@@ -406,7 +445,7 @@ def draw_event_list(screen: pygame.Surface, font: pygame.font.Font, state: Inspe
     y = draw_text(screen, font, f"Events: {len(events)}", x, y, (166, 212, 230))
     y = draw_button_row(screen, font, state, [("add_event", "Add event")], x, y, width, scale)
     height = round(26 * scale)
-    for index, event in enumerate(events[:6]):
+    for index, event in enumerate(events):
         rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
         label = f"{event.get('id', f'event_{index}')} [{event.get('trigger', '')}]"

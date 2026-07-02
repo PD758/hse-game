@@ -13,7 +13,7 @@ from level_io import expand_tile_variants, expand_tiles, load_level, save_level
 from palette import TOOLS, tool_by_key
 from schema import ENEMY_TYPE, object_at, default_level
 from sprites import SpriteBank
-from ui import draw_sidebar, save_button_at, sidebar_width, tool_at
+from ui import draw_sidebar, draw_top_status, save_button_at, sidebar_width, tool_at, top_bar_height
 from validation import validate_level
 from viewport import Viewport
 
@@ -46,6 +46,7 @@ def main() -> int:
     sprites = SpriteBank(repo_root())
     viewport = Viewport(width, height, args.cell_size)
     viewport.offset.x = 20 + sidebar_width(ui_scale)
+    viewport.offset.y = top_bar_height(ui_scale) + 16
     inspector_state = InspectorState()
     selected_tool = 0
     selected_ref: tuple[str, int] | None = None
@@ -128,7 +129,11 @@ def main() -> int:
                         selected_cell = None
                         patrol_mode = False
             elif event.type == pygame.MOUSEWHEEL:
-                viewport.zoom(event.y, pygame.mouse.get_pos())
+                mouse_pos = pygame.mouse.get_pos()
+                if inspector_contains(screen, mouse_pos, ui_scale):
+                    inspector_state.scroll(event.y, screen.get_height(), ui_scale)
+                else:
+                    viewport.zoom(event.y, mouse_pos)
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 last_mouse = event.pos
                 if event.button == 3:
@@ -145,6 +150,7 @@ def main() -> int:
                             selected_ref = inspector_state.pending_select_ref
                             selected_cell = None
                             inspector_state.pending_select_ref = None
+                            inspector_state.reset_scroll()
                         discard_unchanged_undo(undo_stack, level, tiles, tile_variants)
                         dirty = changed or dirty
                         continue
@@ -158,6 +164,7 @@ def main() -> int:
                         selected_ref = None
                         selected_cell = None
                         inspector_state.clear_text()
+                        inspector_state.reset_scroll()
                         patrol_mode = False
                         continue
                     cell = viewport.screen_to_cell(event.pos)
@@ -175,6 +182,7 @@ def main() -> int:
                                 push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
                                 selected_ref = existing
                                 selected_cell = None
+                                inspector_state.reset_scroll()
                                 drag_ref = existing
                                 drag_last_cell = cell
                                 continue
@@ -187,6 +195,7 @@ def main() -> int:
                             next_ref, next_cell, changed = handle_left_click(level, tiles, tile_variants, selected_tool, cell, current_tile_variant, patrol_mode, selected_ref)
                             selected_ref = next_ref
                             selected_cell = next_cell
+                            inspector_state.reset_scroll()
                             if changed:
                                 dirty = True
                                 paint_snapshot_pushed = TOOLS[selected_tool]["kind"] == "tile"
@@ -233,17 +242,19 @@ def main() -> int:
 
         screen.fill((14, 16, 20))
         validation_issues = validate_level(level, tiles)
+        mouse_pos = pygame.mouse.get_pos()
+        hover_cell = None if mouse_pos[0] <= sidebar_width(ui_scale) or inspector_contains(screen, mouse_pos, ui_scale) else viewport.screen_to_cell(mouse_pos)
         draw_level(screen, viewport, sprites, tiles, tile_variants, level, selected_ref, selected_cell)
         if TOOLS[selected_tool]["kind"] == "region" or (selected_ref is not None and selected_ref[0] == "region"):
             draw_region_overlay(screen, viewport, level, selected_ref, font)
+        draw_reference_overlay(screen, viewport, level, selected_ref, font)
         if show_logic:
             draw_logic_overlay(screen, viewport, level, font)
         if show_validation:
             draw_validation_overlay(screen, viewport, validation_issues)
         viewport.draw_grid(screen)
+        draw_top_status(screen, font, selected_tool, selected_ref, hover_cell, dirty, validation_issues, viewport.cell_size, ui_scale)
         draw_sidebar(screen, font, selected_tool, str(level_path), dirty, patrol_mode, ui_scale)
-        mouse_pos = pygame.mouse.get_pos()
-        hover_cell = None if mouse_pos[0] <= sidebar_width(ui_scale) or inspector_contains(screen, mouse_pos, ui_scale) else viewport.screen_to_cell(mouse_pos)
         draw_inspector(screen, font, inspector_state, level, tiles, tile_variants, selected_ref, selected_cell, hover_cell, TOOLS[selected_tool]["label"], patrol_mode, sprites.variant_count, validation_issues, ui_scale)
         pygame.display.flip()
         clock.tick(60)
@@ -724,6 +735,112 @@ def draw_region_overlay(screen: pygame.Surface, viewport: Viewport, level: dict,
             text = region.get("id", f"region_{index + 1}")
             overlay.blit(font.render(str(text)[:22], True, (226, 248, 255)), (label_pos.x, max(0, label_pos.y - font.get_height())))
     screen.blit(overlay, (0, 0))
+
+
+def draw_reference_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, selected_ref: tuple[str, int] | None, font: pygame.font.Font) -> None:
+    if selected_ref is None:
+        return
+
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    kind, index = selected_ref
+    if kind == "object" and 0 <= index < len(level.get("objects", [])):
+        obj = level["objects"][index]
+        if obj.get("type") == "gate":
+            draw_gate_references(overlay, viewport, level, obj, font)
+    elif kind == "event" and 0 <= index < len(level.get("events", [])):
+        draw_event_references(overlay, viewport, level, level["events"][index], font)
+
+    screen.blit(overlay, (0, 0))
+
+
+def draw_gate_references(surface: pygame.Surface, viewport: Viewport, level: dict, gate: dict, font: pygame.font.Font) -> None:
+    gate_cell = object_at(gate)
+    gate_center = viewport.cell_to_screen(*gate_cell).center
+    plate_groups = set(str(value) for value in gate.get("requiresPlates", []) or [] if str(value))
+    story_ids = set(str(value) for value in gate.get("requiresStories", []) or [] if str(value))
+    enemy_ids = set(str(value) for value in gate.get("requiresEnemies", []) or [] if str(value))
+    gate_id = str(gate.get("id", ""))
+
+    for obj in level.get("objects", []) or []:
+        obj_type = obj.get("type")
+        cell = object_at(obj)
+        if obj_type == "plate" and str(obj.get("group", "")) in plate_groups:
+            draw_linked_cell(surface, viewport, gate_center, cell, (116, 226, 255, 80), (116, 226, 255, 220), "plate", font)
+        elif obj_type == "story" and str(obj.get("id", "")) in story_ids:
+            draw_linked_cell(surface, viewport, gate_center, cell, (176, 146, 255, 78), (196, 176, 255, 230), "story", font)
+
+    for enemy in level.get("enemies", []) or []:
+        if str(enemy.get("id", "")) in enemy_ids:
+            cell = (int(enemy.get("x", 0)), int(enemy.get("y", 0)))
+            draw_linked_cell(surface, viewport, gate_center, cell, (255, 106, 106, 74), (255, 130, 130, 230), "enemy", font)
+
+    for exit_cell in level.get("exits", []) or []:
+        if gate_id and str(exit_cell.get("requiresGate", "")) == gate_id:
+            cell = (int(exit_cell.get("x", 0)), int(exit_cell.get("y", 0)))
+            draw_linked_cell(surface, viewport, gate_center, cell, (134, 255, 154, 72), (148, 255, 172, 230), "exit", font)
+
+
+def draw_event_references(surface: pygame.Surface, viewport: Viewport, level: dict, event: dict, font: pygame.font.Font) -> None:
+    trigger = event.get("trigger", "")
+    if trigger == "enterRegion":
+        region = find_region(level, str(event.get("region", "")))
+        if region is not None:
+            for cell in region_cells(region):
+                draw_reference_cell(surface, viewport, cell, (64, 190, 255, 64), (120, 230, 255, 210))
+    elif trigger == "enemyKilled":
+        enemy = find_enemy_by_id(level, str(event.get("enemyId", "")))
+        if enemy is not None:
+            draw_reference_cell(surface, viewport, (int(enemy.get("x", 0)), int(enemy.get("y", 0))), (255, 106, 106, 74), (255, 130, 130, 230))
+    elif trigger == "enemyGroupCleared":
+        group = str(event.get("enemyGroup", ""))
+        for enemy in level.get("enemies", []) or []:
+            if group and str(enemy.get("group", "")) == group:
+                draw_reference_cell(surface, viewport, (int(enemy.get("x", 0)), int(enemy.get("y", 0))), (255, 106, 106, 74), (255, 130, 130, 230))
+
+    for action in event.get("actions", []) or []:
+        if not isinstance(action, dict) or "x" not in action or "y" not in action:
+            continue
+        cell = (int(action.get("x", 0)), int(action.get("y", 0)))
+        draw_reference_cell(surface, viewport, cell, (255, 214, 104, 66), (255, 222, 126, 230))
+        rect = viewport.cell_to_screen(*cell)
+        label = str(action.get("type", "action"))[:16]
+        surface.blit(font.render(label, True, (255, 238, 180)), (rect.x, rect.y - font.get_height()))
+
+
+def draw_linked_cell(
+    surface: pygame.Surface,
+    viewport: Viewport,
+    source_center: tuple[int, int],
+    cell: tuple[int, int],
+    fill: tuple[int, int, int, int],
+    outline: tuple[int, int, int, int],
+    label: str,
+    font: pygame.font.Font,
+) -> None:
+    rect = viewport.cell_to_screen(*cell)
+    pygame.draw.line(surface, outline, source_center, rect.center, max(1, viewport.cell_size // 16))
+    draw_reference_cell(surface, viewport, cell, fill, outline)
+    surface.blit(font.render(label, True, outline[:3]), (rect.x, rect.y - font.get_height()))
+
+
+def draw_reference_cell(surface: pygame.Surface, viewport: Viewport, cell: tuple[int, int], fill: tuple[int, int, int, int], outline: tuple[int, int, int, int]) -> None:
+    rect = viewport.cell_to_screen(*cell)
+    pygame.draw.rect(surface, fill, rect)
+    pygame.draw.rect(surface, outline, rect, max(2, viewport.cell_size // 12))
+
+
+def find_region(level: dict, region_id: str) -> dict | None:
+    for region in level.get("regions", []) or []:
+        if region_id and str(region.get("id", "")) == region_id:
+            return region
+    return None
+
+
+def find_enemy_by_id(level: dict, enemy_id: str) -> dict | None:
+    for enemy in level.get("enemies", []) or []:
+        if enemy_id and str(enemy.get("id", "")) == enemy_id:
+            return enemy
+    return None
 
 
 def draw_logic_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, font: pygame.font.Font) -> None:
