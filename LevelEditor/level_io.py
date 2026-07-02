@@ -32,6 +32,8 @@ def normalize_level(data: dict) -> dict:
     base.update(data)
     base.setdefault("objects", [])
     base.setdefault("enemies", [])
+    base.setdefault("decorations", [])
+    base.setdefault("lights", [])
     base.setdefault("events", [])
     if not base.get("exits") and base.get("exit"):
         exit_cell = base.get("exit") or {}

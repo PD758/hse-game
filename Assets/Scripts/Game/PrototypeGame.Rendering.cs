@@ -3,6 +3,8 @@ using UnityEngine.Rendering.Universal;
 
 public sealed partial class PrototypeGame
 {
+    private const string LevelVisualRootName = "Level Visuals";
+
     private void CreateViews()
     {
         ThrowIfPlayingBake("CreateViews");
@@ -38,6 +40,7 @@ public sealed partial class PrototypeGame
         }
 
         CreateEntityViews();
+        CreateLevelVisualViews();
         RebuildTileColliders();
     }
 
@@ -186,6 +189,7 @@ public sealed partial class PrototypeGame
             enemy.View.SetActive(true);
         }
 
+        CreateLevelVisualViews();
         return true;
     }
 
@@ -255,6 +259,129 @@ public sealed partial class PrototypeGame
     {
         Transform child = root.Find(childName);
         return child == null ? null : child.gameObject;
+    }
+
+    private void CreateLevelVisualViews()
+    {
+        GameObject existingRoot = FindSceneObjectIncludingInactive(LevelVisualRootName);
+        if (existingRoot != null)
+            DestroyRuntimeObject(existingRoot);
+        levelVisualObjects.Clear();
+
+        if ((levelDecorations == null || levelDecorations.Count == 0) && (levelLights == null || levelLights.Count == 0))
+            return;
+
+        var root = new GameObject(LevelVisualRootName);
+        root.transform.SetParent(transform);
+        levelVisualObjects.Add(root);
+
+        if (levelDecorations != null)
+        {
+            for (int i = 0; i < levelDecorations.Count; i++)
+                CreateLevelDecorationView(root.transform, levelDecorations[i], i);
+        }
+
+        if (levelLights != null)
+        {
+            for (int i = 0; i < levelLights.Count; i++)
+                CreateLevelLightView(root.transform, levelLights[i], i);
+        }
+    }
+
+    private void CreateLevelDecorationView(Transform root, LevelDecoration data, int index)
+    {
+        if (data == null)
+            return;
+
+        var view = new GameObject(string.IsNullOrWhiteSpace(data.id) ? $"Texture {index}" : $"Texture {data.id}");
+        view.transform.SetParent(root);
+        view.transform.position = ToWorld(data.x, data.y);
+        view.transform.localRotation = Quaternion.Euler(0f, 0f, data.rotation);
+        float scale = Mathf.Clamp(data.scale <= 0f ? 1f : data.scale, 0.05f, 12f);
+        view.transform.localScale = new Vector3(scale, scale, 1f);
+
+        var renderer = view.AddComponent<SpriteRenderer>();
+        renderer.sprite = LoadLevelSprite(data.texturePath);
+        renderer.sortingOrder = data.sortingOrder;
+        SetLitMaterial(renderer);
+
+        if (data.castsShadow)
+            Urp2DLighting.AddShadowCaster(view);
+    }
+
+    private void CreateLevelLightView(Transform root, LevelLight data, int index)
+    {
+        if (data == null)
+            return;
+
+        var view = new GameObject(string.IsNullOrWhiteSpace(data.id) ? $"Light {index}" : $"Light {data.id}");
+        view.transform.SetParent(root);
+        view.transform.position = ToWorld(data.x, data.y);
+
+        Color color = ParseLevelColor(data.color, new Color(0.84f, 0.94f, 1f));
+        float intensity = Mathf.Max(0.01f, data.intensity);
+        float radius = Mathf.Max(0.1f, data.radius);
+        if (string.Equals(data.type, "cone", System.StringComparison.OrdinalIgnoreCase))
+        {
+            Vector2 direction = new Vector2(Mathf.Cos(data.rotation * Mathf.Deg2Rad), Mathf.Sin(data.rotation * Mathf.Deg2Rad));
+            Light2D light = Urp2DLighting.AddConeLight(view, color, intensity, radius, 0.2f, Mathf.Clamp(data.outerAngle, 1f, 360f), Mathf.Clamp(data.innerAngle, 0f, 360f), direction);
+            Urp2DLighting.ConfigurePointLightShadows(light, Mathf.Min(0.65f, intensity * 0.45f), 0.55f, 0.70f);
+        }
+        else
+        {
+            Light2D light = Urp2DLighting.AddPointLight(view, color, intensity, radius, Mathf.Min(radius * 0.25f, 1.2f));
+            Urp2DLighting.ConfigurePointLightShadows(light, Mathf.Min(0.65f, intensity * 0.45f), 0.50f, 0.66f);
+        }
+    }
+
+    private static Vector3 ToWorld(float x, float y)
+    {
+        return new Vector3(x * CellSize, y * CellSize, 0f);
+    }
+
+    private Sprite LoadLevelSprite(string texturePath)
+    {
+        string resourceKey = ResourceKeyForTexturePath(texturePath);
+        if (!string.IsNullOrEmpty(resourceKey))
+        {
+            Sprite sprite = Resources.Load<Sprite>(resourceKey);
+            if (sprite != null)
+                return sprite;
+
+            Texture2D texture = Resources.Load<Texture2D>(resourceKey);
+            if (texture != null)
+                return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), Mathf.Max(texture.width, texture.height));
+        }
+
+        Debug.LogWarning($"Level texture '{texturePath}' was not found in Resources.");
+        return null;
+    }
+
+    private static string ResourceKeyForTexturePath(string texturePath)
+    {
+        if (string.IsNullOrWhiteSpace(texturePath))
+            return string.Empty;
+
+        string normalized = texturePath.Replace('\\', '/').Trim();
+        const string prefix = "Assets/Resources/";
+        int index = normalized.IndexOf(prefix, System.StringComparison.OrdinalIgnoreCase);
+        if (index < 0)
+            return string.Empty;
+
+        string key = normalized.Substring(index + prefix.Length);
+        int extensionIndex = key.LastIndexOf('.');
+        if (extensionIndex > 0)
+            key = key.Substring(0, extensionIndex);
+        return key;
+    }
+
+    private static Color ParseLevelColor(string value, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return fallback;
+        if (ColorUtility.TryParseHtmlString(value, out Color color))
+            return color;
+        return fallback;
     }
 
     private Light2D EnsureEnemyLight(GameObject enemyView)

@@ -33,6 +33,8 @@ def default_level() -> dict:
         "walls": [],
         "objects": [],
         "enemies": [],
+        "decorations": [],
+        "lights": [],
         "events": [],
         "logic": {
             "gates": [],

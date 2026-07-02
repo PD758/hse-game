@@ -20,6 +20,8 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 - `g`: regions mode
 - Left mouse on sidebar: select palette item
 - `x`: select exit tool
+- `t`: select arbitrary texture tool
+- `i`: select light tool
 - Left mouse: paint/place/select
 - Left mouse on an empty cell with a selected object/enemy: move it
 - Right mouse drag: pan
@@ -51,10 +53,13 @@ The right panel shows editable properties for the current selection.
 - Story: `id`, text
 - Exit: `id`, `targetLevel`, `requiresGate`; `branch` is legacy metadata and ignored by gameplay
 - Enemy: `id`, `level`, `hp`, branch metadata and patrol controls
+- Texture: `texturePath`, `scale`, `rotation`, `sortingOrder`, `castsShadow`; use repo-relative paths under `Assets/Resources/...` for Unity builds
+- Light: `type` (`point`/`cone`), `color` as `#RRGGBB`, `intensity`, `radius`, cone angles/rotation
 - Region: `id`, cell count, clear/delete controls
 - Event actions are edited as rows. Supported action types: `fallStone`, `spawnEnemy`, `setTile`, `spawnObject`, `removeObject`, `playEffect`.
 - For `enterRegion` events, `+ stones in region` adds one `fallStone` action for each cell in the selected region.
 - Player start / objects / exits / enemies: use Cursor drag to move
+- Textures / lights: use Cursor drag to move freely; hold `Shift` while dragging or placing to snap to cell centers
 
 ## Validation
 

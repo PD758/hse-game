@@ -13,6 +13,8 @@ public sealed class LevelDefinition
     public List<LevelPoint> walls = new List<LevelPoint>();
     public List<LevelObject> objects = new List<LevelObject>();
     public List<LevelEnemy> enemies = new List<LevelEnemy>();
+    public List<LevelDecoration> decorations = new List<LevelDecoration>();
+    public List<LevelLight> lights = new List<LevelLight>();
     public List<LevelEvent> events = new List<LevelEvent>();
     public LevelLogic logic = new LevelLogic();
     public List<LevelRegion> regions = new List<LevelRegion>();
@@ -106,6 +108,32 @@ public sealed class LevelEnemy
     public int x;
     public int y;
     public List<List<int>> patrol = new List<List<int>>();
+}
+
+public sealed class LevelDecoration
+{
+    public string id;
+    public string texturePath;
+    public float x;
+    public float y;
+    public float scale = 1f;
+    public float rotation;
+    public int sortingOrder = 4;
+    public bool castsShadow;
+}
+
+public sealed class LevelLight
+{
+    public string id;
+    public string type = "point";
+    public float x;
+    public float y;
+    public float intensity = 0.7f;
+    public float radius = 4f;
+    public string color = "#d6f0ff";
+    public float rotation;
+    public float outerAngle = 65f;
+    public float innerAngle = 30f;
 }
 
 public sealed class LevelEvent

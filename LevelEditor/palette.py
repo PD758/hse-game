@@ -15,6 +15,8 @@ TOOLS = [
     {"kind": "enemy", "value": "announcer", "label": "Enemy", "key": "0"},
     {"kind": "exit", "value": "exit", "label": "Exit", "key": "x"},
     {"kind": "object", "value": "story", "label": "Story", "key": "-"},
+    {"kind": "decoration", "value": "decoration", "label": "Texture", "key": "t"},
+    {"kind": "light", "value": "light", "label": "Light", "key": "i"},
 ]
 
 

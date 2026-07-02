@@ -41,6 +41,7 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
     enemy_ids = set()
     enemy_groups = set()
     region_ids = set()
+    visual_ids = set()
     existing_levels = collect_level_ids()
 
     exit_ids = set()
@@ -185,6 +186,12 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
     for index, event in enumerate(level.get("events", []) or []):
         validate_event(issues, event, index, tiles, event_ids, enemy_ids | spawned_enemy_ids, enemy_groups | spawned_enemy_groups, region_ids, spawned_enemy_ids, spawned_enemy_groups)
 
+    for index, decoration in enumerate(level.get("decorations", []) or []):
+        validate_decoration(issues, decoration, index, visual_ids)
+
+    for index, light in enumerate(level.get("lights", []) or []):
+        validate_light(issues, light, index, visual_ids)
+
     for cell, targets in occupied.items():
         if len(targets) > 1:
             issues.append(ValidationIssue("error", "multiple entities in one cell", cell, targets[0]))
@@ -203,6 +210,88 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
                 issues.append(ValidationIssue("error", f"{key}[{index}] has no area"))
 
     return issues
+
+
+def validate_decoration(issues: list[ValidationIssue], decoration: dict, index: int, visual_ids: set[str]) -> None:
+    target = ("decoration", index)
+    visual_id = str(decoration.get("id", "")).strip()
+    if not visual_id:
+        issues.append(ValidationIssue("warning", "texture has no id", target=target))
+    elif visual_id in visual_ids:
+        issues.append(ValidationIssue("error", f"duplicate visual id '{visual_id}'", target=target))
+    else:
+        visual_ids.add(visual_id)
+
+    texture_path = str(decoration.get("texturePath", "")).strip()
+    validate_texture_path(issues, texture_path, target)
+    scale = numeric_value(decoration.get("scale", 1.0), 1.0)
+    if scale <= 0:
+        issues.append(ValidationIssue("error", "texture scale must be > 0", target=target))
+    elif scale > 8:
+        issues.append(ValidationIssue("warning", "texture scale is very large", target=target))
+
+
+def validate_light(issues: list[ValidationIssue], light: dict, index: int, visual_ids: set[str]) -> None:
+    target = ("light", index)
+    visual_id = str(light.get("id", "")).strip()
+    if not visual_id:
+        issues.append(ValidationIssue("warning", "light has no id", target=target))
+    elif visual_id in visual_ids:
+        issues.append(ValidationIssue("error", f"duplicate visual id '{visual_id}'", target=target))
+    else:
+        visual_ids.add(visual_id)
+
+    light_type = str(light.get("type", "point")).strip()
+    if light_type not in {"point", "cone"}:
+        issues.append(ValidationIssue("error", f"unknown light type '{light_type}'", target=target))
+    if numeric_value(light.get("intensity", 0), 0) <= 0:
+        issues.append(ValidationIssue("error", "light intensity must be > 0", target=target))
+    if numeric_value(light.get("radius", 0), 0) <= 0:
+        issues.append(ValidationIssue("error", "light radius must be > 0", target=target))
+    if not valid_color(str(light.get("color", ""))):
+        issues.append(ValidationIssue("error", "light color must be #RRGGBB", target=target))
+    if light_type == "cone":
+        outer = numeric_value(light.get("outerAngle", 0), 0)
+        inner = numeric_value(light.get("innerAngle", 0), 0)
+        if not 1 <= outer <= 360:
+            issues.append(ValidationIssue("error", "cone outerAngle must be 1..360", target=target))
+        if not 0 <= inner <= outer:
+            issues.append(ValidationIssue("warning", "cone innerAngle should be <= outerAngle", target=target))
+
+
+def validate_texture_path(issues: list[ValidationIssue], texture_path: str, target: tuple[str, int]) -> None:
+    if not texture_path:
+        issues.append(ValidationIssue("error", "texturePath is required", target=target))
+        return
+    path = Path(texture_path)
+    if path.is_absolute():
+        issues.append(ValidationIssue("warning", "absolute texturePath is not portable", target=target))
+        resolved = path
+    else:
+        normalized = texture_path.replace("\\", "/")
+        if not normalized.startswith("Assets/Resources/"):
+            issues.append(ValidationIssue("warning", "texturePath should be under Assets/Resources for builds", target=target))
+        resolved = Path(__file__).resolve().parents[1] / normalized
+    if not resolved.exists():
+        issues.append(ValidationIssue("error", f"texture file not found: {texture_path}", target=target))
+
+
+def numeric_value(value: object, fallback: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def valid_color(value: str) -> bool:
+    text = value.strip()
+    if not (text.startswith("#") and len(text) == 7):
+        return False
+    try:
+        int(text[1:], 16)
+    except ValueError:
+        return False
+    return True
 
 
 def collect_level_ids() -> set[str]:

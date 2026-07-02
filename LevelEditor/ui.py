@@ -12,6 +12,8 @@ TOOL_GROUP_LABELS = {
     "object": "Objects",
     "enemy": "Actors",
     "exit": "Logic",
+    "decoration": "Visuals",
+    "light": "Visuals",
 }
 
 

@@ -59,6 +59,7 @@ def main() -> int:
     angle_drag = False
     drag_ref: tuple[str, int] | None = None
     drag_last_cell: tuple[int, int] | None = None
+    drag_free = False
     show_validation = True
     show_logic = False
     last_mouse = (0, 0)
@@ -177,15 +178,23 @@ def main() -> int:
                             dirty = changed or dirty
                             continue
                         if TOOLS[selected_tool]["kind"] == "cursor" and not patrol_mode:
-                            existing = find_at(level, cell)
+                            existing = find_at_screen(level, viewport, event.pos) or find_at(level, cell)
                             if existing is not None:
                                 push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
                                 selected_ref = existing
                                 selected_cell = None
                                 inspector_state.reset_scroll()
                                 drag_ref = existing
+                                drag_free = is_free_ref(existing)
                                 drag_last_cell = cell
                                 continue
+                        if TOOLS[selected_tool]["kind"] in ("decoration", "light"):
+                            push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
+                            selected_ref = create_free_visual(level, TOOLS[selected_tool]["kind"], viewport, event.pos)
+                            selected_cell = None
+                            inspector_state.reset_scroll()
+                            dirty = True
+                            continue
                         if directional_handle_hit(level, viewport, selected_ref, event.pos) or (pygame.key.get_mods() & pygame.KMOD_ALT and selected_directional_object(level, selected_ref) is not None):
                             push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
                             angle_drag = True
@@ -210,19 +219,26 @@ def main() -> int:
                     angle_drag = False
                     drag_ref = None
                     drag_last_cell = None
+                    drag_free = False
             elif event.type == pygame.MOUSEMOTION:
                 if panning or (pygame.mouse.get_pressed()[0] and pygame.key.get_pressed()[pygame.K_SPACE]):
                     viewport.pan(event.rel)
                 elif angle_drag:
                     dirty = update_direction_from_mouse(level, viewport, selected_ref, event.pos) or dirty
                 elif drag_ref is not None:
-                    cell = viewport.screen_to_cell(event.pos)
-                    if cell is not None and cell != drag_last_cell and can_drop_entity(level, tiles, drag_ref, cell):
-                        move_selected(level, drag_ref, cell)
+                    if drag_free:
+                        move_free_selected(level, drag_ref, viewport, event.pos, bool(pygame.key.get_mods() & pygame.KMOD_SHIFT))
                         selected_ref = drag_ref
                         selected_cell = None
-                        drag_last_cell = cell
                         dirty = True
+                    else:
+                        cell = viewport.screen_to_cell(event.pos)
+                        if cell is not None and cell != drag_last_cell and can_drop_entity(level, tiles, drag_ref, cell):
+                            move_selected(level, drag_ref, cell)
+                            selected_ref = drag_ref
+                            selected_cell = None
+                            drag_last_cell = cell
+                            dirty = True
                 elif pygame.mouse.get_pressed()[0]:
                     cell = viewport.screen_to_cell(event.pos)
                     if cell is not None and TOOLS[selected_tool]["kind"] == "region":
@@ -495,6 +511,93 @@ def find_at(level: dict, cell: tuple[int, int]) -> tuple[str, int] | None:
     return None
 
 
+def find_at_screen(level: dict, viewport: Viewport, pos: tuple[int, int]) -> tuple[str, int] | None:
+    for index in reversed(range(len(level.get("lights", []) or []))):
+        if light_hit(viewport, level["lights"][index], pos):
+            return "light", index
+    for index in reversed(range(len(level.get("decorations", []) or []))):
+        if decoration_hit(viewport, level["decorations"][index], pos):
+            return "decoration", index
+    return None
+
+
+def decoration_hit(viewport: Viewport, decoration: dict, pos: tuple[int, int]) -> bool:
+    rect = free_visual_rect(viewport, decoration)
+    return rect.inflate(max(8, viewport.cell_size // 4), max(8, viewport.cell_size // 4)).collidepoint(pos)
+
+
+def light_hit(viewport: Viewport, light: dict, pos: tuple[int, int]) -> bool:
+    center = world_to_screen(viewport, safe_float(light.get("x", 0)), safe_float(light.get("y", 0)))
+    return center.distance_to(pygame.Vector2(pos)) <= max(10, viewport.cell_size * 0.35)
+
+
+def create_free_visual(level: dict, kind: str, viewport: Viewport, pos: tuple[int, int]) -> tuple[str, int]:
+    x, y = screen_to_world(viewport, pos, snap=bool(pygame.key.get_mods() & pygame.KMOD_SHIFT))
+    if kind == "light":
+        lights = level.setdefault("lights", [])
+        lights.append({
+            "id": f"light_{len(lights) + 1}",
+            "type": "point",
+            "x": x,
+            "y": y,
+            "intensity": 0.7,
+            "radius": 4.0,
+            "color": "#d6f0ff",
+            "rotation": 0,
+            "outerAngle": 65,
+            "innerAngle": 30,
+        })
+        return "light", len(lights) - 1
+
+    decorations = level.setdefault("decorations", [])
+    decorations.append({
+        "id": f"texture_{len(decorations) + 1}",
+        "texturePath": "Assets/Resources/Decor/texture.png",
+        "x": x,
+        "y": y,
+        "scale": 1.0,
+        "rotation": 0,
+        "sortingOrder": 4,
+        "castsShadow": False,
+    })
+    return "decoration", len(decorations) - 1
+
+
+def is_free_ref(ref: tuple[str, int]) -> bool:
+    return ref[0] in ("decoration", "light")
+
+
+def move_free_selected(level: dict, ref: tuple[str, int], viewport: Viewport, pos: tuple[int, int], snap: bool) -> None:
+    kind, index = ref
+    target = None
+    if kind == "decoration" and 0 <= index < len(level.get("decorations", [])):
+        target = level["decorations"][index]
+    elif kind == "light" and 0 <= index < len(level.get("lights", [])):
+        target = level["lights"][index]
+    if target is None:
+        return
+    x, y = screen_to_world(viewport, pos, snap)
+    target["x"] = x
+    target["y"] = y
+
+
+def screen_to_world(viewport: Viewport, pos: tuple[int, int], snap: bool = False) -> tuple[float, float]:
+    value = viewport.screen_to_cell_float(pos)
+    x = value.x - 0.5
+    y = value.y - 0.5
+    if snap:
+        x = round(x)
+        y = round(y)
+    return round(float(x), 3), round(float(y), 3)
+
+
+def world_to_screen(viewport: Viewport, x: float, y: float) -> pygame.Vector2:
+    return pygame.Vector2(
+        viewport.offset.x + (x + 0.5) * viewport.cell_size,
+        viewport.offset.y + (viewport.grid_height - 1 - y + 0.5) * viewport.cell_size,
+    )
+
+
 def can_drop_entity(level: dict, tiles: list[list[str]], ref: tuple[str, int], cell: tuple[int, int]) -> bool:
     x, y = cell
     if x < 0 or x >= len(tiles) or not tiles or y < 0 or y >= len(tiles[x]):
@@ -518,6 +621,10 @@ def delete_selected(level: dict, ref: tuple[str, int]) -> None:
         del level["events"][index]
     elif kind == "region" and 0 <= index < len(level.get("regions", [])):
         del level["regions"][index]
+    elif kind == "decoration" and 0 <= index < len(level.get("decorations", [])):
+        del level["decorations"][index]
+    elif kind == "light" and 0 <= index < len(level.get("lights", [])):
+        del level["lights"][index]
 
 
 def move_selected(level: dict, ref: tuple[str, int], cell: tuple[int, int]) -> None:
@@ -539,6 +646,12 @@ def move_selected(level: dict, ref: tuple[str, int], cell: tuple[int, int]) -> N
 
 
 def rotate_selected(level: dict, ref: tuple[str, int] | None, degrees: float) -> bool:
+    free_target = selected_free_visual(level, ref)
+    if free_target is not None:
+        rotation = safe_float(free_target.get("rotation", 0))
+        free_target["rotation"] = round((rotation + degrees) % 360, 3)
+        return True
+
     obj = selected_object(level, ref)
     if obj is None or "direction" not in obj:
         return False
@@ -579,6 +692,18 @@ def selected_object(level: dict, ref: tuple[str, int] | None) -> dict | None:
     kind, index = ref
     if kind == "object" and 0 <= index < len(level["objects"]):
         return level["objects"][index]
+    return None
+
+
+def selected_free_visual(level: dict, ref: tuple[str, int] | None) -> dict | None:
+    if ref is None:
+        return None
+
+    kind, index = ref
+    if kind == "decoration" and 0 <= index < len(level.get("decorations", [])):
+        return level["decorations"][index]
+    if kind == "light" and 0 <= index < len(level.get("lights", [])):
+        return level["lights"][index]
     return None
 
 
@@ -654,6 +779,9 @@ def draw_level(
             if selected_cell == (x, y):
                 pygame.draw.rect(screen, (255, 238, 120), rect, 3)
 
+    draw_decorations(screen, viewport, sprites, level, selected_ref)
+    draw_lights(screen, viewport, level, selected_ref, font=None)
+
     for index, exit_cell in enumerate(level.get("exits", [])):
         draw_marker(screen, viewport, sprites, "exit", exit_cell, cell_size, selected_ref == ("exit", index))
     draw_marker(screen, viewport, sprites, "player", level.get("playerStart", {}), cell_size, selected_ref == ("player", 0))
@@ -674,6 +802,95 @@ def draw_marker(screen: pygame.Surface, viewport: Viewport, sprites: SpriteBank,
     screen.blit(sprites.get(name, cell_size, int(data.get("variant", -1))), rect)
     if selected:
         pygame.draw.rect(screen, (255, 238, 120), rect, 3)
+
+
+def draw_decorations(screen: pygame.Surface, viewport: Viewport, sprites: SpriteBank, level: dict, selected_ref: tuple[str, int] | None) -> None:
+    indexed = list(enumerate(level.get("decorations", []) or []))
+    indexed.sort(key=lambda item: safe_int(item[1].get("sortingOrder", 4), 4))
+    for index, decoration in indexed:
+        rect = free_visual_rect(viewport, decoration)
+        surface = sprites.get_path(str(decoration.get("texturePath", "")), rect.width, rect.height)
+        rotation = safe_float(decoration.get("rotation", 0))
+        if abs(rotation) > 0.001:
+            surface = pygame.transform.rotate(surface, -rotation)
+            rect = surface.get_rect(center=rect.center)
+        screen.blit(surface, rect)
+        if selected_ref == ("decoration", index):
+            pygame.draw.rect(screen, (255, 238, 120), rect, max(2, viewport.cell_size // 14))
+            handle = rotation_handle(viewport, decoration)
+            pygame.draw.line(screen, (255, 238, 120), rect.center, handle, max(1, viewport.cell_size // 18))
+            pygame.draw.circle(screen, (255, 238, 120), handle, max(4, viewport.cell_size // 10), 2)
+        elif bool(decoration.get("castsShadow", False)):
+            pygame.draw.rect(screen, (90, 120, 130), rect, max(1, viewport.cell_size // 24))
+
+
+def draw_lights(screen: pygame.Surface, viewport: Viewport, level: dict, selected_ref: tuple[str, int] | None, font: pygame.font.Font | None) -> None:
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    for index, light in enumerate(level.get("lights", []) or []):
+        center = world_to_screen(viewport, safe_float(light.get("x", 0)), safe_float(light.get("y", 0)))
+        center_pos = (round(center.x), round(center.y))
+        radius = max(2, int(safe_float(light.get("radius", 4.0), 4.0) * viewport.cell_size))
+        selected = selected_ref == ("light", index)
+        color = parse_preview_color(str(light.get("color", "#d6f0ff")), 54 if selected else 34)
+        outline = parse_preview_color(str(light.get("color", "#d6f0ff")), 210 if selected else 135)
+        if light.get("type", "point") == "cone":
+            points = cone_points(center, radius, safe_float(light.get("rotation", 0)), safe_float(light.get("outerAngle", 65), 65))
+            pygame.draw.polygon(overlay, color, points)
+            pygame.draw.lines(overlay, outline, True, points, max(2, viewport.cell_size // 18))
+        else:
+            pygame.draw.circle(overlay, color, center_pos, radius)
+            pygame.draw.circle(overlay, outline, center_pos, radius, max(2, viewport.cell_size // 18))
+        pygame.draw.circle(overlay, outline, center_pos, max(4, viewport.cell_size // 10))
+    screen.blit(overlay, (0, 0))
+
+
+def free_visual_rect(viewport: Viewport, decoration: dict) -> pygame.Rect:
+    scale = max(0.05, safe_float(decoration.get("scale", 1.0), 1.0))
+    size = max(1, round(viewport.cell_size * scale))
+    center = world_to_screen(viewport, safe_float(decoration.get("x", 0)), safe_float(decoration.get("y", 0)))
+    return pygame.Rect(round(center.x - size * 0.5), round(center.y - size * 0.5), size, size)
+
+
+def rotation_handle(viewport: Viewport, decoration: dict) -> tuple[int, int]:
+    center = world_to_screen(viewport, safe_float(decoration.get("x", 0)), safe_float(decoration.get("y", 0)))
+    rotation = math.radians(safe_float(decoration.get("rotation", 0)))
+    distance = viewport.cell_size * max(0.7, safe_float(decoration.get("scale", 1.0), 1.0) * 0.65)
+    return round(center.x + math.cos(rotation) * distance), round(center.y - math.sin(rotation) * distance)
+
+
+def cone_points(center: pygame.Vector2, radius: int, rotation: float, outer_angle: float) -> list[tuple[int, int]]:
+    half = math.radians(max(1.0, min(360.0, outer_angle)) * 0.5)
+    direction = math.radians(rotation)
+    steps = 14
+    points = [(round(center.x), round(center.y))]
+    for step in range(steps + 1):
+        angle = direction - half + (half * 2 * step / steps)
+        points.append((round(center.x + math.cos(angle) * radius), round(center.y - math.sin(angle) * radius)))
+    return points
+
+
+def parse_preview_color(value: str, alpha: int) -> tuple[int, int, int, int]:
+    text = value.strip()
+    if text.startswith("#") and len(text) == 7:
+        try:
+            return int(text[1:3], 16), int(text[3:5], 16), int(text[5:7], 16), alpha
+        except ValueError:
+            pass
+    return 214, 240, 255, alpha
+
+
+def safe_float(value: object, fallback: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def safe_int(value: object, fallback: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def draw_direction(screen: pygame.Surface, viewport: Viewport, obj: dict, selected: bool = False) -> None:

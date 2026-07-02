@@ -76,6 +76,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private readonly List<Stone> stones = new List<Stone>();
     private readonly List<Enemy> enemies = new List<Enemy>();
     private readonly List<CombatEffect> combatEffects = new List<CombatEffect>();
+    private readonly List<GameObject> levelVisualObjects = new List<GameObject>();
     private readonly Dictionary<Vector2Int, string> gateGroupsByCell = new Dictionary<Vector2Int, string>();
     private readonly Dictionary<string, List<Vector2Int>> gateCellsByGroup = new Dictionary<string, List<Vector2Int>>();
     private readonly Dictionary<Vector2Int, LevelObject> gateObjectsByCell = new Dictionary<Vector2Int, LevelObject>();
@@ -88,6 +89,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private readonly HashSet<string> clearedEnemyGroups = new HashSet<string>();
     private readonly HashSet<string> executedEventIds = new HashSet<string>();
     private readonly List<LevelEvent> levelEvents = new List<LevelEvent>();
+    private readonly List<LevelDecoration> levelDecorations = new List<LevelDecoration>();
+    private readonly List<LevelLight> levelLights = new List<LevelLight>();
     private readonly Dictionary<string, HashSet<Vector2Int>> regionsById = new Dictionary<string, HashSet<Vector2Int>>();
     private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
     private readonly Dictionary<Texture2D, Rect> visibleTextureBounds = new Dictionary<Texture2D, Rect>();
@@ -960,6 +963,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
         foreach (CombatEffect effect in combatEffects)
             DestroyRuntimeObject(effect.View);
         combatEffects.Clear();
+
+        foreach (GameObject visual in levelVisualObjects)
+            DestroyRuntimeObject(visual);
+        levelVisualObjects.Clear();
     }
 
     private static void DestroyRuntimeObject(GameObject obj)
@@ -2105,6 +2112,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         clearedEnemyGroups.Clear();
         executedEventIds.Clear();
         levelEvents.Clear();
+        levelDecorations.Clear();
+        levelLights.Clear();
         regionsById.Clear();
         levelEnemiesKilled = 0;
         gateGroupsByCell.Clear();
@@ -2163,6 +2172,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
             foreach (LevelEnemy enemy in level.enemies)
                 ApplyLevelEnemy(enemy);
         }
+
+        if (level.decorations != null)
+            levelDecorations.AddRange(level.decorations);
+
+        if (level.lights != null)
+            levelLights.AddRange(level.lights);
 
         if (level.regions != null)
         {

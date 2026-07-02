@@ -47,6 +47,7 @@ class SpriteBank:
         self.repo_root = repo_root
         self.source_dir = repo_root / "Assets" / "Generated" / "Prototype" / "Sprites"
         self._cache: dict[tuple[str, int], pygame.Surface] = {}
+        self._path_cache: dict[tuple[str, int, int], pygame.Surface] = {}
 
     def get(self, name: str, size: int, variant: int = -1) -> pygame.Surface:
         key = (name, size, variant)
@@ -69,6 +70,35 @@ class SpriteBank:
         while (self.source_dir / f"{name}_{count}.png").exists():
             count += 1
         return count
+
+    def get_path(self, texture_path: str, width: int, height: int) -> pygame.Surface:
+        width = max(1, int(width))
+        height = max(1, int(height))
+        key = (texture_path, width, height)
+        if key in self._path_cache:
+            return self._path_cache[key]
+
+        path = self.resolve_repo_path(texture_path)
+        if path is not None and path.exists() and path.is_file():
+            try:
+                surface = self._load_image(path)
+            except pygame.error:
+                surface = self._missing_surface()
+        else:
+            surface = self._missing_surface()
+
+        scaled = pygame.transform.scale(surface, (width, height))
+        self._path_cache[key] = scaled
+        return scaled
+
+    def resolve_repo_path(self, texture_path: str) -> Path | None:
+        raw = (texture_path or "").strip().replace("\\", "/")
+        if not raw:
+            return None
+        path = Path(raw)
+        if path.is_absolute():
+            return path
+        return (self.repo_root / raw).resolve()
 
     def _load(self, name: str, variant: int) -> pygame.Surface:
         if name == "floor" and variant >= 0:
@@ -131,3 +161,11 @@ class SpriteBank:
         if pygame.display.get_surface() is None:
             return surface
         return surface.convert_alpha()
+
+    @staticmethod
+    def _missing_surface() -> pygame.Surface:
+        surface = pygame.Surface((32, 32), pygame.SRCALPHA)
+        surface.fill((218, 0, 218, 210))
+        pygame.draw.line(surface, (40, 20, 40), (0, 0), (31, 31), 3)
+        pygame.draw.line(surface, (40, 20, 40), (31, 0), (0, 31), 3)
+        return surface

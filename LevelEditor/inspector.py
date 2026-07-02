@@ -10,6 +10,8 @@ import pygame
 
 BRANCHES = ("none", "puzzle", "combat")
 FRAMES = ("vertical", "horizontal")
+BOOLS = ("true", "false")
+LIGHT_TYPES = ("point", "cone")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
@@ -113,6 +115,7 @@ def draw_inspector(
             y = draw_text(screen, font, f"Cell: {hover_cell[0]}, {hover_cell[1]}", x + margin, y, (166, 212, 230))
         y = draw_region_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         y = draw_event_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
+        y = draw_visual_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         y = draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(14 * scale), width - margin * 2, scale)
         finish(y)
         return
@@ -171,6 +174,25 @@ def draw_inspector(
         y = draw_choice_buttons(screen, font, state, "requiresGate", target.get("requiresGate", ""), [""] + options["gates"], x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
         y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
+    elif kind == "decoration":
+        y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "texturePath", target.get("texturePath", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_number_adjuster(screen, font, state, "scale", target.get("scale", 1.0), (-0.25, -0.05, 0.05, 0.25), x + margin, y, width - margin * 2, scale)
+        y = draw_number_adjuster(screen, font, state, "rotation", target.get("rotation", 0), (-15, -5, 5, 15), x + margin, y, width - margin * 2, scale)
+        y = draw_number_adjuster(screen, font, state, "sortingOrder", target.get("sortingOrder", 4), (-10, -1, 1, 10), x + margin, y, width - margin * 2, scale)
+        y = draw_enum_buttons(screen, font, state, "castsShadow", str(bool(target.get("castsShadow", False))).lower(), BOOLS, x + margin, y, width - margin * 2, scale)
+        y = draw_text(screen, font, "Cursor-drag to move. Shift-drag snaps to grid.", x + margin, y, (188, 196, 204))
+    elif kind == "light":
+        y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_enum_buttons(screen, font, state, "type", target.get("type", "point"), LIGHT_TYPES, x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "color", target.get("color", "#d6f0ff"), x + margin, y, width - margin * 2, scale)
+        y = draw_number_adjuster(screen, font, state, "intensity", target.get("intensity", 0.7), (-0.25, -0.05, 0.05, 0.25), x + margin, y, width - margin * 2, scale)
+        y = draw_number_adjuster(screen, font, state, "radius", target.get("radius", 4.0), (-1, -0.25, 0.25, 1), x + margin, y, width - margin * 2, scale)
+        if target.get("type", "point") == "cone":
+            y = draw_number_adjuster(screen, font, state, "rotation", target.get("rotation", 0), (-15, -5, 5, 15), x + margin, y, width - margin * 2, scale)
+            y = draw_number_adjuster(screen, font, state, "outerAngle", target.get("outerAngle", 65), (-10, -5, 5, 10), x + margin, y, width - margin * 2, scale)
+            y = draw_number_adjuster(screen, font, state, "innerAngle", target.get("innerAngle", 30), (-10, -5, 5, 10), x + margin, y, width - margin * 2, scale)
+        y = draw_text(screen, font, "Cursor-drag to move. Shift-drag snaps to grid.", x + margin, y, (188, 196, 204))
     elif kind == "player":
         y = draw_text(screen, font, "Cursor-drag to move.", x + margin, y, (188, 196, 204))
     elif kind == "event":
@@ -318,6 +340,10 @@ def handle_click(
             target[action.field] = int(action.value)
             state.clear_text()
             return True, current_tile_variant
+        if action.kind == "adjust_number":
+            target[action.field] = clamp_number_field(action.field, parse_number(str(target.get(action.field, 0))) if target.get(action.field, "") != "" else 0, action.amount)
+            state.clear_text()
+            return True, current_tile_variant
         if action.kind == "add_action":
             target.setdefault("actions", []).append({"type": "fallStone", "x": 0, "y": 0})
             state.clear_text()
@@ -418,6 +444,10 @@ def target_for_ref(level: dict, ref: tuple[str, int] | None) -> dict | None:
         return level.setdefault("playerStart", {"x": 0, "y": 0})
     if kind == "exit" and 0 <= index < len(level.get("exits", [])):
         return level["exits"][index]
+    if kind == "decoration" and 0 <= index < len(level.get("decorations", [])):
+        return level["decorations"][index]
+    if kind == "light" and 0 <= index < len(level.get("lights", [])):
+        return level["lights"][index]
     if kind == "event" and 0 <= index < len(level.get("events", [])):
         return level["events"][index]
     if kind == "region" and 0 <= index < len(level.get("regions", [])):
@@ -452,6 +482,22 @@ def draw_event_list(screen: pygame.Surface, font: pygame.font.Font, state: Inspe
         screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
         state.actions.append(InspectorAction(rect, "select_ref", target=("event", index)))
         y += height + round(5 * scale)
+    return y
+
+
+def draw_visual_list(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, level: dict, x: int, y: int, width: int, scale: float) -> int:
+    decorations = level.setdefault("decorations", [])
+    lights = level.setdefault("lights", [])
+    y = draw_text(screen, font, f"Visuals: {len(decorations)} textures, {len(lights)} lights", x, y, (166, 212, 230))
+    height = round(26 * scale)
+    for kind, items in (("decoration", decorations), ("light", lights)):
+        for index, item in enumerate(items):
+            rect = pygame.Rect(x, y, width, height)
+            pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+            label = f"{kind}: {item.get('id', f'{kind}_{index + 1}')}"
+            screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+            state.actions.append(InspectorAction(rect, "select_ref", target=(kind, index)))
+            y += height + round(5 * scale)
     return y
 
 
@@ -809,6 +855,36 @@ def draw_button_row(screen: pygame.Surface, font: pygame.font.Font, state: Inspe
     return y + height + round(10 * scale)
 
 
+def draw_number_adjuster(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    field: str,
+    current: object,
+    steps: tuple[float, ...],
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    y = draw_text(screen, font, f"{field}: {format_number(current)}", x, y, (188, 196, 204))
+    gap = round(5 * scale)
+    height = round(26 * scale)
+    bx = x
+    for step in steps:
+        label = signed_number(step)
+        button_width = max(round(48 * scale), font.size(label)[0] + round(16 * scale))
+        if bx + button_width > x + width and bx > x:
+            bx = x
+            y += height + gap
+        rect = pygame.Rect(bx, y, button_width, height)
+        pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(5 * scale)))
+        state.actions.append(InspectorAction(rect, "adjust_number", field=field, amount=step))
+        bx += button_width + gap
+    return y + height + round(10 * scale)
+
+
 def draw_variant_buttons(
     screen: pygame.Surface,
     font: pygame.font.Font,
@@ -1072,6 +1148,41 @@ def clamp_condition_value(stat_name: object, value: object) -> int | float:
     return max(0, int(round(float(value))))
 
 
+def clamp_number_field(field: str, current: object, amount: float) -> int | float:
+    if not isinstance(current, (int, float)):
+        current = 0
+    value = float(current) + amount
+    if field == "scale":
+        return round(max(0.05, min(8.0, value)), 3)
+    if field == "sortingOrder":
+        return int(round(max(-100, min(100, value))))
+    if field == "intensity":
+        return round(max(0.01, min(8.0, value)), 3)
+    if field == "radius":
+        return round(max(0.1, min(24.0, value)), 3)
+    if field in ("outerAngle", "innerAngle"):
+        return round(max(1.0, min(360.0, value)), 2)
+    if field == "rotation":
+        wrapped = value % 360.0
+        return int(round(wrapped)) if abs(wrapped - round(wrapped)) < 0.0001 else round(wrapped, 2)
+    return round(value, 3)
+
+
+def format_number(value: object) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if number.is_integer():
+        return str(int(number))
+    return f"{number:.3f}".rstrip("0").rstrip(".")
+
+
+def signed_number(value: float) -> str:
+    prefix = "+" if value > 0 else ""
+    return prefix + format_number(value)
+
+
 def short_stat_name(stat_name: str) -> str:
     aliases = {
         "enemiesKilled": "kills",
@@ -1091,6 +1202,10 @@ def target_title(kind: str, target: dict) -> str:
         return "Player start"
     if kind == "exit":
         return "Exit"
+    if kind == "decoration":
+        return f"Texture: {target.get('id', 'decoration')}"
+    if kind == "light":
+        return f"Light: {target.get('id', 'light')}"
     if kind == "event":
         return f"Event: {target.get('id', 'event')}"
     if kind == "region":
@@ -1212,6 +1327,14 @@ def coerce_text_value(field: str, value: str) -> object:
             return max(1, int(value))
         except ValueError:
             return 2
+    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle"):
+        parsed = parse_number(value)
+        return parsed if isinstance(parsed, (int, float)) else 0
+    if field == "sortingOrder":
+        try:
+            return int(round(float(value)))
+        except ValueError:
+            return 0
     return value
 
 
@@ -1226,11 +1349,17 @@ def is_allowed_text(value: str, field: str) -> bool:
         return value.isdigit()
     if field == "hp":
         return value.isdigit()
+    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle", "sortingOrder"):
+        return value.isdigit() or value in ".-"
+    if field == "texturePath":
+        return all(ch >= " " and ch not in "\"<>" for ch in value)
+    if field == "color":
+        return all(ch.isalnum() or ch in "#(),. " for ch in value)
     return all(ch.isalnum() or ch in "_-." for ch in value)
 
 
 def coerce_action_value(field: str, value: object) -> object:
-    if field == "once":
+    if field in ("once", "castsShadow"):
         return value == "true" or value is True
     return value
 
