@@ -127,6 +127,7 @@ public sealed class MainMenu : MonoBehaviour
         statusStyle.wordWrap = true;
         statusStyle.normal.textColor = new Color(0.74f, 0.82f, 0.86f);
         PixelGui.Apply(statusStyle);
+
     }
 
 #if UNITY_EDITOR
@@ -171,7 +172,7 @@ public sealed class MainMenu : MonoBehaviour
                 GUI.DrawTexture(new Rect(x, y, backgroundTexture.width, backgroundTexture.height), backgroundTexture);
         }
 
-        DrawRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0.005f, 0.008f, 0.012f, 0.32f));
+        DrawRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0.005f, 0.008f, 0.012f, GameLightingSettings.MenuDarkOverlayAlpha));
 
         float scanlineAlpha = 0.055f;
         for (float y = 0f; y < screenHeight; y += 8f)
@@ -193,7 +194,7 @@ public sealed class MainMenu : MonoBehaviour
         GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите формат эфира перед входом в игру.", subtitleStyle);
 
         float cardsTop = headerRect.yMax + (compact ? 10f : 18f);
-        float controlsTop = panel.yMax - (compact ? 136f : 124f);
+        float controlsTop = panel.yMax - (compact ? 188f : 172f);
         float cardsHeight = controlsTop - cardsTop - 18f;
         Rect storyRect;
         Rect endlessRect;
@@ -213,6 +214,9 @@ public sealed class MainMenu : MonoBehaviour
         DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.", "ГОТОВ");
         DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "Шаблон генерации", "Заготовка под случайные комнаты, растущий темп эфира и бесконечную попытку.", "СКОРО");
 
+        Rect lightingRect = new Rect(panel.x + 28f, panel.yMax - (compact ? 154f : 142f), panel.width - 56f, 42f);
+        DrawLightingToggle(lightingRect);
+
         Rect playRect = new Rect(panel.x + 28f, panel.yMax - 104f, Mathf.Min(270f, panel.width - 56f), 50f);
         if (!compact)
             playRect.x = panel.xMax - playRect.width - 28f;
@@ -226,6 +230,28 @@ public sealed class MainMenu : MonoBehaviour
         GUI.Label(selectedRect, footerMessage, statusStyle);
 
         GUI.Label(new Rect(panel.x + 28f, panel.yMax - 42f, panel.width - 56f, 22f), "WASD/стрелки - движение | Space/ЛКМ - атака | E - действие | Q - пульт | Esc - меню", hintStyle);
+    }
+
+    private void DrawLightingToggle(Rect rect)
+    {
+        DrawPanel(rect, new Color(0.012f, 0.018f, 0.024f, 0.80f), new Color(0.34f, 0.50f, 0.56f, 0.35f));
+
+        bool normalLighting = GameLightingSettings.NormalLighting;
+        Rect labelRect = new Rect(rect.x + 14f, rect.y + 5f, 160f, 20f);
+        Rect hintRect = new Rect(rect.x + 14f, rect.y + 22f, rect.width - 198f, 18f);
+        Rect buttonRect = new Rect(rect.xMax - 166f, rect.y + 6f, 152f, 30f);
+
+        GUI.Label(labelRect, "Освещение", labelStyle);
+        GUI.Label(hintRect, normalLighting ? "Тени отключены, базовый свет усилен." : "Киношный свет и тени включены.", hintStyle);
+
+        string buttonText = normalLighting ? "Норм. свет: ВКЛ" : "Норм. свет: ВЫКЛ";
+        if (GUI.Button(buttonRect, buttonText, smallButtonStyle))
+        {
+            GameLightingSettings.NormalLighting = !normalLighting;
+            footerMessage = GameLightingSettings.NormalLighting
+                ? "Нормальный свет включён: тени отключены, сцена светлее."
+                : "Нормальный свет выключен: возвращены тени и исходное освещение.";
+        }
     }
 
     private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description, string badge)

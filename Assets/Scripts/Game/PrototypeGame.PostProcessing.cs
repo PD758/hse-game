@@ -70,12 +70,12 @@ public sealed partial class PrototypeGame
         float criticalPressure = viewerRating <= RatingCritical ? Mathf.InverseLerp(RatingCritical, 0f, viewerRating) : 0f;
         float vignetteIntensity = Mathf.Lerp(0.16f, 0.48f, ratingDanger) + criticalPressure * 0.08f;
 
-        postProcessVignette.intensity.Override(Mathf.Clamp01(vignetteIntensity));
+        postProcessVignette.intensity.Override(Mathf.Clamp01(vignetteIntensity * GameLightingSettings.GameplayVignetteMultiplier));
         postProcessVignette.smoothness.Override(Mathf.Lerp(0.48f, 0.76f, ratingDanger));
 
         if (postProcessColor != null)
         {
-            postProcessColor.postExposure.Override(Mathf.Lerp(-0.02f, -0.10f, ratingDanger));
+            postProcessColor.postExposure.Override(Mathf.Lerp(-0.02f, -0.10f, ratingDanger) + GameLightingSettings.GameplayExposureOffset);
             postProcessColor.contrast.Override(Mathf.Lerp(12f, 24f, ratingDanger));
             postProcessColor.saturation.Override(Mathf.Lerp(-4f, -14f, ratingDanger));
         }

@@ -31,7 +31,7 @@ public static class Urp2DLighting
         var light = owner.AddComponent<Light2D>();
         light.lightType = Light2D.LightType.Global;
         light.color = color;
-        light.intensity = intensity;
+        light.intensity = GameLightingSettings.GameplayGlobalIntensity(intensity);
         return light;
     }
 
@@ -67,8 +67,9 @@ public static class Urp2DLighting
         if (light == null)
             return;
 
-        light.shadowsEnabled = intensity > 0f;
-        light.shadowIntensity = Mathf.Clamp01(intensity);
+        bool shadowsEnabled = intensity > 0f && GameLightingSettings.ShadowsEnabled;
+        light.shadowsEnabled = shadowsEnabled;
+        light.shadowIntensity = shadowsEnabled ? Mathf.Clamp01(intensity) : 0f;
         light.shadowSoftness = Mathf.Max(0f, softness);
         light.shadowSoftnessFalloffIntensity = Mathf.Clamp01(softnessFalloff);
     }
@@ -104,10 +105,11 @@ public static class Urp2DLighting
         if (caster == null)
             return;
 
-        caster.castsShadows = enabled;
+        bool shadowsEnabled = enabled && GameLightingSettings.ShadowsEnabled;
+        caster.castsShadows = shadowsEnabled;
         caster.selfShadows = false;
         caster.alphaCutoff = 0.02f;
-        caster.enabled = enabled;
+        caster.enabled = shadowsEnabled;
     }
 
     private static Material CreateMaterial(string shaderName, string materialName)

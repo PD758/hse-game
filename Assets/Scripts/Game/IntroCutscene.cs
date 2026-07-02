@@ -29,6 +29,7 @@ public sealed class IntroCutscene : MonoBehaviour
     [SerializeField] private Texture2D hudTexture;
     private Volume postProcessVolume;
     private VolumeProfile postProcessProfile;
+    private ColorAdjustments postProcessColor;
     private float startedAt;
 
     private void Awake()
@@ -128,7 +129,8 @@ public sealed class IntroCutscene : MonoBehaviour
         glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
         beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.12f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
         float castShadow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.58f) / 0.30f));
-        viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, Mathf.Lerp(0f, 0.42f, castShadow));
+        float shadowAlpha = Mathf.Lerp(0f, 0.42f, castShadow) * GameLightingSettings.IntroShadowAlphaMultiplier;
+        viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, shadowAlpha);
         viewerCastShadowRenderer.transform.localScale = new Vector3(1f + castShadow * 0.22f, 1f + castShadow * 0.30f, 1f);
         if (tvLight != null)
         {
@@ -211,12 +213,12 @@ public sealed class IntroCutscene : MonoBehaviour
             if (light.lightType == Light2D.LightType.Global)
             {
                 light.color = new Color(0.58f, 0.62f, 0.68f);
-                light.intensity = 0.52f;
+                light.intensity = GameLightingSettings.IntroGlobalIntensity(0.52f);
                 hasGlobalLight = true;
             }
         }
         if (!hasGlobalLight)
-            Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
+            Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), GameLightingSettings.IntroGlobalIntensity(0.52f));
 
         if (tvLight != null)
             Urp2DLighting.ConfigurePointLightShadows(tvLight, 0.72f, 0.48f, 0.64f);
@@ -733,11 +735,11 @@ public sealed class IntroCutscene : MonoBehaviour
         vignette.smoothness.Override(0.58f);
         vignette.rounded.Override(true);
 
-        ColorAdjustments color = postProcessProfile.Add<ColorAdjustments>(true);
-        color.postExposure.Override(-0.04f);
-        color.contrast.Override(12f);
-        color.saturation.Override(-6f);
-        color.colorFilter.Override(new Color(0.88f, 0.95f, 1f));
+        postProcessColor = postProcessProfile.Add<ColorAdjustments>(true);
+        postProcessColor.postExposure.Override(-0.04f);
+        postProcessColor.contrast.Override(12f);
+        postProcessColor.saturation.Override(-6f);
+        postProcessColor.colorFilter.Override(new Color(0.88f, 0.95f, 1f));
 
         ChromaticAberration chromaticAberration = postProcessProfile.Add<ChromaticAberration>(true);
         chromaticAberration.intensity.Override(0.035f);
@@ -756,6 +758,13 @@ public sealed class IntroCutscene : MonoBehaviour
         postProcessVolume.priority = 0f;
         postProcessVolume.weight = 1f;
         postProcessVolume.sharedProfile = postProcessProfile;
+        ApplyLightingSettings();
+    }
+
+    private void ApplyLightingSettings()
+    {
+        if (postProcessColor != null)
+            postProcessColor.postExposure.Override(-0.04f + GameLightingSettings.IntroExposureOffset);
     }
 
     private static void SetupCamera()
