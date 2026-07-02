@@ -17,6 +17,7 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 
 - `1..9/0`: select palette item
 - `c`: cursor/select mode
+- `g`: regions mode
 - Left mouse on sidebar: select palette item
 - `x`: select exit tool
 - Left mouse: paint/place/select
@@ -26,6 +27,7 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 - Mouse wheel: zoom
 - `+/-`: zoom
 - Cursor tool + left drag entity: move player start, objects, enemies, or exits
+- Regions tool: select a region, click cells to toggle them, drag to add cells
 - `P`: toggle patrol edit mode for selected enemy
 - Drag selected camera arrow handle: rotate direction
 - `Alt` + left drag selected camera cell: rotate direction
@@ -49,6 +51,9 @@ The right panel shows editable properties for the current selection.
 - Story: `id`, text
 - Exit: `id`, `targetLevel`, `requiresGate`; `branch` is legacy metadata and ignored by gameplay
 - Enemy: `id`, `level`, `hp`, branch metadata and patrol controls
+- Region: `id`, cell count, clear/delete controls
+- Event actions are edited as rows. Supported action types: `fallStone`, `spawnEnemy`, `setTile`, `spawnObject`, `removeObject`, `playEffect`.
+- For `enterRegion` events, `+ stones in region` adds one `fallStone` action for each cell in the selected region.
 - Player start / objects / exits / enemies: use Cursor drag to move
 
 ## Validation

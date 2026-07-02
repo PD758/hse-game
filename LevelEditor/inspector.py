@@ -13,6 +13,9 @@ FRAMES = ("vertical", "horizontal")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
+ACTION_TYPES = ("fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
+ACTION_TILES = ("floor", "wall", "rubble")
+ACTION_OBJECTS = ("gate", "remote", "trap", "story", "heal", "plate", "stone", "rubble")
 
 
 @dataclass
@@ -85,6 +88,7 @@ def draw_inspector(
         y = draw_text(screen, font, f"Tool: {selected_tool_label}", x + margin, y, (188, 196, 204))
         if hover_cell is not None:
             y = draw_text(screen, font, f"Cell: {hover_cell[0]}, {hover_cell[1]}", x + margin, y, (166, 212, 230))
+        y = draw_region_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         y = draw_event_list(screen, font, state, level, x + margin, y + round(8 * scale), width - margin * 2, scale)
         draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(14 * scale), width - margin * 2, scale)
         return
@@ -98,7 +102,8 @@ def draw_inspector(
     kind, _index = selected_ref
     title = target_title(kind, target)
     y = draw_text(screen, font, title, x + margin, y, (166, 212, 230))
-    y = draw_text(screen, font, f"x: {target.get('x', 0)}   y: {target.get('y', 0)}", x + margin, y, (188, 196, 204))
+    if kind != "region":
+        y = draw_text(screen, font, f"x: {target.get('x', 0)}   y: {target.get('y', 0)}", x + margin, y, (188, 196, 204))
     y += round(8 * scale)
 
     if kind == "object":
@@ -155,8 +160,14 @@ def draw_inspector(
         elif trigger == "enemyGroupCleared":
             y = draw_choice_buttons(screen, font, state, "enemyGroup", target.get("enemyGroup", ""), [""] + options["enemyGroups"], x + margin, y, width - margin * 2, scale)
         y = draw_stat_condition_editor(screen, font, state, "conditions", target.get("conditions", []), x + margin, y, width - margin * 2, scale)
-        y = draw_text_field(screen, font, state, selected_ref, "actions", target.get("actions", []), x + margin, y, width - margin * 2, scale, multiline=True)
+        y = draw_action_editor(screen, font, state, level, selected_cell, target, x + margin, y, width - margin * 2, scale)
         y = draw_button_row(screen, font, state, [("delete_event", "Delete event")], x + margin, y, width - margin * 2, scale)
+    elif kind == "region":
+        y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text(screen, font, f"cells: {region_cell_count(target)}", x + margin, y, (188, 196, 204))
+        y = draw_text(screen, font, "Regions tool: click cells to toggle", x + margin, y, (166, 212, 230))
+        y = draw_text(screen, font, "Drag to add cells", x + margin, y, (132, 140, 148))
+        y = draw_button_row(screen, font, state, [("clear_region", "Clear cells"), ("delete_region", "Delete")], x + margin, y, width - margin * 2, scale)
 
     draw_validation_summary(screen, font, state, validation_issues or [], x + margin, y + round(16 * scale), width - margin * 2, scale)
 
@@ -180,6 +191,8 @@ def handle_key(state: InspectorState, level: dict, selected_ref: tuple[str, int]
 
     target = target_for_ref(level, state.active_ref)
     if target is not None:
+        if state.active_field.startswith("action:"):
+            return set_action_text_value(target, state.active_field, state.text)
         target[state.active_field] = coerce_text_value(state.active_field, state.text)
         return True
     return False
@@ -209,6 +222,12 @@ def handle_click(
             events = level.setdefault("events", [])
             events.append({"id": f"event_{len(events) + 1}", "enabled": True, "once": True, "trigger": "enterRegion", "region": "", "enemyId": "", "enemyGroup": "", "conditions": [], "actions": []})
             state.pending_select_ref = ("event", len(events) - 1)
+            state.clear_text()
+            return True, current_tile_variant
+        if action.kind == "add_region":
+            regions = level.setdefault("regions", [])
+            regions.append({"id": f"region_{len(regions) + 1}", "runs": []})
+            state.pending_select_ref = ("region", len(regions) - 1)
             state.clear_text()
             return True, current_tile_variant
 
@@ -273,6 +292,30 @@ def handle_click(
             target[action.field] = int(action.value)
             state.clear_text()
             return True, current_tile_variant
+        if action.kind == "add_action":
+            target.setdefault("actions", []).append({"type": "fallStone", "x": 0, "y": 0})
+            state.clear_text()
+            return True, current_tile_variant
+        if action.kind == "add_region_fallstones":
+            return add_region_fallstone_actions(level, target, state), current_tile_variant
+        if action.kind == "delete_action":
+            return delete_action_at(target, action_index(action), state), current_tile_variant
+        if action.kind == "cycle_action_type":
+            return cycle_action_value(target, action_index(action), "type", ACTION_TYPES, state), current_tile_variant
+        if action.kind == "cycle_action_tile":
+            return cycle_action_value(target, action_index(action), "tile", ACTION_TILES, state), current_tile_variant
+        if action.kind == "cycle_action_object":
+            return cycle_action_value(target, action_index(action), "objectType", ACTION_OBJECTS, state), current_tile_variant
+        if action.kind == "adjust_action_int":
+            return adjust_action_int(target, action_index(action), action.field, int(action.amount), state), current_tile_variant
+        if action.kind == "action_use_cell":
+            return set_action_cell(target, action_index(action), selected_cell, state), current_tile_variant
+        if action.kind == "action_text":
+            index = action_index(action)
+            actions = target.setdefault("actions", [])
+            if 0 <= index < len(actions):
+                state.begin_text(selected_ref, f"action:{index}:{action.field}", actions[index].get(action.field, ""))
+            return False, current_tile_variant
         if action.kind == "rotate":
             rotate_direction(target, action.amount)
             state.clear_text()
@@ -294,6 +337,22 @@ def handle_click(
                 index = selected_ref[1]
                 if 0 <= index < len(events):
                     del events[index]
+                    state.pending_select_ref = None
+                    state.clear_text()
+                    return True, current_tile_variant
+            return False, current_tile_variant
+        if action.kind == "clear_region":
+            if selected_ref is not None and selected_ref[0] == "region":
+                target["runs"] = []
+                state.clear_text()
+                return True, current_tile_variant
+            return False, current_tile_variant
+        if action.kind == "delete_region":
+            if selected_ref is not None and selected_ref[0] == "region":
+                regions = level.setdefault("regions", [])
+                index = selected_ref[1]
+                if 0 <= index < len(regions):
+                    del regions[index]
                     state.pending_select_ref = None
                     state.clear_text()
                     return True, current_tile_variant
@@ -322,7 +381,24 @@ def target_for_ref(level: dict, ref: tuple[str, int] | None) -> dict | None:
         return level["exits"][index]
     if kind == "event" and 0 <= index < len(level.get("events", [])):
         return level["events"][index]
+    if kind == "region" and 0 <= index < len(level.get("regions", [])):
+        return level["regions"][index]
     return None
+
+
+def draw_region_list(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, level: dict, x: int, y: int, width: int, scale: float) -> int:
+    regions = level.setdefault("regions", [])
+    y = draw_text(screen, font, f"Regions: {len(regions)}", x, y, (166, 212, 230))
+    y = draw_button_row(screen, font, state, [("add_region", "Add region")], x, y, width, scale)
+    height = round(26 * scale)
+    for index, region in enumerate(regions[:6]):
+        rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+        label = f"{region.get('id', f'region_{index + 1}')} ({region_cell_count(region)} cells)"
+        screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+        state.actions.append(InspectorAction(rect, "select_ref", target=("region", index)))
+        y += height + round(5 * scale)
+    return y
 
 
 def draw_event_list(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, level: dict, x: int, y: int, width: int, scale: float) -> int:
@@ -540,6 +616,147 @@ def draw_stat_condition_row(
     return row_y + height + round(6 * scale)
 
 
+def draw_action_editor(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    level: dict,
+    selected_cell: tuple[int, int] | None,
+    event: dict,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    actions = event.setdefault("actions", [])
+    y = draw_text(screen, font, f"actions: {len(actions)}", x, y, (188, 196, 204))
+    y = draw_button_row(screen, font, state, [("add_action", "+ action"), ("add_region_fallstones", "+ stones in region")], x, y, width, scale)
+    if event.get("trigger") == "enterRegion" and event.get("region"):
+        y = draw_text(screen, font, f"region source: {event.get('region')}", x, y, (132, 174, 188))
+    elif actions:
+        y = draw_text(screen, font, "Select event region to bulk-add stones", x, y, (132, 140, 148))
+
+    for index, action in enumerate(actions[:8]):
+        y = draw_action_row(screen, font, state, selected_cell, index, action, x, y, width, scale)
+    if len(actions) > 8:
+        y = draw_text(screen, font, f"{len(actions) - 8} more actions in JSON", x, y, (132, 140, 148))
+    return y + round(4 * scale)
+
+
+def draw_action_row(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    selected_cell: tuple[int, int] | None,
+    index: int,
+    action: dict,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    rect = pygame.Rect(x, y, width, round(30 * scale))
+    pygame.draw.rect(screen, (31, 36, 42), rect, border_radius=max(2, round(4 * scale)))
+    label = f"#{index + 1} {action.get('type', 'fallStone')}"
+    screen.blit(font.render(label[:26], True, (224, 228, 232)), (x + round(7 * scale), y + round(7 * scale)))
+    state.actions.append(InspectorAction(pygame.Rect(rect.right - round(32 * scale), y, round(32 * scale), rect.height), "delete_action", target=("action", index)))
+    screen.blit(font.render("x", True, (238, 190, 190)), (rect.right - round(24 * scale), y + round(7 * scale)))
+    y += rect.height + round(5 * scale)
+
+    y = draw_action_buttons(screen, font, state, index, [("cycle_action_type", "type", 0), ("action_use_cell", "cell", 0)], x, y, width, scale)
+    y = draw_action_coordinate_row(screen, font, state, index, action, selected_cell, x, y, width, scale)
+
+    action_type = action.get("type", "fallStone")
+    if action_type == "setTile":
+        y = draw_action_buttons(screen, font, state, index, [("cycle_action_tile", f"tile:{action.get('tile', 'floor')}", 0)], x, y, width, scale)
+        y = draw_action_buttons(screen, font, state, index, [("adjust_action_int", "variant -1", -1), ("adjust_action_int", "variant +1", 1)], x, y, width, scale, field="variant")
+    elif action_type == "spawnObject":
+        y = draw_action_buttons(screen, font, state, index, [("cycle_action_object", f"obj:{action.get('objectType', 'plate')}", 0)], x, y, width, scale)
+        y = draw_action_text_field(screen, font, state, index, "id", action.get("id", ""), x, y, width, scale)
+        y = draw_action_text_field(screen, font, state, index, "group", action.get("group", ""), x, y, width, scale)
+    elif action_type == "spawnEnemy":
+        y = draw_action_text_field(screen, font, state, index, "id", action.get("id", ""), x, y, width, scale)
+        y = draw_action_text_field(screen, font, state, index, "group", action.get("group", ""), x, y, width, scale)
+        y = draw_action_buttons(screen, font, state, index, [("adjust_action_int", "level -1", -1), ("adjust_action_int", "level +1", 1), ("adjust_action_int", "hp -1", -1), ("adjust_action_int", "hp +1", 1)], x, y, width, scale)
+    elif action_type == "removeObject":
+        y = draw_action_text_field(screen, font, state, index, "id", action.get("id", ""), x, y, width, scale)
+    return y + round(6 * scale)
+
+
+def draw_action_coordinate_row(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    index: int,
+    action: dict,
+    selected_cell: tuple[int, int] | None,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    cell_label = f"@ {int(action.get('x', 0))},{int(action.get('y', 0))}"
+    if selected_cell is not None:
+        cell_label += f"  sel {selected_cell[0]},{selected_cell[1]}"
+    y = draw_text(screen, font, cell_label, x, y, (132, 174, 188))
+    y = draw_action_buttons(screen, font, state, index, [("adjust_action_int", "x-1", -1), ("adjust_action_int", "x+1", 1), ("adjust_action_int", "y-1", -1), ("adjust_action_int", "y+1", 1)], x, y, width, scale)
+    return y
+
+
+def draw_action_buttons(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    index: int,
+    buttons: list[tuple[str, str, int]],
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+    field: str = "",
+) -> int:
+    gap = round(5 * scale)
+    height = round(26 * scale)
+    bx = x
+    for kind, label, amount in buttons:
+        button_width = min(width, max(round(52 * scale), font.size(label)[0] + round(14 * scale)))
+        if bx + button_width > x + width and bx > x:
+            bx = x
+            y += height + gap
+        rect = pygame.Rect(bx, y, button_width, height)
+        pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(5 * scale)))
+        action_field = field
+        if kind == "adjust_action_int" and not action_field:
+            action_field = label.split()[0][0] if label.startswith(("x", "y")) else label.split()[0]
+        state.actions.append(InspectorAction(rect, kind, field=action_field, amount=amount, target=("action", index)))
+        bx += button_width + gap
+    return y + height + round(5 * scale)
+
+
+def draw_action_text_field(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    index: int,
+    field: str,
+    value: object,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    height = round(26 * scale)
+    rect = pygame.Rect(x, y, width, height)
+    encoded = f"action:{index}:{field}"
+    active = state.active_field == encoded
+    pygame.draw.rect(screen, (58, 66, 74) if active else (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+    shown = state.text if active else str(value or "")
+    screen.blit(font.render(f"{field}: {shown}"[:34], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+    state.actions.append(InspectorAction(rect, "action_text", field=field, target=("action", index)))
+    return y + height + round(5 * scale)
+
+
 def draw_button_row(screen: pygame.Surface, font: pygame.font.Font, state: InspectorState, buttons: list[tuple[str, str]], x: int, y: int, width: int, scale: float) -> int:
     button_width = max(round(110 * scale), width // max(1, len(buttons)) - round(5 * scale))
     height = round(28 * scale)
@@ -654,6 +871,138 @@ def unique_strings(values: list[str]) -> list[str]:
     return result
 
 
+def region_cell_count(region: dict) -> int:
+    total = 0
+    for run in region.get("runs", []) or []:
+        total += max(0, int(run.get("length", 0)))
+    return total
+
+
+def action_index(action: InspectorAction) -> int:
+    if action.target is None:
+        return -1
+    return int(action.target[1])
+
+
+def set_action_text_value(event: dict, encoded_field: str, value: str) -> bool:
+    _prefix, raw_index, field = encoded_field.split(":", 2)
+    actions = event.setdefault("actions", [])
+    index = int(raw_index)
+    if not (0 <= index < len(actions)):
+        return False
+    actions[index][field] = coerce_action_field_value(field, value)
+    return True
+
+
+def coerce_action_field_value(field: str, value: str) -> object:
+    if field in ("x", "y", "level", "hp", "variant"):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return value.strip()
+
+
+def delete_action_at(event: dict, index: int, state: InspectorState) -> bool:
+    actions = event.setdefault("actions", [])
+    if 0 <= index < len(actions):
+        del actions[index]
+        state.clear_text()
+        return True
+    return False
+
+
+def cycle_action_value(event: dict, index: int, field: str, values: tuple[str, ...], state: InspectorState) -> bool:
+    action = action_at(event, index)
+    if action is None:
+        return False
+    current = str(action.get(field, values[0]))
+    try:
+        next_index = (values.index(current) + 1) % len(values)
+    except ValueError:
+        next_index = 0
+    action[field] = values[next_index]
+    normalize_action_defaults(action)
+    state.clear_text()
+    return True
+
+
+def adjust_action_int(event: dict, index: int, field: str, amount: int, state: InspectorState) -> bool:
+    action = action_at(event, index)
+    if action is None or not field:
+        return False
+    try:
+        current = int(action.get(field, 0))
+    except (TypeError, ValueError):
+        current = 0
+    action[field] = current + amount
+    if field in ("level", "hp"):
+        action[field] = max(1, action[field])
+    state.clear_text()
+    return True
+
+
+def set_action_cell(event: dict, index: int, selected_cell: tuple[int, int] | None, state: InspectorState) -> bool:
+    action = action_at(event, index)
+    if action is None or selected_cell is None:
+        return False
+    action["x"] = int(selected_cell[0])
+    action["y"] = int(selected_cell[1])
+    state.clear_text()
+    return True
+
+
+def add_region_fallstone_actions(level: dict, event: dict, state: InspectorState) -> bool:
+    region_id = str(event.get("region", "")).strip()
+    if not region_id:
+        return False
+    region = next((item for item in level.get("regions", []) or [] if str(item.get("id", "")).strip() == region_id), None)
+    if region is None:
+        return False
+    actions = event.setdefault("actions", [])
+    existing = {(int(action.get("x", 0)), int(action.get("y", 0))) for action in actions if action.get("type") == "fallStone"}
+    changed = False
+    for x, y in sorted(region_cells(region), key=lambda cell: (cell[1], cell[0])):
+        if (x, y) in existing:
+            continue
+        actions.append({"type": "fallStone", "x": x, "y": y})
+        changed = True
+    state.clear_text()
+    return changed
+
+
+def action_at(event: dict, index: int) -> dict | None:
+    actions = event.setdefault("actions", [])
+    if 0 <= index < len(actions) and isinstance(actions[index], dict):
+        return actions[index]
+    return None
+
+
+def normalize_action_defaults(action: dict) -> None:
+    action_type = action.get("type", "fallStone")
+    action.setdefault("x", 0)
+    action.setdefault("y", 0)
+    if action_type == "setTile":
+        action.setdefault("tile", "floor")
+        action.setdefault("variant", -1)
+    elif action_type == "spawnObject":
+        action.setdefault("objectType", "plate")
+    elif action_type == "spawnEnemy":
+        action.setdefault("level", 3)
+        action.setdefault("hp", 2)
+
+
+def region_cells(region: dict) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for run in region.get("runs", []) or []:
+        y = int(run.get("y", 0))
+        x0 = int(run.get("x", 0))
+        length = max(0, int(run.get("length", 0)))
+        for x in range(x0, x0 + length):
+            cells.add((x, y))
+    return cells
+
+
 def condition_action_index(action: InspectorAction) -> int:
     if action.target is None:
         return -1
@@ -705,6 +1054,8 @@ def target_title(kind: str, target: dict) -> str:
         return "Exit"
     if kind == "event":
         return f"Event: {target.get('id', 'event')}"
+    if kind == "region":
+        return f"Region: {target.get('id', 'region')}"
     return kind
 
 

@@ -163,6 +163,12 @@ def main() -> int:
                     cell = viewport.screen_to_cell(event.pos)
                     if cell is not None:
                         inspector_state.clear_text()
+                        if TOOLS[selected_tool]["kind"] == "region":
+                            push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
+                            selected_ref, selected_cell, changed = handle_region_click(level, selected_ref, cell)
+                            discard_unchanged_undo(undo_stack, level, tiles, tile_variants)
+                            dirty = changed or dirty
+                            continue
                         if TOOLS[selected_tool]["kind"] == "cursor" and not patrol_mode:
                             existing = find_at(level, cell)
                             if existing is not None:
@@ -210,7 +216,13 @@ def main() -> int:
                         dirty = True
                 elif pygame.mouse.get_pressed()[0]:
                     cell = viewport.screen_to_cell(event.pos)
-                    if cell is not None and TOOLS[selected_tool]["kind"] == "tile":
+                    if cell is not None and TOOLS[selected_tool]["kind"] == "region":
+                        if not paint_snapshot_pushed:
+                            push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
+                            paint_snapshot_pushed = True
+                        selected_ref, selected_cell, changed = handle_region_drag(level, selected_ref, cell)
+                        dirty = changed or dirty
+                    elif cell is not None and TOOLS[selected_tool]["kind"] == "tile":
                         if not paint_snapshot_pushed:
                             push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
                             paint_snapshot_pushed = True
@@ -222,6 +234,8 @@ def main() -> int:
         screen.fill((14, 16, 20))
         validation_issues = validate_level(level, tiles)
         draw_level(screen, viewport, sprites, tiles, tile_variants, level, selected_ref, selected_cell)
+        if TOOLS[selected_tool]["kind"] == "region" or (selected_ref is not None and selected_ref[0] == "region"):
+            draw_region_overlay(screen, viewport, level, selected_ref, font)
         if show_logic:
             draw_logic_overlay(screen, viewport, level, font)
         if show_validation:
@@ -355,6 +369,98 @@ def handle_left_click(
     return ("object", len(level["objects"]) - 1), None, True
 
 
+def handle_region_click(level: dict, selected_ref: tuple[str, int] | None, cell: tuple[int, int]) -> tuple[tuple[str, int] | None, tuple[int, int] | None, bool]:
+    if selected_ref is None or selected_ref[0] != "region":
+        ref = region_at(level, cell)
+        if ref is not None:
+            return ref, cell, False
+        region = create_region(level, cell)
+        return ("region", len(level.setdefault("regions", [])) - 1), cell, True
+
+    changed = toggle_region_cell(level, selected_ref[1], cell)
+    return selected_ref, cell, changed
+
+
+def handle_region_drag(level: dict, selected_ref: tuple[str, int] | None, cell: tuple[int, int]) -> tuple[tuple[str, int] | None, tuple[int, int] | None, bool]:
+    if selected_ref is None or selected_ref[0] != "region":
+        ref = region_at(level, cell)
+        return (ref, cell, False) if ref is not None else (selected_ref, cell, False)
+
+    changed = add_region_cell(level, selected_ref[1], cell)
+    return selected_ref, cell, changed
+
+
+def create_region(level: dict, cell: tuple[int, int]) -> dict:
+    regions = level.setdefault("regions", [])
+    region = {"id": f"region_{len(regions) + 1}", "runs": []}
+    regions.append(region)
+    add_region_cell(level, len(regions) - 1, cell)
+    return region
+
+
+def region_at(level: dict, cell: tuple[int, int]) -> tuple[str, int] | None:
+    for index, region in enumerate(level.get("regions", []) or []):
+        if cell in region_cells(region):
+            return "region", index
+    return None
+
+
+def toggle_region_cell(level: dict, index: int, cell: tuple[int, int]) -> bool:
+    regions = level.setdefault("regions", [])
+    if not (0 <= index < len(regions)):
+        return False
+    cells = region_cells(regions[index])
+    if cell in cells:
+        cells.remove(cell)
+    else:
+        cells.add(cell)
+    regions[index]["runs"] = cells_to_runs(cells)
+    return True
+
+
+def add_region_cell(level: dict, index: int, cell: tuple[int, int]) -> bool:
+    regions = level.setdefault("regions", [])
+    if not (0 <= index < len(regions)):
+        return False
+    cells = region_cells(regions[index])
+    if cell in cells:
+        return False
+    cells.add(cell)
+    regions[index]["runs"] = cells_to_runs(cells)
+    return True
+
+
+def region_cells(region: dict) -> set[tuple[int, int]]:
+    cells: set[tuple[int, int]] = set()
+    for run in region.get("runs", []) or []:
+        y = int(run.get("y", 0))
+        x0 = int(run.get("x", 0))
+        length = max(0, int(run.get("length", 0)))
+        for x in range(x0, x0 + length):
+            cells.add((x, y))
+    return cells
+
+
+def cells_to_runs(cells: set[tuple[int, int]]) -> list[dict]:
+    runs: list[dict] = []
+    by_y: dict[int, list[int]] = {}
+    for x, y in cells:
+        by_y.setdefault(y, []).append(x)
+    for y in sorted(by_y):
+        xs = sorted(set(by_y[y]))
+        if not xs:
+            continue
+        start = previous = xs[0]
+        for x in xs[1:]:
+            if x == previous + 1:
+                previous = x
+                continue
+            runs.append({"x": start, "y": y, "length": previous - start + 1})
+            start = previous = x
+        runs.append({"x": start, "y": y, "length": previous - start + 1})
+    return runs
+
+
 def paint_tile(tiles: list[list[str]], tile_variants: list[list[int]], selected_tool: int, cell: tuple[int, int], variant: int) -> None:
     tool = TOOLS[selected_tool]
     if tool["kind"] == "tile":
@@ -399,6 +505,8 @@ def delete_selected(level: dict, ref: tuple[str, int]) -> None:
         del level["exits"][index]
     elif kind == "event" and 0 <= index < len(level.get("events", [])):
         del level["events"][index]
+    elif kind == "region" and 0 <= index < len(level.get("regions", [])):
+        del level["regions"][index]
 
 
 def move_selected(level: dict, ref: tuple[str, int], cell: tuple[int, int]) -> None:
@@ -595,6 +703,27 @@ def draw_validation_overlay(screen: pygame.Surface, viewport: Viewport, issues: 
         rect = viewport.cell_to_screen(x, y)
         color = (255, 72, 82) if issue.severity == "error" else (255, 198, 74)
         pygame.draw.rect(screen, color, rect, max(2, viewport.cell_size // 12))
+
+
+def draw_region_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, selected_ref: tuple[str, int] | None, font: pygame.font.Font) -> None:
+    overlay = pygame.Surface(screen.get_size(), pygame.SRCALPHA)
+    selected_index = selected_ref[1] if selected_ref is not None and selected_ref[0] == "region" else -1
+    for index, region in enumerate(level.get("regions", []) or []):
+        selected = index == selected_index
+        fill = (64, 190, 255, 82) if selected else (80, 156, 255, 36)
+        outline = (120, 230, 255, 230) if selected else (80, 156, 255, 130)
+        for cell in region_cells(region):
+            rect = viewport.cell_to_screen(cell[0], cell[1])
+            pygame.draw.rect(overlay, fill, rect)
+            pygame.draw.rect(overlay, outline, rect, max(1, viewport.cell_size // 18))
+        cells = region_cells(region)
+        if cells:
+            min_x = min(x for x, _y in cells)
+            max_y = max(y for _x, y in cells)
+            label_pos = viewport.cell_to_screen(min_x, max_y)
+            text = region.get("id", f"region_{index + 1}")
+            overlay.blit(font.render(str(text)[:22], True, (226, 248, 255)), (label_pos.x, max(0, label_pos.y - font.get_height())))
+    screen.blit(overlay, (0, 0))
 
 
 def draw_logic_overlay(screen: pygame.Surface, viewport: Viewport, level: dict, font: pygame.font.Font) -> None:

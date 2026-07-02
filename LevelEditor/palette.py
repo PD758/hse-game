@@ -2,6 +2,7 @@ from __future__ import annotations
 
 TOOLS = [
     {"kind": "cursor", "value": "cursor", "label": "Cursor", "key": "c"},
+    {"kind": "region", "value": "region", "label": "Regions", "key": "g"},
     {"kind": "tile", "value": "floor", "label": "Floor", "key": "1"},
     {"kind": "tile", "value": "wall", "label": "Wall", "key": "2"},
     {"kind": "tile", "value": "rubble", "label": "Rubble", "key": "3"},

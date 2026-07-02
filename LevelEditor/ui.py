@@ -64,6 +64,8 @@ def draw_sidebar(screen: pygame.Surface, font: pygame.font.Font, selected: int, 
     status = "dirty" if dirty else "saved"
     if patrol_mode:
         status += " | patrol"
+    if TOOLS[selected]["kind"] == "region":
+        status += " | regions"
     screen.blit(font.render(status, True, (166, 212, 230)), (title_x, status_y))
     max_chars = max(18, int(34 * scale))
     clipped = path if len(path) < max_chars else "..." + path[-(max_chars - 3):]
