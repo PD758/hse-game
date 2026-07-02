@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
@@ -135,7 +135,7 @@ public sealed partial class PrototypeGame
             importer.textureType = TextureImporterType.Sprite;
             importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
             importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
+            importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
@@ -158,7 +158,7 @@ public sealed partial class PrototypeGame
             importer.textureType = TextureImporterType.Default;
             importer.isReadable = true;
             importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
+            importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
@@ -171,7 +171,7 @@ public sealed partial class PrototypeGame
         Rect rect = sprite.rect;
         var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
             name = sprite.name,
         };
         texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));

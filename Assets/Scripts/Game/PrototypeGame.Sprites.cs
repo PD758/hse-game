@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using UnityEngine;
 
 public sealed partial class PrototypeGame
@@ -138,7 +138,7 @@ public sealed partial class PrototypeGame
         Color background = removeCellBackground ? SampleCellBackground(pixels, cellWidth, cellHeight) : Color.clear;
         var texture = new Texture2D(cellWidth, cellHeight, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
             name = textureName,
         };
 
@@ -163,7 +163,7 @@ public sealed partial class PrototypeGame
         Color background = removeCellBackground ? SampleCellBackground(pixels, width, height) : Color.clear;
         var texture = new Texture2D(width, height, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
             name = spriteName,
         };
 
@@ -229,7 +229,7 @@ public sealed partial class PrototypeGame
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
         };
 
         Color baseColor = new Color(0.095f, 0.105f, 0.115f);
@@ -255,7 +255,7 @@ public sealed partial class PrototypeGame
         const int size = 32;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
         };
 
         Color baseColor = new Color(0.235f, 0.255f, 0.275f);
@@ -371,7 +371,7 @@ public sealed partial class PrototypeGame
         const int size = 16;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
         };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         DrawMark(texture, mark, color);
@@ -394,7 +394,7 @@ public sealed partial class PrototypeGame
         const int size = 16;
         var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
         };
 
         for (int x = 0; x < size; x++)

@@ -104,6 +104,7 @@ public sealed partial class PrototypeGame
         camera.orthographicSize = GameplayCameraSize;
         camera.transform.position = new Vector3(8f, 10f, -10f);
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+        camera.allowMSAA = true;
 
         UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
         if (cameraData == null)
