@@ -9,7 +9,7 @@ public sealed partial class PrototypeGame
     {
         ThrowIfPlayingBake("CreateViews");
         var tileRoot = new GameObject("Tiles");
-        tileRoot.AddComponent<CompositeShadowCaster2D>();
+        tileRoot.AddComponent<CompositeShadowCaster2D>().enabled = GameLightingSettings.ShadowsEnabled;
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Height; y++)
@@ -125,8 +125,9 @@ public sealed partial class PrototypeGame
         Transform tileRoot = FindSceneObjectIncludingInactive("Tiles")?.transform;
         if (tileRoot == null)
             return false;
-        if (!tileRoot.TryGetComponent(out CompositeShadowCaster2D _))
-            tileRoot.gameObject.AddComponent<CompositeShadowCaster2D>();
+        if (!tileRoot.TryGetComponent(out CompositeShadowCaster2D compositeShadowCaster))
+            compositeShadowCaster = tileRoot.gameObject.AddComponent<CompositeShadowCaster2D>();
+        compositeShadowCaster.enabled = GameLightingSettings.ShadowsEnabled;
 
         for (int x = 0; x < Width; x++)
         {
@@ -201,7 +202,7 @@ public sealed partial class PrototypeGame
             if (light.lightType == Light2D.LightType.Global)
             {
                 light.color = new Color(0.50f, 0.55f, 0.62f);
-                light.intensity = 0.42f;
+                light.intensity = GameLightingSettings.GameplayGlobalIntensity(0.42f);
                 hasGlobalLight = true;
             }
         }
@@ -769,14 +770,20 @@ public sealed partial class PrototypeGame
         if (!WallVisibleFor(cell))
             return null;
 
+        if (WallHasTurnJoint(cell))
+            return wallCornerSprite ?? wallSprite;
+
+        bool verticalLine = VisibleWallAdjacent(cell, Vector2Int.up) || VisibleWallAdjacent(cell, Vector2Int.down);
+        bool horizontalLine = VisibleWallAdjacent(cell, Vector2Int.left) || VisibleWallAdjacent(cell, Vector2Int.right);
+        if (verticalLine && !horizontalLine)
+            return wallVerticalSprite ?? wallSprite;
+        if (horizontalLine && !verticalLine)
+            return wallSprite;
+
         bool up = OpenTileAdjacent(cell + Vector2Int.up);
         bool down = OpenTileAdjacent(cell + Vector2Int.down);
         bool left = OpenTileAdjacent(cell + Vector2Int.left);
         bool right = OpenTileAdjacent(cell + Vector2Int.right);
-        int openCount = BoolCount(up, down, left, right);
-
-        if (openCount == 2 && HasCornerOpenPattern(up, down, left, right))
-            return wallCornerSprite ?? wallSprite;
 
         int verticalWeight = BoolCount(left, right);
         int horizontalWeight = BoolCount(up, down);
@@ -790,6 +797,9 @@ public sealed partial class PrototypeGame
 
     private float WallRotationFor(Vector2Int cell)
     {
+        if (!WallHasTurnJoint(cell))
+            return 0f;
+
         bool up = OpenTileAdjacent(cell + Vector2Int.up);
         bool down = OpenTileAdjacent(cell + Vector2Int.down);
         bool left = OpenTileAdjacent(cell + Vector2Int.left);
@@ -807,9 +817,32 @@ public sealed partial class PrototypeGame
         return 0f;
     }
 
-    private static bool HasCornerOpenPattern(bool up, bool down, bool left, bool right)
+    private bool WallHasTurnJoint(Vector2Int cell)
     {
-        return (up && right) || (right && down) || (down && left) || (left && up);
+        bool upOpen = OpenTileAdjacent(cell + Vector2Int.up);
+        bool downOpen = OpenTileAdjacent(cell + Vector2Int.down);
+        bool leftOpen = OpenTileAdjacent(cell + Vector2Int.left);
+        bool rightOpen = OpenTileAdjacent(cell + Vector2Int.right);
+        int openCount = BoolCount(upOpen, downOpen, leftOpen, rightOpen);
+        if (openCount != 2)
+            return false;
+
+        if (upOpen && rightOpen)
+            return VisibleWallAdjacent(cell, Vector2Int.down) && VisibleWallAdjacent(cell, Vector2Int.left);
+        if (rightOpen && downOpen)
+            return VisibleWallAdjacent(cell, Vector2Int.left) && VisibleWallAdjacent(cell, Vector2Int.up);
+        if (downOpen && leftOpen)
+            return VisibleWallAdjacent(cell, Vector2Int.up) && VisibleWallAdjacent(cell, Vector2Int.right);
+        if (leftOpen && upOpen)
+            return VisibleWallAdjacent(cell, Vector2Int.right) && VisibleWallAdjacent(cell, Vector2Int.down);
+
+        return false;
+    }
+
+    private bool VisibleWallAdjacent(Vector2Int cell, Vector2Int direction)
+    {
+        Vector2Int next = cell + direction;
+        return ClosedWallAdjacent(next) && WallVisibleFor(next);
     }
 
     private static int BoolCount(params bool[] values)
