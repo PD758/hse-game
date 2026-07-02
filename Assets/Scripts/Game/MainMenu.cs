@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
@@ -7,12 +7,26 @@ using UnityEditor;
 
 public sealed class MainMenu : MonoBehaviour
 {
+    private enum MenuMode
+    {
+        Story,
+        Endless,
+    }
+
     private GUIStyle titleStyle;
+    private GUIStyle subtitleStyle;
     private GUIStyle labelStyle;
     private GUIStyle hintStyle;
     private GUIStyle buttonStyle;
+    private GUIStyle smallButtonStyle;
+    private GUIStyle modeTitleStyle;
+    private GUIStyle modeMetaStyle;
+    private GUIStyle statusStyle;
     [SerializeField] private Texture2D panelTexture;
     [SerializeField] private Texture2D backgroundTexture;
+    private Texture2D whiteTexture;
+    private MenuMode selectedMode = MenuMode.Story;
+    private string footerMessage = "Выберите режим и нажмите «Играть».";
 
     private void Awake()
     {
@@ -38,31 +52,18 @@ public sealed class MainMenu : MonoBehaviour
         GUI.matrix = PixelGui.ScaledMatrix;
         DrawBackground(screenWidth, screenHeight);
 
-        float panelWidth = Mathf.Min(580f, screenWidth - 32f);
-        float panelHeight = 500f;
-        var panel = new Rect((screenWidth - panelWidth) * 0.5f, (screenHeight - panelHeight) * 0.5f, panelWidth, panelHeight);
-
-        GUI.DrawTexture(panel, panelTexture);
-        GUILayout.BeginArea(new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, panel.height - 48f));
-
-        GUILayout.Label("Канал", titleStyle);
-        GUILayout.Label("Рогалик о человеке, которого затягивает в обязательный эфир.", hintStyle);
-        GUILayout.Space(18f);
-        GUILayout.Label("Один игрок", labelStyle);
-        GUILayout.Label("Первый канал: новости, рейтинг зрительского внимания, развилка между разбором сигнала и агрессивным эфиром.", hintStyle);
-
-        GUILayout.FlexibleSpace();
-        if (GUILayout.Button("Смотреть", buttonStyle, GUILayout.Height(44f)))
-            StartGame();
-
-        GUILayout.Space(12f);
-        GUILayout.Label("В игре: WASD/стрелки движение, Space/ЛКМ атака, E взаимодействие, R перезапуск, Esc меню.", hintStyle);
-        GUILayout.EndArea();
+        DrawMenu(screenWidth, screenHeight);
         GUI.matrix = previousMatrix;
     }
 
     private void StartGame()
     {
+        if (selectedMode == MenuMode.Endless)
+        {
+            footerMessage = "Бесконечный режим: шаблон готов, генератор уровней ещё не подключён.";
+            return;
+        }
+
         SceneManager.LoadScene("Intro");
     }
 
@@ -76,25 +77,56 @@ public sealed class MainMenu : MonoBehaviour
         if (panelTexture == null || backgroundTexture == null)
             return;
 
+        EnsureWhiteTexture();
+
         titleStyle ??= new GUIStyle(GUI.skin.label);
-        titleStyle.fontSize = screenWidth < 760 ? 25 : 34;
+        titleStyle.fontSize = screenWidth < 760 ? 30 : 48;
         titleStyle.normal.textColor = Color.white;
         PixelGui.Apply(titleStyle);
 
+        subtitleStyle ??= new GUIStyle(GUI.skin.label);
+        subtitleStyle.fontSize = screenWidth < 760 ? 13 : 16;
+        subtitleStyle.wordWrap = true;
+        subtitleStyle.normal.textColor = new Color(0.76f, 0.84f, 0.90f);
+        PixelGui.Apply(subtitleStyle);
+
         labelStyle ??= new GUIStyle(GUI.skin.label);
-        labelStyle.fontSize = screenWidth < 760 ? 13 : 15;
+        labelStyle.fontSize = screenWidth < 760 ? 14 : 17;
         labelStyle.normal.textColor = new Color(0.86f, 0.88f, 0.90f);
         PixelGui.Apply(labelStyle);
 
         hintStyle ??= new GUIStyle(GUI.skin.label);
         hintStyle.fontSize = screenWidth < 760 ? 11 : 13;
         hintStyle.wordWrap = true;
-        hintStyle.normal.textColor = new Color(0.68f, 0.72f, 0.76f);
+        hintStyle.normal.textColor = new Color(0.67f, 0.74f, 0.78f);
         PixelGui.Apply(hintStyle);
 
         buttonStyle ??= new GUIStyle(GUI.skin.button);
-        buttonStyle.fontSize = screenWidth < 760 ? 13 : 15;
+        buttonStyle.fontSize = screenWidth < 760 ? 15 : 18;
+        buttonStyle.alignment = TextAnchor.MiddleCenter;
         PixelGui.Apply(buttonStyle);
+
+        smallButtonStyle ??= new GUIStyle(GUI.skin.button);
+        smallButtonStyle.fontSize = screenWidth < 760 ? 12 : 14;
+        smallButtonStyle.alignment = TextAnchor.MiddleCenter;
+        PixelGui.Apply(smallButtonStyle);
+
+        modeTitleStyle ??= new GUIStyle(GUI.skin.label);
+        modeTitleStyle.fontSize = screenWidth < 760 ? 18 : 23;
+        modeTitleStyle.normal.textColor = Color.white;
+        PixelGui.Apply(modeTitleStyle);
+
+        modeMetaStyle ??= new GUIStyle(GUI.skin.label);
+        modeMetaStyle.fontSize = screenWidth < 760 ? 10 : 12;
+        modeMetaStyle.normal.textColor = new Color(0.56f, 0.78f, 0.86f);
+        PixelGui.Apply(modeMetaStyle);
+
+        statusStyle ??= new GUIStyle(GUI.skin.label);
+        statusStyle.fontSize = screenWidth < 760 ? 11 : 13;
+        statusStyle.alignment = TextAnchor.MiddleCenter;
+        statusStyle.wordWrap = true;
+        statusStyle.normal.textColor = new Color(0.74f, 0.82f, 0.86f);
+        PixelGui.Apply(statusStyle);
     }
 
 #if UNITY_EDITOR
@@ -112,7 +144,7 @@ public sealed class MainMenu : MonoBehaviour
             const int size = 32;
             backgroundTexture = new Texture2D(size, size, TextureFormat.RGBA32, false)
             {
-                filterMode = FilterMode.Point,
+                filterMode = FilterMode.Bilinear,
             };
 
             for (int x = 0; x < size; x++)
@@ -138,6 +170,132 @@ public sealed class MainMenu : MonoBehaviour
             for (int y = 0; y < screenHeight; y += backgroundTexture.height)
                 GUI.DrawTexture(new Rect(x, y, backgroundTexture.width, backgroundTexture.height), backgroundTexture);
         }
+
+        DrawRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0.005f, 0.008f, 0.012f, 0.32f));
+
+        float scanlineAlpha = 0.055f;
+        for (float y = 0f; y < screenHeight; y += 8f)
+            DrawRect(new Rect(0f, y, screenWidth, 1f), new Color(0.70f, 0.92f, 1f, scanlineAlpha));
+    }
+
+    private void DrawMenu(float screenWidth, float screenHeight)
+    {
+        bool compact = screenWidth < 820f;
+        float margin = compact ? 16f : 28f;
+        float panelWidth = Mathf.Min(compact ? 620f : 980f, screenWidth - margin * 2f);
+        float panelHeight = Mathf.Min(compact ? 650f : 620f, screenHeight - margin * 2f);
+        Rect panel = PixelRect(new Rect((screenWidth - panelWidth) * 0.5f, (screenHeight - panelHeight) * 0.5f, panelWidth, panelHeight));
+
+        DrawPanel(panel, new Color(0.018f, 0.024f, 0.032f, 0.94f), new Color(0.48f, 0.68f, 0.74f, 0.38f));
+
+        Rect headerRect = new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, compact ? 118f : 128f);
+        GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "Канал", titleStyle);
+        GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите формат эфира перед входом в игру.", subtitleStyle);
+
+        float cardsTop = headerRect.yMax + (compact ? 10f : 18f);
+        float controlsTop = panel.yMax - (compact ? 136f : 124f);
+        float cardsHeight = controlsTop - cardsTop - 18f;
+        Rect storyRect;
+        Rect endlessRect;
+        if (compact)
+        {
+            float cardHeight = Mathf.Max(132f, (cardsHeight - 12f) * 0.5f);
+            storyRect = new Rect(panel.x + 24f, cardsTop, panel.width - 48f, cardHeight);
+            endlessRect = new Rect(panel.x + 24f, storyRect.yMax + 12f, panel.width - 48f, cardHeight);
+        }
+        else
+        {
+            float cardWidth = (panel.width - 72f) * 0.5f;
+            storyRect = new Rect(panel.x + 24f, cardsTop, cardWidth, cardsHeight);
+            endlessRect = new Rect(storyRect.xMax + 24f, cardsTop, cardWidth, cardsHeight);
+        }
+
+        DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.", "ГОТОВ");
+        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "Шаблон генерации", "Заготовка под случайные комнаты, растущий темп эфира и бесконечную попытку.", "СКОРО");
+
+        Rect playRect = new Rect(panel.x + 28f, panel.yMax - 104f, Mathf.Min(270f, panel.width - 56f), 50f);
+        if (!compact)
+            playRect.x = panel.xMax - playRect.width - 28f;
+
+        if (GUI.Button(playRect, selectedMode == MenuMode.Story ? "Играть" : "Играть позже", buttonStyle))
+            StartGame();
+
+        Rect selectedRect = compact
+            ? new Rect(panel.x + 28f, playRect.y - 32f, panel.width - 56f, 24f)
+            : new Rect(panel.x + 28f, playRect.y + 2f, panel.width - playRect.width - 76f, 48f);
+        GUI.Label(selectedRect, footerMessage, statusStyle);
+
+        GUI.Label(new Rect(panel.x + 28f, panel.yMax - 42f, panel.width - 56f, 22f), "WASD/стрелки - движение | Space/ЛКМ - атака | E - действие | Q - пульт | Esc - меню", hintStyle);
+    }
+
+    private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description, string badge)
+    {
+        bool selected = selectedMode == mode;
+        Color fill = selected ? new Color(0.045f, 0.083f, 0.096f, 0.96f) : new Color(0.018f, 0.024f, 0.032f, 0.86f);
+        Color border = selected ? new Color(0.56f, 0.86f, 0.92f, 0.78f) : new Color(0.34f, 0.45f, 0.50f, 0.42f);
+        DrawPanel(rect, fill, border);
+
+        if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
+        {
+            selectedMode = mode;
+            footerMessage = mode == MenuMode.Story
+                ? "Сюжетный режим: запуск через вступительную катсцену."
+                : "Бесконечный режим выбран как шаблон, генерация ещё не подключена.";
+        }
+
+        Rect badgeRect = new Rect(rect.x + 18f, rect.y + 16f, 84f, 24f);
+        DrawPanel(badgeRect, selected ? new Color(0.12f, 0.34f, 0.38f, 0.84f) : new Color(0.060f, 0.070f, 0.080f, 0.84f), border);
+        GUI.Label(new Rect(badgeRect.x + 8f, badgeRect.y + 4f, badgeRect.width - 16f, 18f), badge, modeMetaStyle);
+
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 54f, rect.width - 36f, 34f), title, modeTitleStyle);
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 88f, rect.width - 36f, 24f), meta, labelStyle);
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 124f, rect.width - 36f, Mathf.Max(52f, rect.height - 184f)), description, hintStyle);
+
+        Rect actionRect = new Rect(rect.x + 18f, rect.yMax - 46f, Mathf.Min(180f, rect.width - 36f), 32f);
+        if (GUI.Button(actionRect, selected ? "Выбрано" : "Выбрать", smallButtonStyle))
+        {
+            selectedMode = mode;
+            footerMessage = mode == MenuMode.Story
+                ? "Сюжетный режим: запуск через вступительную катсцену."
+                : "Бесконечный режим выбран как шаблон, генерация ещё не подключена.";
+        }
+    }
+
+    private void DrawPanel(Rect rect, Color fill, Color border)
+    {
+        DrawRect(rect, fill);
+        DrawRect(new Rect(rect.x, rect.y, rect.width, 1f), border);
+        DrawRect(new Rect(rect.x, rect.yMax - 1f, rect.width, 1f), border);
+        DrawRect(new Rect(rect.x, rect.y, 1f, rect.height), border);
+        DrawRect(new Rect(rect.xMax - 1f, rect.y, 1f, rect.height), border);
+    }
+
+    private void DrawRect(Rect rect, Color color)
+    {
+        EnsureWhiteTexture();
+        Color previous = GUI.color;
+        GUI.color = color;
+        GUI.DrawTexture(PixelRect(rect), whiteTexture);
+        GUI.color = previous;
+    }
+
+    private void EnsureWhiteTexture()
+    {
+        if (whiteTexture != null)
+            return;
+
+        whiteTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            hideFlags = HideFlags.DontSave,
+        };
+        whiteTexture.SetPixel(0, 0, Color.white);
+        whiteTexture.Apply();
+    }
+
+    private static Rect PixelRect(Rect rect)
+    {
+        return new Rect(Mathf.Round(rect.x), Mathf.Round(rect.y), Mathf.Round(rect.width), Mathf.Round(rect.height));
     }
 
     private static void SetupCamera()
@@ -158,6 +316,7 @@ public sealed class MainMenu : MonoBehaviour
 
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.05f, 0.06f, 0.07f);
+        camera.allowMSAA = true;
     }
 
 #if UNITY_EDITOR
@@ -181,7 +340,7 @@ public sealed class MainMenu : MonoBehaviour
             importer.textureType = TextureImporterType.Default;
             importer.isReadable = true;
             importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
+            importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }

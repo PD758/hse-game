@@ -1,4 +1,4 @@
-#if UNITY_EDITOR
+﻿#if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEditor.SceneManagement;
@@ -71,6 +71,7 @@ public static class ProjectBootstrap
 
         GraphicsSettings.defaultRenderPipeline = pipeline;
         ApplyPipelineToAllQualityLevels(pipeline);
+        QualitySettings.antiAliasing = 4;
         AssetDatabase.SaveAssets();
     }
 
@@ -118,6 +119,7 @@ public static class ProjectBootstrap
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.05f, 0.06f, 0.07f);
+        camera.allowMSAA = true;
 
         var gameObject = new GameObject("Main Menu");
         MainMenu menu = gameObject.AddComponent<MainMenu>();
@@ -142,6 +144,7 @@ public static class ProjectBootstrap
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
+        camera.allowMSAA = true;
 
         var gameObject = new GameObject("Intro Cutscene");
         IntroCutscene intro = gameObject.AddComponent<IntroCutscene>();
@@ -168,6 +171,7 @@ public static class ProjectBootstrap
         camera.orthographic = true;
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+        camera.allowMSAA = true;
         camera.orthographicSize = 6.0f;
         camera.transform.position = new Vector3(8f, 10f, -10f);
 
@@ -230,11 +234,11 @@ public static class ProjectBootstrap
 
     private static void ConfigureTextureImports()
     {
-        ConfigureReadablePointTexture("Assets/Atlases/characters_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/environment_2_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/environment_v2.png");
-        ConfigureReadablePointTexture("Assets/Atlases/hud_1024.jpg");
-        ConfigureReadablePointTexture("Assets/Atlases/intro_wide_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/characters_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/environment_2_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/environment_v2.png");
+        ConfigureReadableSmoothTexture("Assets/Atlases/hud_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/intro_wide_1024.jpg");
     }
 
     private static void EnsureFolder(string parent, string child)
@@ -271,7 +275,7 @@ public static class ProjectBootstrap
         QualitySettings.SetQualityLevel(current, false);
     }
 
-    private static void ConfigureReadablePointTexture(string path)
+    private static void ConfigureReadableSmoothTexture(string path)
     {
         if (AssetImporter.GetAtPath(path) is not TextureImporter importer)
             return;
@@ -279,7 +283,7 @@ public static class ProjectBootstrap
         importer.textureType = TextureImporterType.Default;
         importer.isReadable = true;
         importer.mipmapEnabled = false;
-        importer.filterMode = FilterMode.Point;
+        importer.filterMode = FilterMode.Bilinear;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
         importer.SaveAndReimport();
     }

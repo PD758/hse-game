@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -277,7 +277,7 @@ public sealed class IntroCutscene : MonoBehaviour
             importer.textureType = TextureImporterType.Sprite;
             importer.spritePixelsPerUnit = sprite.pixelsPerUnit;
             importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
+            importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
@@ -297,7 +297,7 @@ public sealed class IntroCutscene : MonoBehaviour
             importer.textureType = TextureImporterType.Default;
             importer.isReadable = true;
             importer.mipmapEnabled = false;
-            importer.filterMode = FilterMode.Point;
+            importer.filterMode = FilterMode.Bilinear;
             importer.textureCompression = TextureImporterCompression.Uncompressed;
             importer.SaveAndReimport();
         }
@@ -310,7 +310,7 @@ public sealed class IntroCutscene : MonoBehaviour
         Rect rect = sprite.rect;
         var texture = new Texture2D(Mathf.RoundToInt(rect.width), Mathf.RoundToInt(rect.height), TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
             name = sprite.name,
         };
         texture.SetPixels(sprite.texture.GetPixels(Mathf.RoundToInt(rect.x), Mathf.RoundToInt(rect.y), texture.width, texture.height));
@@ -388,7 +388,7 @@ public sealed class IntroCutscene : MonoBehaviour
         Color[] pixels = IntroAtlas.GetPixels(sourceX, sourceY, cellWidth, cellHeight);
         var texture = new Texture2D(cellWidth, cellHeight, TextureFormat.RGBA32, false)
         {
-            filterMode = FilterMode.Point,
+            filterMode = FilterMode.Bilinear,
             name = spriteName,
         };
 
@@ -421,7 +421,7 @@ public sealed class IntroCutscene : MonoBehaviour
         ThrowIfPlayingBake("CreateRoomFloorSprite");
         const int width = 320;
         const int height = 208;
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Color baseColor = new Color(0.088f, 0.094f, 0.102f);
         Color seamColor = new Color(0.128f, 0.138f, 0.150f);
         Color dustColor = new Color(0.112f, 0.120f, 0.132f);
@@ -443,7 +443,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateCouchSprite()
     {
         ThrowIfPlayingBake("CreateCouchSprite");
-        var texture = new Texture2D(160, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(160, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         DrawRect(texture, 10, 16, 140, 34, new Color(0.230f, 0.200f, 0.214f), true);
         DrawRect(texture, 4, 20, 20, 38, new Color(0.165f, 0.145f, 0.158f), true);
@@ -458,7 +458,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateViewerSprite()
     {
         ThrowIfPlayingBake("CreateViewerSprite");
-        var texture = new Texture2D(48, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(48, 64, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         Color hair = new Color(0.015f, 0.014f, 0.015f);
         Color face = new Color(0.58f, 0.67f, 0.74f);
@@ -479,7 +479,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateTvBodySprite()
     {
         ThrowIfPlayingBake("CreateTvBodySprite");
-        var texture = new Texture2D(112, 72, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(112, 72, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Fill(texture, new Color(0f, 0f, 0f, 0f));
         DrawRect(texture, 10, 10, 92, 52, new Color(0.075f, 0.082f, 0.090f), true);
         DrawRect(texture, 16, 16, 70, 38, new Color(0.018f, 0.024f, 0.030f), true);
@@ -497,7 +497,7 @@ public sealed class IntroCutscene : MonoBehaviour
         ThrowIfPlayingBake("CreateStaticScreenSprite");
         const int width = 70;
         const int height = 38;
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -518,7 +518,7 @@ public sealed class IntroCutscene : MonoBehaviour
         ThrowIfPlayingBake("CreateGlowConeSprite");
         const int width = 192;
         const int height = 176;
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -539,7 +539,7 @@ public sealed class IntroCutscene : MonoBehaviour
         ThrowIfPlayingBake("CreateBeamSprite");
         const int width = 96;
         const int height = 160;
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -561,7 +561,7 @@ public sealed class IntroCutscene : MonoBehaviour
         ThrowIfPlayingBake("CreateHumanCastShadowSprite");
         const int width = 92;
         const int height = 138;
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -584,7 +584,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateSoftRectSprite(int width, int height, Color color)
     {
         ThrowIfPlayingBake("CreateSoftRectSprite");
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -601,7 +601,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateEllipseSprite(int width, int height, Color color)
     {
         ThrowIfPlayingBake("CreateEllipseSprite");
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
@@ -621,7 +621,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateRectSprite(int width, int height, Color fill, Color edge)
     {
         ThrowIfPlayingBake("CreateRectSprite");
-        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(width, height, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Fill(texture, fill);
         DrawRect(texture, 0, 0, width, height, edge, false);
         texture.Apply(false, false);
@@ -631,7 +631,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private static Sprite CreateSolidSprite(Color color, int worldWidth, int worldHeight)
     {
         ThrowIfPlayingBake("CreateSolidSprite");
-        var texture = new Texture2D(worldWidth * 32, worldHeight * 32, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point };
+        var texture = new Texture2D(worldWidth * 32, worldHeight * 32, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
         Fill(texture, color);
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 32f, 0, SpriteMeshType.FullRect);
@@ -776,6 +776,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.020f, 0.024f, 0.030f);
+        camera.allowMSAA = true;
         camera.orthographic = true;
         camera.orthographicSize = 5.4f;
         camera.transform.position = new Vector3(0f, 0f, -10f);

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
@@ -294,7 +294,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             Color background = removeCellBackground ? SampleCellBackground(pixels, cellWidth, cellHeight) : Color.clear;
             var texture = new Texture2D(cellWidth, cellHeight, TextureFormat.RGBA32, false)
             {
-                filterMode = FilterMode.Point,
+                filterMode = FilterMode.Bilinear,
                 name = name,
                 hideFlags = HideFlags.DontSave,
             };
