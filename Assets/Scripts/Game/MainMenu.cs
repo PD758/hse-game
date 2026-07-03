@@ -60,10 +60,12 @@ public sealed class MainMenu : MonoBehaviour
     {
         if (selectedMode == MenuMode.Endless)
         {
-            footerMessage = "Бесконечный режим: шаблон готов, генератор уровней ещё не подключён.";
+            EndlessRunState.StartRun();
+            SceneManager.LoadScene("Prototype");
             return;
         }
 
+        EndlessRunState.StartStory();
         SceneManager.LoadScene("Intro");
     }
 
@@ -212,7 +214,7 @@ public sealed class MainMenu : MonoBehaviour
         }
 
         DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.", "ГОТОВ");
-        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "Шаблон генерации", "Заготовка под случайные комнаты, растущий темп эфира и бесконечную попытку.", "СКОРО");
+        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.", "ГОТОВ");
 
         Rect lightingRect = new Rect(panel.x + 28f, panel.yMax - (compact ? 154f : 142f), panel.width - 56f, 42f);
         DrawLightingToggle(lightingRect);
@@ -221,7 +223,7 @@ public sealed class MainMenu : MonoBehaviour
         if (!compact)
             playRect.x = panel.xMax - playRect.width - 28f;
 
-        if (GUI.Button(playRect, selectedMode == MenuMode.Story ? "Играть" : "Играть позже", buttonStyle))
+        if (GUI.Button(playRect, "Играть", buttonStyle))
             StartGame();
 
         Rect selectedRect = compact
@@ -241,16 +243,16 @@ public sealed class MainMenu : MonoBehaviour
         Rect hintRect = new Rect(rect.x + 14f, rect.y + 22f, rect.width - 198f, 18f);
         Rect buttonRect = new Rect(rect.xMax - 166f, rect.y + 6f, 152f, 30f);
 
-        GUI.Label(labelRect, "Освещение", labelStyle);
+        GUI.Label(labelRect, "Выключение теней", labelStyle);
         GUI.Label(hintRect, normalLighting ? "Тени отключены, базовый свет усилен." : "Киношный свет и тени включены.", hintStyle);
 
-        string buttonText = normalLighting ? "Норм. свет: ВКЛ" : "Норм. свет: ВЫКЛ";
+        string buttonText = normalLighting ? "Вкл" : "Выкл";
         if (GUI.Button(buttonRect, buttonText, smallButtonStyle))
         {
             GameLightingSettings.NormalLighting = !normalLighting;
             footerMessage = GameLightingSettings.NormalLighting
-                ? "Нормальный свет включён: тени отключены, сцена светлее."
-                : "Нормальный свет выключен: возвращены тени и исходное освещение.";
+                ? "Выключение теней включено: сцена светлее."
+                : "Выключение теней выключено: тени возвращены.";
         }
     }
 
@@ -266,7 +268,7 @@ public sealed class MainMenu : MonoBehaviour
             selectedMode = mode;
             footerMessage = mode == MenuMode.Story
                 ? "Сюжетный режим: запуск через вступительную катсцену."
-                : "Бесконечный режим выбран как шаблон, генерация ещё не подключена.";
+                : "Бесконечный режим: случайные уровни с пятью комнатами и растущей сложностью.";
         }
 
         Rect badgeRect = new Rect(rect.x + 18f, rect.y + 16f, 84f, 24f);
@@ -275,16 +277,7 @@ public sealed class MainMenu : MonoBehaviour
 
         GUI.Label(new Rect(rect.x + 18f, rect.y + 54f, rect.width - 36f, 34f), title, modeTitleStyle);
         GUI.Label(new Rect(rect.x + 18f, rect.y + 88f, rect.width - 36f, 24f), meta, labelStyle);
-        GUI.Label(new Rect(rect.x + 18f, rect.y + 124f, rect.width - 36f, Mathf.Max(52f, rect.height - 184f)), description, hintStyle);
-
-        Rect actionRect = new Rect(rect.x + 18f, rect.yMax - 46f, Mathf.Min(180f, rect.width - 36f), 32f);
-        if (GUI.Button(actionRect, selected ? "Выбрано" : "Выбрать", smallButtonStyle))
-        {
-            selectedMode = mode;
-            footerMessage = mode == MenuMode.Story
-                ? "Сюжетный режим: запуск через вступительную катсцену."
-                : "Бесконечный режим выбран как шаблон, генерация ещё не подключена.";
-        }
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 124f, rect.width - 36f, Mathf.Max(52f, rect.height - 144f)), description, hintStyle);
     }
 
     private void DrawPanel(Rect rect, Color fill, Color border)

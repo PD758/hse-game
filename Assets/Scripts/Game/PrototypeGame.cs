@@ -32,7 +32,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float EnemyAttackRecovery = 0.76f;
     private const int EnemyBaseLevel = 3;
     private const int EnemyMinLevel = 1;
-    private const int EnemyMaxLevel = 9;
+    private const int EnemyMaxLevel = 99;
     private const float EnemyStunDuration = 0.24f;
     private const float EnemyHitFlashDuration = 0.18f;
     private const float EnemyKnockbackSpeed = 4.8f;
@@ -165,6 +165,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private bool gameEnded;
     private bool runCompleted;
     private string message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
+    private string noteMessage;
+    private float noteMessageTimer;
 
     private void Awake()
     {
@@ -172,7 +174,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Physics2D.gravity = Vector2.zero;
         SetupCamera();
         EnsurePostProcessing();
-        currentLevelId = LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+        currentLevelId = EndlessRunState.Enabled
+            ? EndlessRunState.CurrentLevelId
+            : LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         BuildLevel();
 
         if (!HasBakedAssets() || !BindSceneViews())
@@ -205,6 +209,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
         }
 
+        UpdateNoteMessage(Time.deltaTime);
         ReadMoveInput();
         UpdatePlayerSprite();
 
@@ -407,6 +412,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
         hasRemote = false;
+        noteMessage = null;
+        noteMessageTimer = 0f;
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
         gameEnded = false;
@@ -436,7 +443,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void RestartRun()
     {
-        NarrativeRunState.Reset();
+        if (EndlessRunState.Enabled)
+            EndlessRunState.ResetRun();
+        else
+            NarrativeRunState.Reset();
         ClearCombatRuntimeObjects();
 
         enemies.Clear();
@@ -449,11 +459,15 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
         hasRemote = false;
+        noteMessage = null;
+        noteMessageTimer = 0f;
         gameEnded = false;
         runCompleted = false;
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
-        currentLevelId = LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+        currentLevelId = EndlessRunState.Enabled
+            ? EndlessRunState.CurrentLevelId
+            : LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
         camerasBroken = 0;
@@ -555,6 +569,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
             RefreshStatGates();
     }
 
+    private void ShowNoteMessage(string text)
+    {
+        noteMessage = text;
+        noteMessageTimer = Mathf.Clamp(4.5f + (text?.Length ?? 0) * 0.045f, 5.5f, 12f);
+    }
+
+    private void UpdateNoteMessage(float dt)
+    {
+        if (noteMessageTimer <= 0f)
+            return;
+
+        noteMessageTimer = Mathf.Max(0f, noteMessageTimer - dt);
+        if (noteMessageTimer <= 0f)
+            noteMessage = null;
+    }
+
     private void TryInteract()
     {
         MarkActivity();
@@ -591,6 +621,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 NarrativeRunState.RecordPuzzleReflection();
                 RestoreRating(18f);
                 message = string.IsNullOrEmpty(story?.text) ? "В монтажной заметке написано: смотреть не значит соглашаться." : story.text;
+                ShowNoteMessage(message);
                 RedrawTile(next);
                 UpdatePuzzle();
                 return;
@@ -812,6 +843,13 @@ public sealed partial class PrototypeGame : MonoBehaviour
         message = playerHp <= 0 ? "Game Over: эфир оставил только шум. Нажмите R, чтобы пересмотреть канал." : text;
         if (playerHp <= 0)
         {
+            if (EndlessRunState.Enabled)
+            {
+                EndlessRunState.StartStory();
+                SceneManager.LoadScene("MainMenu");
+                return;
+            }
+
             gameEnded = true;
             currentVelocity = Vector2.zero;
             if (playerBody != null)
@@ -893,7 +931,17 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private void TryUseExit(Vector2Int cell)
     {
         if (!CanUseExit(cell))
+        {
+            if (EndlessRunState.Enabled && exitsByCell.ContainsKey(cell))
+                message = $"Выход включится после зачистки: осталось врагов {enemies.Count}.";
             return;
+        }
+
+        if (EndlessRunState.Enabled)
+        {
+            LoadNextEndlessLevel();
+            return;
+        }
 
         LevelExit exit = exitsByCell.TryGetValue(cell, out LevelExit data) ? data : null;
         string targetLevel = LevelAssetResolver.NormalizeLevelId(exit?.targetLevel);
@@ -945,6 +993,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteJamTimer = 0f;
         runCompleted = false;
         lastNoisePower = 0;
+        noteMessage = null;
+        noteMessageTimer = 0f;
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
     }
@@ -984,6 +1034,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         if (!exitsByCell.TryGetValue(cell, out LevelExit exit))
             return false;
+
+        if (EndlessRunState.Enabled)
+            return enemies.Count == 0;
 
         if (!string.IsNullOrEmpty(exit.requiresGate))
             return GateOpenForId(exit.requiresGate);
@@ -2194,6 +2247,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private LevelDefinition LoadLevelDefinition()
     {
+        if (EndlessRunState.Enabled)
+            return GenerateEndlessLevelDefinition();
+
         TextAsset asset = ResolveLevelAsset(currentLevelId);
         if (asset == null)
         {

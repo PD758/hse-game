@@ -162,6 +162,18 @@ public sealed partial class PrototypeGame
         playerView.transform.position = ToWorld(playerStart);
         playerBody.linearVelocity = Vector2.zero;
 
+        if (EndlessRunState.Enabled)
+        {
+            DestroySceneObjectsWithPrefix("Enemy ");
+            DestroySceneObjectsWithPrefix("Signal Blocker ");
+            foreach (Stone stone in stones)
+                CreateStoneView(stone);
+            for (int i = 0; i < enemies.Count; i++)
+                CreateEnemyView(enemies[i], i);
+            CreateLevelVisualViews();
+            return true;
+        }
+
         for (int i = 0; i < stones.Count; i++)
         {
             Stone stone = stones[i];
@@ -192,6 +204,18 @@ public sealed partial class PrototypeGame
 
         CreateLevelVisualViews();
         return true;
+    }
+
+    private void DestroySceneObjectsWithPrefix(string namePrefix)
+    {
+        foreach (GameObject obj in FindObjectsByType<GameObject>(FindObjectsInactive.Include))
+        {
+            if (obj == null || obj.scene != gameObject.scene || !obj.name.StartsWith(namePrefix, System.StringComparison.Ordinal))
+                continue;
+
+            obj.SetActive(false);
+            DestroyRuntimeObject(obj);
+        }
     }
 
     private void EnsureGameplayLighting()
