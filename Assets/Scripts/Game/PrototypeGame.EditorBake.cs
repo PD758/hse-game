@@ -71,6 +71,7 @@ public sealed partial class PrototypeGame
         rubbleSprite = PersistSpriteForEditor(folder, "rubble", rubbleSprite);
         trapSprite = PersistSpriteForEditor(folder, "camera_trap", trapSprite);
         remoteSprite = PersistSpriteForEditor(folder, "remote", remoteSprite);
+        flashlightSprite = PersistSpriteForEditor(folder, "flashlight", flashlightSprite);
         storySprite = PersistSpriteForEditor(folder, "story_note", storySprite);
         healSprite = PersistSpriteForEditor(folder, "heal_cassette", healSprite);
         playerSprite = PersistSpriteForEditor(folder, "player_base", playerSprite);

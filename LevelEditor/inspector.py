@@ -18,7 +18,7 @@ STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
 ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
-ACTION_OBJECTS = ("gate", "remote", "trap", "story", "heal", "plate", "stone", "rubble")
+ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "heal", "plate", "stone", "rubble")
 
 
 @dataclass
@@ -36,6 +36,7 @@ class InspectorState:
         self.active_ref: tuple[str, int] | None = None
         self.active_field = ""
         self.text = ""
+        self.cursor_index = 0
         self.actions: list[InspectorAction] = []
         self.pending_select_ref: tuple[str, int] | None = None
         self.scroll_y = 0
@@ -45,11 +46,13 @@ class InspectorState:
         self.active_ref = ref
         self.active_field = field
         self.text = display_text_value(value)
+        self.cursor_index = len(self.text)
 
     def clear_text(self) -> None:
         self.active_ref = None
         self.active_field = ""
         self.text = ""
+        self.cursor_index = 0
 
     def reset_scroll(self) -> None:
         self.scroll_y = 0
@@ -230,15 +233,38 @@ def handle_key(state: InspectorState, level: dict, selected_ref: tuple[str, int]
         state.clear_text()
         return False
 
+    state.cursor_index = max(0, min(state.cursor_index, len(state.text)))
+    if event.key == pygame.K_LEFT:
+        state.cursor_index = max(0, state.cursor_index - 1)
+        return False
+    if event.key == pygame.K_RIGHT:
+        state.cursor_index = min(len(state.text), state.cursor_index + 1)
+        return False
+    if event.key == pygame.K_HOME:
+        state.cursor_index = line_boundary(state.text, state.cursor_index, -1)
+        return False
+    if event.key == pygame.K_END:
+        state.cursor_index = line_boundary(state.text, state.cursor_index, 1)
+        return False
+
     if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and is_multiline_field(state.active_field) and not pygame.key.get_mods() & pygame.KMOD_CTRL:
-        state.text += "\n"
+        state.text = state.text[:state.cursor_index] + "\n" + state.text[state.cursor_index:]
+        state.cursor_index += 1
     elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
         state.clear_text()
         return False
     elif event.key == pygame.K_BACKSPACE:
-        state.text = state.text[:-1]
+        if state.cursor_index <= 0:
+            return False
+        state.text = state.text[:state.cursor_index - 1] + state.text[state.cursor_index:]
+        state.cursor_index -= 1
+    elif event.key == pygame.K_DELETE:
+        if state.cursor_index >= len(state.text):
+            return False
+        state.text = state.text[:state.cursor_index] + state.text[state.cursor_index + 1:]
     elif event.unicode and is_allowed_text(event.unicode, state.active_field):
-        state.text += event.unicode
+        state.text = state.text[:state.cursor_index] + event.unicode + state.text[state.cursor_index:]
+        state.cursor_index += len(event.unicode)
     else:
         return False
 
@@ -258,6 +284,8 @@ def handle_click(
     selected_cell: tuple[int, int] | None,
     tile_variants: list[list[int]],
     current_tile_variant: int,
+    font: pygame.font.Font,
+    scale: float,
     pos: tuple[int, int],
 ) -> tuple[bool, int]:
     for action in state.actions:
@@ -298,7 +326,10 @@ def handle_click(
             return False, current_tile_variant
 
         if action.kind == "text":
+            was_active = state.active_ref == selected_ref and state.active_field == action.field
+            visible_cursor_index = state.cursor_index if was_active else None
             state.begin_text(selected_ref, action.field, target.get(action.field, ""))
+            state.cursor_index = cursor_index_from_pos(state.text, action.rect, pos, font, scale, visible_cursor_index)
             return False, current_tile_variant
         if action.kind == "set":
             target[action.field] = coerce_action_value(action.field, action.value)
@@ -377,7 +408,18 @@ def handle_click(
             index = action_index(action)
             actions = target.setdefault("actions", [])
             if 0 <= index < len(actions):
-                state.begin_text(selected_ref, f"action:{index}:{action.field}", actions[index].get(action.field, ""))
+                encoded = f"action:{index}:{action.field}"
+                was_active = state.active_ref == selected_ref and state.active_field == encoded
+                visible_cursor_index = state.cursor_index if was_active else None
+                state.begin_text(selected_ref, encoded, actions[index].get(action.field, ""))
+                if is_multiline_field(state.active_field):
+                    value_rect = pygame.Rect(action.rect.x, action.rect.y + round(24 * scale), action.rect.width, action.rect.height - round(26 * scale))
+                    state.cursor_index = cursor_index_from_pos(state.text, value_rect, pos, font, scale, visible_cursor_index)
+                else:
+                    prefix = f"{action.field}: "
+                    prefixed_cursor = len(prefix) + visible_cursor_index if visible_cursor_index is not None else None
+                    index_with_prefix = cursor_index_from_pos(f"{prefix}{state.text}", action.rect, pos, font, scale, prefixed_cursor)
+                    state.cursor_index = max(0, min(len(state.text), index_with_prefix - len(prefix)))
             return False, current_tile_variant
         if action.kind == "rotate":
             rotate_direction(target, action.amount)
@@ -475,7 +517,7 @@ def draw_region_list(screen: pygame.Surface, font: pygame.font.Font, state: Insp
         rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
         label = f"{region.get('id', f'region_{index + 1}')} ({region_cell_count(region)} cells)"
-        screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, "select_ref", target=("region", index)))
         y += height + round(5 * scale)
     return y
@@ -490,7 +532,7 @@ def draw_event_list(screen: pygame.Surface, font: pygame.font.Font, state: Inspe
         rect = pygame.Rect(x, y, width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
         label = f"{event.get('id', f'event_{index}')} [{event.get('trigger', '')}]"
-        screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, "select_ref", target=("event", index)))
         y += height + round(5 * scale)
     return y
@@ -506,14 +548,18 @@ def draw_visual_list(screen: pygame.Surface, font: pygame.font.Font, state: Insp
             rect = pygame.Rect(x, y, width, height)
             pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
             label = f"{kind}: {item.get('id', f'{kind}_{index + 1}')}"
-            screen.blit(font.render(label[:38], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+            draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
             state.actions.append(InspectorAction(rect, "select_ref", target=(kind, index)))
             y += height + round(5 * scale)
     return y
 
 
-def draw_text(screen: pygame.Surface, font: pygame.font.Font, text: str, x: int, y: int, color: tuple[int, int, int]) -> int:
-    screen.blit(font.render(text, True, color), (x, y))
+def draw_text(screen: pygame.Surface, font: pygame.font.Font, text: str, x: int, y: int, color: tuple[int, int, int], max_width: int | None = None) -> int:
+    clip = screen.get_clip()
+    if max_width is None and clip:
+        max_width = max(4, clip.right - x - 8)
+    label = ellipsize(text, font, max_width) if max_width is not None else text
+    screen.blit(font.render(label, True, color), (x, y))
     return y + font.get_height() + 4
 
 
@@ -532,13 +578,15 @@ def draw_text_field(
 ) -> int:
     label = f"{field}:"
     y = draw_text(screen, font, label, x, y, (188, 196, 204))
-    height = round((76 if multiline else 28) * scale)
+    height = round((132 if multiline else 30) * scale)
     rect = pygame.Rect(x, y, width, height)
     active = state.active_ref == ref and state.active_field == field
     color = (58, 66, 74) if active else (36, 40, 46)
     pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
+    if active:
+        pygame.draw.rect(screen, (132, 214, 238), rect, max(1, round(2 * scale)), border_radius=max(2, round(4 * scale)))
     shown = state.text if active else display_text_value(value)
-    draw_field_value(screen, font, shown, rect, scale)
+    draw_field_value(screen, font, shown, rect, scale, active=active, cursor_index=state.cursor_index if active else None)
     state.actions.append(InspectorAction(rect, "text", field=field))
     return y + height + round(10 * scale)
 
@@ -563,7 +611,7 @@ def draw_enum_buttons(
         rect = pygame.Rect(bx, y, button_width, height)
         color = (68, 88, 96) if value == current else (36, 40, 46)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(value, True, (224, 228, 232)), (bx + round(7 * scale), y + round(6 * scale)))
+        draw_clipped_text(screen, font, value, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, "set", field=field, value=value))
         bx += button_width + round(6 * scale)
     return y + height + round(10 * scale)
@@ -653,7 +701,7 @@ def draw_wrapped_buttons(
         rect = pygame.Rect(bx, row_y, button_width, height)
         color = (68, 88, 96) if str(value) == current else (36, 40, 46)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(shown, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
+        draw_clipped_text(screen, font, shown, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, kind, field=field, value=value))
         bx += button_width + gap
     return row_y + height + round(8 * scale)
@@ -679,7 +727,7 @@ def draw_stat_condition_editor(
     height = round(28 * scale)
     rect = pygame.Rect(x, y, width, height)
     pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
-    screen.blit(font.render("+ condition", True, (224, 228, 232)), (x + round(7 * scale), y + round(6 * scale)))
+    draw_clipped_text(screen, font, "+ condition", (224, 228, 232), rect, scale)
     state.actions.append(InspectorAction(rect, "add_stat_condition", field=field))
     return y + height + round(10 * scale)
 
@@ -720,7 +768,7 @@ def draw_stat_condition_row(
         rect = pygame.Rect(bx, row_y, button_width, height)
         color = (48, 54, 62) if amount == 0.0 else (36, 40, 46)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, kind, field=field, amount=amount, target=("condition", index)))
         bx += button_width + gap
     return row_y + height + round(6 * scale)
@@ -769,9 +817,9 @@ def draw_action_row(
     rect = pygame.Rect(x, y, width, round(30 * scale))
     pygame.draw.rect(screen, (31, 36, 42), rect, border_radius=max(2, round(4 * scale)))
     label = f"#{index + 1} {action.get('type', 'fallStone')}"
-    screen.blit(font.render(label[:26], True, (224, 228, 232)), (x + round(7 * scale), y + round(7 * scale)))
+    draw_clipped_text(screen, font, label, (224, 228, 232), pygame.Rect(x, y, width - round(34 * scale), rect.height), scale)
     state.actions.append(InspectorAction(pygame.Rect(rect.right - round(32 * scale), y, round(32 * scale), rect.height), "delete_action", target=("action", index)))
-    screen.blit(font.render("x", True, (238, 190, 190)), (rect.right - round(24 * scale), y + round(7 * scale)))
+    draw_clipped_text(screen, font, "x", (238, 190, 190), pygame.Rect(rect.right - round(32 * scale), y, round(32 * scale), rect.height), scale)
     y += rect.height + round(5 * scale)
 
     y = draw_action_buttons(screen, font, state, index, [("cycle_action_type", "type", 0)], x, y, width, scale)
@@ -842,7 +890,7 @@ def draw_action_buttons(
             y += height + gap
         rect = pygame.Rect(bx, y, button_width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(5 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         action_field = field
         if kind == "adjust_action_int" and not action_field:
             action_field = label.split()[0][0] if label.startswith(("x", "y")) else label.split()[0]
@@ -864,17 +912,21 @@ def draw_action_text_field(
     scale: float,
     multiline: bool = False,
 ) -> int:
-    height = round((84 if multiline else 26) * scale)
+    height = round((138 if multiline else 28) * scale)
     rect = pygame.Rect(x, y, width, height)
     encoded = f"action:{index}:{field}"
     active = state.active_field == encoded
     pygame.draw.rect(screen, (58, 66, 74) if active else (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
+    if active:
+        pygame.draw.rect(screen, (132, 214, 238), rect, max(1, round(2 * scale)), border_radius=max(2, round(4 * scale)))
     shown = state.text if active else str(value or "")
     if multiline:
-        screen.blit(font.render(f"{field}:", True, (166, 212, 230)), (x + round(7 * scale), y + round(5 * scale)))
-        draw_field_value(screen, font, shown, pygame.Rect(x, y + round(22 * scale), width, height - round(24 * scale)), scale)
+        draw_clipped_text(screen, font, f"{field}:", (166, 212, 230), pygame.Rect(x, y, width, round(24 * scale)), scale)
+        draw_field_value(screen, font, shown, pygame.Rect(x, y + round(24 * scale), width, height - round(26 * scale)), scale, active=active, cursor_index=state.cursor_index if active else None)
     else:
-        screen.blit(font.render(f"{field}: {shown}"[:34], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+        prefix = f"{field}: "
+        cursor_index = len(prefix) + state.cursor_index if active else None
+        draw_field_value(screen, font, f"{prefix}{shown}", rect, scale, active=active, cursor_index=cursor_index)
     state.actions.append(InspectorAction(rect, "action_text", field=field, target=("action", index)))
     return y + height + round(5 * scale)
 
@@ -886,7 +938,7 @@ def draw_button_row(screen: pygame.Surface, font: pygame.font.Font, state: Inspe
     for kind, label in buttons:
         rect = pygame.Rect(bx, y, button_width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(6 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, kind))
         bx += button_width + round(6 * scale)
     return y + height + round(10 * scale)
@@ -916,7 +968,7 @@ def draw_number_adjuster(
             y += height + gap
         rect = pygame.Rect(bx, y, button_width, height)
         pygame.draw.rect(screen, (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), y + round(5 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, "adjust_number", field=field, amount=step))
         bx += button_width + gap
     return y + height + round(10 * scale)
@@ -953,7 +1005,7 @@ def draw_variant_buttons(
         rect = pygame.Rect(bx, row_y, button_width, height)
         color = (68, 88, 96) if value == current else (36, 40, 46)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        screen.blit(font.render(label, True, (224, 228, 232)), (bx + round(7 * scale), row_y + round(6 * scale)))
+        draw_clipped_text(screen, font, label, (224, 228, 232), rect, scale)
         state.actions.append(InspectorAction(rect, kind, field=field, value=value))
         bx += button_width + gap
     return row_y + height + round(10 * scale)
@@ -968,8 +1020,7 @@ def draw_validation_summary(screen: pygame.Surface, font: pygame.font.Font, stat
         rect = pygame.Rect(x, y, width, height)
         color = (86, 38, 42) if issue.severity == "error" else (84, 70, 36)
         pygame.draw.rect(screen, color, rect, border_radius=max(2, round(4 * scale)))
-        text = issue.message if len(issue.message) <= 38 else issue.message[:35] + "..."
-        screen.blit(font.render(text, True, (238, 230, 214)), (x + round(7 * scale), y + round(6 * scale)))
+        draw_clipped_text(screen, font, issue.message, (238, 230, 214), rect, scale)
         state.actions.append(InspectorAction(rect, "issue", target=issue.target))
         y += height + round(5 * scale)
     return y
@@ -1306,50 +1357,170 @@ def format_stat_condition(value: list) -> str:
     return f"{value[0]} {value[1]} {value[2]}"
 
 
-def draw_field_value(screen: pygame.Surface, font: pygame.font.Font, value: str, rect: pygame.Rect, scale: float) -> None:
+def draw_field_value(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    value: str,
+    rect: pygame.Rect,
+    scale: float,
+    active: bool = False,
+    cursor_index: int | None = None,
+) -> None:
     x = rect.x + round(8 * scale)
     y = rect.y + round(6 * scale)
     max_width = max(10, rect.width - round(16 * scale))
     max_lines = max(1, (rect.height - round(8 * scale)) // max(1, font.get_height()))
-    lines = wrap_text(value, font, max_width)
-    for line in lines[:max_lines]:
+    wrapped = wrap_text_with_indices(value, font, max_width)
+    lines = [line for line, _start in wrapped]
+    cursor_index = max(0, min(cursor_index if cursor_index is not None else len(value), len(value)))
+    caret_line_index = wrapped_line_index_for_cursor(wrapped, cursor_index) if active else 0
+    start_line = max(0, caret_line_index - max_lines + 1) if active else 0
+    previous_clip = screen.get_clip()
+    screen.set_clip(rect)
+    for line in lines[start_line:start_line + max_lines]:
         screen.blit(font.render(line, True, (230, 234, 238)), (x, y))
         y += font.get_height() + 2
 
+    if active and pygame.time.get_ticks() % 1000 < 540:
+        caret_local_line = caret_line_index - start_line
+        if 0 <= caret_local_line < max_lines:
+            caret_line, caret_start = wrapped[caret_line_index] if wrapped else ("", 0)
+            caret_text = caret_line[:max(0, cursor_index - caret_start)]
+            caret_x = min(rect.right - round(7 * scale), x + font.size(caret_text)[0] + 1)
+            caret_y = rect.y + round(6 * scale) + caret_local_line * (font.get_height() + 2)
+            pygame.draw.line(screen, (156, 230, 255), (caret_x, caret_y), (caret_x, caret_y + font.get_height()), max(1, round(2 * scale)))
+    screen.set_clip(previous_clip)
+
+
+def draw_clipped_text(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    text: object,
+    color: tuple[int, int, int],
+    rect: pygame.Rect,
+    scale: float,
+) -> None:
+    previous_clip = screen.get_clip()
+    screen.set_clip(rect)
+    label = ellipsize(str(text), font, max(4, rect.width - round(14 * scale)))
+    screen.blit(font.render(label, True, color), (rect.x + round(7 * scale), rect.y + max(2, (rect.height - font.get_height()) // 2)))
+    screen.set_clip(previous_clip)
+
+
+def ellipsize(text: str, font: pygame.font.Font, max_width: int) -> str:
+    if font.size(text)[0] <= max_width:
+        return text
+    suffix = "..."
+    available = max(0, max_width - font.size(suffix)[0])
+    result = ""
+    for char in text:
+        if font.size(result + char)[0] > available:
+            break
+        result += char
+    return result + suffix
+
 
 def wrap_text(value: str, font: pygame.font.Font, max_width: int) -> list[str]:
-    source_lines = value.splitlines() or [""]
-    result: list[str] = []
+    return [line for line, _start in wrap_text_with_indices(value, font, max_width)]
+
+
+def wrap_text_with_indices(value: str, font: pygame.font.Font, max_width: int) -> list[tuple[str, int]]:
+    source_lines = value.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    indexed: list[tuple[str, int]] = []
+    base_index = 0
     for source in source_lines:
         if not source:
-            result.append("")
+            indexed.append(("", base_index))
+            base_index += 1
             continue
         current = ""
+        current_start = base_index
+        word_start = base_index
         for word in source.split(" "):
             candidate = word if not current else f"{current} {word}"
             if font.size(candidate)[0] <= max_width:
                 current = candidate
+                word_start += len(word) + 1
                 continue
             if current:
-                result.append(current)
-            current = fit_word(word, font, max_width, result)
-        result.append(current)
-    return result
+                indexed.append((current, current_start))
+                current_start = word_start
+            current = fit_word_indexed(word, font, max_width, indexed, current_start)
+            word_start += len(word) + 1
+            current_start = word_start - len(current) - 1 if current else word_start
+        indexed.append((current, current_start))
+        base_index += len(source) + 1
+    return indexed or [("", 0)]
 
 
-def fit_word(word: str, font: pygame.font.Font, max_width: int, result: list[str]) -> str:
+def fit_word_indexed(word: str, font: pygame.font.Font, max_width: int, result: list[tuple[str, int]], start_index: int) -> str:
     if font.size(word)[0] <= max_width:
         return word
 
     current = ""
-    for char in word:
+    current_start = start_index
+    for offset, char in enumerate(word):
         candidate = current + char
         if current and font.size(candidate)[0] > max_width:
-            result.append(current)
+            result.append((current, current_start))
             current = char
+            current_start = start_index + offset
         else:
             current = candidate
     return current
+
+
+def wrapped_line_index_for_cursor(wrapped: list[tuple[str, int]], cursor_index: int) -> int:
+    if not wrapped:
+        return 0
+    for index, (line, start) in enumerate(wrapped):
+        end = start + len(line)
+        next_start = wrapped[index + 1][1] if index + 1 < len(wrapped) else None
+        if start <= cursor_index <= end:
+            return index
+        if next_start is not None and end < cursor_index < next_start:
+            return index + 1
+    return len(wrapped) - 1
+
+
+def cursor_index_from_pos(
+    value: str,
+    rect: pygame.Rect,
+    pos: tuple[int, int],
+    font: pygame.font.Font,
+    scale: float,
+    visible_cursor_index: int | None = None,
+) -> int:
+    max_width = max(10, rect.width - round(16 * scale))
+    wrapped = wrap_text_with_indices(value, font, max_width)
+    max_lines = max(1, (rect.height - round(8 * scale)) // max(1, font.get_height()))
+    line_height = font.get_height() + 2
+    if visible_cursor_index is None:
+        start_line = 0
+    else:
+        visible_cursor_index = max(0, min(visible_cursor_index, len(value)))
+        caret_line_index = wrapped_line_index_for_cursor(wrapped, visible_cursor_index)
+        start_line = max(0, caret_line_index - max_lines + 1)
+    local_y = max(0, pos[1] - rect.y - round(6 * scale))
+    line_index = max(0, min(len(wrapped) - 1, start_line + local_y // max(1, line_height)))
+    line, start = wrapped[line_index]
+    local_x = max(0, pos[0] - rect.x - round(8 * scale))
+    offset = 0
+    for index in range(len(line) + 1):
+        if font.size(line[:index])[0] >= local_x:
+            offset = index
+            break
+        offset = index
+    return max(0, min(len(value), start + offset))
+
+
+def line_boundary(text: str, cursor_index: int, direction: int) -> int:
+    cursor_index = max(0, min(cursor_index, len(text)))
+    if direction < 0:
+        return text.rfind("\n", 0, cursor_index) + 1
+
+    next_break = text.find("\n", cursor_index)
+    return len(text) if next_break < 0 else next_break
 
 
 def coerce_text_value(field: str, value: str) -> object:

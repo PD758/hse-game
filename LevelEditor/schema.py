@@ -12,6 +12,7 @@ TILE_TYPES = (TILE_WALL, TILE_FLOOR, TILE_RUBBLE)
 OBJECT_TYPES = (
     "gate",
     "remote",
+    "flashlight",
     "trap",
     "story",
     "heal",

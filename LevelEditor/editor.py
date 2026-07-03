@@ -38,6 +38,7 @@ def main() -> int:
     height = int(size["height"])
 
     pygame.init()
+    pygame.key.set_repeat(360, 38)
     screen = pygame.display.set_mode((1280, 820), pygame.RESIZABLE)
     pygame.display.set_caption(f"Level Editor - {level_path.name}")
     font = pygame.font.SysFont("monospace", round(15 * ui_scale))
@@ -146,7 +147,7 @@ def main() -> int:
                         continue
                     if inspector_contains(screen, event.pos, ui_scale):
                         push_undo(undo_stack, level, tiles, tile_variants, selected_ref, selected_cell, current_tile_variant, patrol_mode)
-                        changed, current_tile_variant = handle_inspector_click(inspector_state, level, selected_ref, selected_cell, tile_variants, current_tile_variant, event.pos)
+                        changed, current_tile_variant = handle_inspector_click(inspector_state, level, selected_ref, selected_cell, tile_variants, current_tile_variant, font, ui_scale, event.pos)
                         if inspector_state.pending_select_ref is not None:
                             selected_ref = inspector_state.pending_select_ref
                             selected_cell = None

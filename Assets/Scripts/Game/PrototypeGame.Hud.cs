@@ -100,29 +100,30 @@ public sealed partial class PrototypeGame
 
         float remoteX = inner.x + Mathf.Min(148f * ui, inner.width * 0.52f);
         Rect remoteIcon = new Rect(remoteX, inner.y + 24f * ui, 28f * ui, 28f * ui);
-        DrawRemoteIcon(remoteIcon);
-        DrawLabelWithShadow(new Rect(remoteX, inner.y, inner.xMax - remoteX, 18f * ui), "ПУЛЬТ", titleStyle);
-        DrawLabelWithShadow(new Rect(remoteX + 34f * ui, inner.y + 22f * ui, inner.xMax - remoteX - 34f * ui, 24f * ui), RemoteHudText(), valueStyle);
+        DrawAbilityIcon(remoteIcon);
+        DrawLabelWithShadow(new Rect(remoteX, inner.y, inner.xMax - remoteX, 18f * ui), AbilityTitle(), titleStyle);
+        DrawLabelWithShadow(new Rect(remoteX + 34f * ui, inner.y + 22f * ui, inner.xMax - remoteX - 34f * ui, 24f * ui), AbilityHudText(), valueStyle);
         DrawLabelWithShadow(new Rect(remoteX, inner.y + 52f * ui, inner.xMax - remoteX, 20f * ui), BranchHudText(), titleStyle);
     }
 
     private void DrawActiveSkillPanel(Rect rect)
     {
-        Color accent = hasRemote ? new Color(0.52f, 0.96f, 1f, 0.95f) : new Color(0.48f, 0.58f, 0.64f, 0.72f);
-        DrawHudPanel(rect, hasRemote ? new Color(0.010f, 0.055f, 0.064f, 0.96f) : new Color(0.010f, 0.014f, 0.020f, 0.94f), accent, true);
+        bool hasAbility = equippedAbility != AbilitySlot.None;
+        Color accent = HasFlashlight ? new Color(1.00f, 0.88f, 0.42f, 0.95f) : HasRemote ? new Color(0.52f, 0.96f, 1f, 0.95f) : new Color(0.48f, 0.58f, 0.64f, 0.72f);
+        DrawHudPanel(rect, hasAbility ? new Color(0.034f, 0.030f, 0.014f, 0.96f) : new Color(0.010f, 0.014f, 0.020f, 0.94f), accent, true);
 
         float ui = HudScale;
-        DrawFilledRect(new Rect(rect.x + 5f * ui, rect.y + 5f * ui, rect.width - 10f * ui, 2f * ui), hasRemote ? new Color(0.62f, 1f, 1f, 0.70f) : new Color(0.42f, 0.50f, 0.54f, 0.42f));
+        DrawFilledRect(new Rect(rect.x + 5f * ui, rect.y + 5f * ui, rect.width - 10f * ui, 2f * ui), hasAbility ? new Color(accent.r, accent.g, accent.b, 0.74f) : new Color(0.42f, 0.50f, 0.54f, 0.42f));
 
         float iconSize = Mathf.Min(rect.height - 14f * ui, 38f * ui);
-        Rect remoteRect = PixelRect(new Rect(rect.x + 10f * ui, rect.y + (rect.height - iconSize) * 0.5f, iconSize, iconSize));
-        DrawRemoteIcon(remoteRect);
+        Rect abilityRect = PixelRect(new Rect(rect.x + 10f * ui, rect.y + (rect.height - iconSize) * 0.5f, iconSize, iconSize));
+        DrawAbilityIcon(abilityRect);
 
         var titleStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleLeft,
             fontSize = Mathf.RoundToInt(11f * ui),
-            normal = { textColor = hasRemote ? new Color(0.66f, 0.95f, 1f) : new Color(0.58f, 0.66f, 0.70f) },
+            normal = { textColor = hasAbility ? accent : new Color(0.58f, 0.66f, 0.70f) },
         };
         PixelGui.Apply(titleStyle);
 
@@ -134,9 +135,9 @@ public sealed partial class PrototypeGame
         };
         PixelGui.Apply(valueStyle);
 
-        float textX = remoteRect.xMax + 9f * ui;
-        DrawLabelWithShadow(new Rect(textX, rect.y + 7f * ui, rect.xMax - textX - 10f * ui, 17f * ui), "ПУЛЬТ", titleStyle);
-        DrawLabelWithShadow(new Rect(textX, rect.y + 24f * ui, rect.xMax - textX - 10f * ui, 28f * ui), RemoteSkillHudText(), valueStyle);
+        float textX = abilityRect.xMax + 9f * ui;
+        DrawLabelWithShadow(new Rect(textX, rect.y + 7f * ui, rect.xMax - textX - 10f * ui, 17f * ui), AbilityTitle(), titleStyle);
+        DrawLabelWithShadow(new Rect(textX, rect.y + 24f * ui, rect.xMax - textX - 10f * ui, 28f * ui), AbilitySkillHudText(), valueStyle);
     }
 
     private void DrawHpHeartPanel(Rect rect)
@@ -181,13 +182,15 @@ public sealed partial class PrototypeGame
         GUI.color = Color.white;
     }
 
-    private void DrawRemoteIcon(Rect rect)
+    private void DrawAbilityIcon(Rect rect)
     {
-        DrawFilledRect(rect, hasRemote ? new Color(0.05f, 0.07f, 0.08f, 0.92f) : new Color(0.03f, 0.035f, 0.04f, 0.78f));
+        bool hasAbility = equippedAbility != AbilitySlot.None;
+        DrawFilledRect(rect, hasAbility ? new Color(0.05f, 0.07f, 0.08f, 0.92f) : new Color(0.03f, 0.035f, 0.04f, 0.78f));
         float inset = 3f * HudScale;
-        DrawSpritePreservingAtlasPart(new Rect(rect.x + inset, rect.y + inset, rect.width - inset * 2f, rect.height - inset * 2f), remoteSprite, hasRemote ? Color.white : new Color(0.40f, 0.43f, 0.46f, 0.72f));
+        Sprite sprite = HasFlashlight ? flashlightSprite : remoteSprite;
+        DrawSpritePreservingAtlasPart(new Rect(rect.x + inset, rect.y + inset, rect.width - inset * 2f, rect.height - inset * 2f), sprite, hasAbility ? Color.white : new Color(0.40f, 0.43f, 0.46f, 0.72f));
 
-        if (hasRemote && remoteCooldown > 0f)
+        if (HasRemote && remoteCooldown > 0f)
         {
             float ratio = Mathf.Clamp01(remoteCooldown / RemoteCooldown);
             GUI.color = new Color(0f, 0f, 0f, 0.58f);
@@ -235,9 +238,11 @@ public sealed partial class PrototypeGame
         DrawLabelWithShadow(new Rect(panel.x + 18f * ui, panel.y + 92f * ui, panel.width - 36f * ui, 34f * ui), "Нажмите R, чтобы пересмотреть канал", hintStyle);
     }
 
-    private string RemoteHudText()
+    private string AbilityHudText()
     {
-        if (!hasRemote)
+        if (HasFlashlight)
+            return "светит";
+        if (!HasRemote)
             return "нет";
         if (RemoteJamActive())
             return "глушит";
@@ -326,7 +331,7 @@ public sealed partial class PrototypeGame
 
     private void DrawBindingsList(Rect panel, GUIStyle textStyle, GUIStyle buttonStyle, float ui)
     {
-        string binds = "WASD / стрелки - движение\nSpace / ЛКМ - атака\nE - действие / толкнуть\nQ - пульт\nR - рестарт\nEsc - пауза";
+        string binds = "WASD / стрелки - движение\nSpace / ЛКМ - атака\nE - действие / толкнуть\nQ - пульт, если выбран\nФонарь светит пассивно\nR - рестарт\nEsc - пауза";
         DrawLabelWithShadow(new Rect(panel.x + 34f * ui, panel.y + 116f * ui, panel.width - 68f * ui, 128f * ui), binds, textStyle);
 
         float buttonWidth = panel.width - 70f * ui;
@@ -345,9 +350,11 @@ public sealed partial class PrototypeGame
         return noteMessage.Substring(0, visible);
     }
 
-    private string RemoteSkillHudText()
+    private string AbilitySkillHudText()
     {
-        if (!hasRemote)
+        if (HasFlashlight)
+            return "пассивно";
+        if (!HasRemote)
             return "нет";
         if (RemoteJamActive())
             return "глушит";
@@ -355,6 +362,16 @@ public sealed partial class PrototypeGame
             return $"КД {Mathf.CeilToInt(remoteCooldown)} с";
 
         return "Q готов";
+    }
+
+    private string AbilityTitle()
+    {
+        return equippedAbility switch
+        {
+            AbilitySlot.Remote => "ПУЛЬТ",
+            AbilitySlot.Flashlight => "ФОНАРЬ",
+            _ => "СЛОТ",
+        };
     }
 
     private string BranchHudText()

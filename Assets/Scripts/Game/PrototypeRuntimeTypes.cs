@@ -12,6 +12,7 @@ internal enum Tile
     Rubble,
     Trap,
     Remote,
+    Flashlight,
     Story,
     Heal,
 }
@@ -48,11 +49,19 @@ internal enum SpriteMark
     Rubble,
     Trap,
     Remote,
+    Flashlight,
     Story,
     Heal,
     Player,
     Stone,
     Enemy,
+}
+
+internal enum AbilitySlot
+{
+    None,
+    Remote,
+    Flashlight,
 }
 
 internal sealed class Stone

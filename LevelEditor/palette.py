@@ -11,6 +11,7 @@ TOOLS = [
     {"kind": "object", "value": "stone", "label": "Stone", "key": "6"},
     {"kind": "object", "value": "trap", "label": "Camera", "key": "7"},
     {"kind": "object", "value": "remote", "label": "Remote", "key": "8"},
+    {"kind": "object", "value": "flashlight", "label": "Flashlight", "key": "f"},
     {"kind": "object", "value": "heal", "label": "Heal", "key": "9"},
     {"kind": "enemy", "value": "patrol", "label": "Enemy", "key": "0"},
     {"kind": "exit", "value": "exit", "label": "Exit", "key": "x"},

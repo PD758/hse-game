@@ -6,39 +6,25 @@
     "height": 21
   },
   "playerStart": {
-    "x": 3,
-    "y": 10
+    "x": 4,
+    "y": 7
   },
   "exits": [
     {
       "id": "puzzle_exit",
-      "x": 36,
-      "y": 12,
+      "x": 16,
+      "y": 15,
       "branch": "none",
       "requiresGate": "puzzle_exit_gate",
-      "targetLevel": ""
-    },
-    {
-      "id": "combat_exit",
-      "x": 36,
-      "y": 8,
-      "branch": "none",
-      "requiresGate": "combat_exit_gate",
       "targetLevel": ""
     }
   ],
   "tiles": [
     {
       "tile": "floor",
-      "y": 1,
-      "x": 19,
-      "length": 18
-    },
-    {
-      "tile": "floor",
       "y": 2,
-      "x": 19,
-      "length": 18
+      "x": 20,
+      "length": 17
     },
     {
       "tile": "floor",
@@ -61,8 +47,8 @@
     {
       "tile": "floor",
       "y": 6,
-      "x": 1,
-      "length": 11
+      "x": 2,
+      "length": 10
     },
     {
       "tile": "floor",
@@ -73,8 +59,8 @@
     {
       "tile": "floor",
       "y": 7,
-      "x": 1,
-      "length": 11
+      "x": 2,
+      "length": 10
     },
     {
       "tile": "floor",
@@ -85,32 +71,20 @@
     {
       "tile": "floor",
       "y": 8,
-      "x": 1,
-      "length": 11
+      "x": 2,
+      "length": 10
     },
     {
       "tile": "floor",
       "y": 8,
       "x": 13,
-      "length": 20
-    },
-    {
-      "tile": "floor",
-      "y": 8,
-      "x": 34,
-      "length": 1
-    },
-    {
-      "tile": "floor",
-      "y": 8,
-      "x": 36,
-      "length": 1
+      "length": 23
     },
     {
       "tile": "floor",
       "y": 9,
-      "x": 1,
-      "length": 11
+      "x": 2,
+      "length": 10
     },
     {
       "tile": "floor",
@@ -121,38 +95,38 @@
     {
       "tile": "floor",
       "y": 9,
-      "x": 34,
+      "x": 33,
       "length": 3
     },
     {
       "tile": "floor",
       "y": 10,
-      "x": 1,
-      "length": 17
+      "x": 2,
+      "length": 16
     },
     {
       "tile": "floor",
-      "y": 11,
-      "x": 1,
-      "length": 11
-    },
-    {
-      "tile": "floor",
-      "y": 11,
-      "x": 13,
-      "length": 5
-    },
-    {
-      "tile": "floor",
-      "y": 11,
+      "y": 10,
       "x": 34,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 2,
+      "length": 10
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 33,
       "length": 3
     },
     {
       "tile": "floor",
       "y": 12,
-      "x": 1,
-      "length": 6
+      "x": 2,
+      "length": 5
     },
     {
       "tile": "floor",
@@ -170,26 +144,14 @@
     {
       "tile": "floor",
       "y": 12,
-      "x": 13,
-      "length": 20
-    },
-    {
-      "tile": "floor",
-      "y": 12,
-      "x": 34,
-      "length": 1
-    },
-    {
-      "tile": "floor",
-      "y": 12,
-      "x": 36,
-      "length": 1
+      "x": 21,
+      "length": 15
     },
     {
       "tile": "floor",
       "y": 13,
-      "x": 1,
-      "length": 9
+      "x": 2,
+      "length": 8
     },
     {
       "tile": "floor",
@@ -207,50 +169,62 @@
     {
       "tile": "floor",
       "y": 13,
-      "x": 17,
-      "length": 20
+      "x": 20,
+      "length": 17
     },
     {
       "tile": "floor",
       "y": 14,
-      "x": 1,
-      "length": 11
+      "x": 2,
+      "length": 10
     },
     {
       "tile": "floor",
       "y": 14,
-      "x": 17,
-      "length": 20
+      "x": 15,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 20,
+      "length": 17
     },
     {
       "tile": "floor",
       "y": 15,
-      "x": 19,
-      "length": 18
+      "x": 15,
+      "length": 22
     },
     {
       "tile": "floor",
       "y": 16,
-      "x": 19,
-      "length": 18
+      "x": 15,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 20,
+      "length": 17
     },
     {
       "tile": "floor",
       "y": 17,
-      "x": 19,
-      "length": 18
+      "x": 20,
+      "length": 17
     },
     {
       "tile": "floor",
       "y": 18,
-      "x": 19,
-      "length": 18
+      "x": 21,
+      "length": 16
     },
     {
       "tile": "floor",
       "y": 19,
-      "x": 19,
-      "length": 18
+      "x": 22,
+      "length": 15
     }
   ],
   "walls": [],
@@ -273,8 +247,8 @@
     {
       "type": "gate",
       "id": "puzzle_exit_gate",
-      "x": 34,
-      "y": 12,
+      "x": 19,
+      "y": 15,
       "group": "puzzle",
       "frame": "horizontal",
       "requiresPlates": [
@@ -290,7 +264,7 @@
       "type": "gate",
       "id": "combat_exit_gate",
       "x": 34,
-      "y": 8,
+      "y": 10,
       "group": "combat",
       "frame": "horizontal",
       "requiresPlates": [],
@@ -313,8 +287,8 @@
     },
     {
       "type": "trap",
-      "x": 15,
-      "y": 9,
+      "x": 17,
+      "y": 10,
       "direction": {
         "x": -0.8944,
         "y": 0.4472
@@ -349,10 +323,10 @@
     },
     {
       "type": "story",
-      "x": 23,
-      "y": 17,
+      "x": 21,
+      "y": 16,
       "id": "mirror_note",
-      "text": "На экране остаётся не канал, а отражение. Чтобы выйти, придётся признать: шум был не только снаружи."
+      "text": "Это сон."
     },
     {
       "type": "plate",
@@ -400,8 +374,8 @@
     },
     {
       "type": "remote",
-      "x": 5,
-      "y": 7,
+      "x": 16,
+      "y": 8,
       "variant": 0
     },
     {
@@ -416,7 +390,7 @@
     },
     {
       "type": "heal",
-      "x": 21,
+      "x": 23,
       "y": 13,
       "variant": 0
     },
@@ -425,6 +399,12 @@
       "x": 24,
       "y": 3,
       "variant": 0
+    },
+    {
+      "type": "flashlight",
+      "x": 11,
+      "y": 14,
+      "variant": -1
     }
   ],
   "enemies": [
@@ -434,20 +414,44 @@
       "branch": "none",
       "level": 3,
       "hp": 2,
-      "x": 15,
-      "y": 11,
+      "x": 19,
+      "y": 7,
       "patrol": [
         [
-          15,
-          11
+          19,
+          7
+        ],
+        [
+          19,
+          6
+        ],
+        [
+          18,
+          6
         ],
         [
           17,
-          11
+          6
         ],
         [
           17,
-          9
+          7
+        ],
+        [
+          17,
+          8
+        ],
+        [
+          18,
+          8
+        ],
+        [
+          19,
+          8
+        ],
+        [
+          19,
+          7
         ]
       ]
     },
@@ -521,22 +525,6 @@
   "lights": [],
   "events": [
     {
-      "id": "intro_monologue",
-      "enabled": true,
-      "once": true,
-      "trigger": "levelStart",
-      "region": "",
-      "enemyId": "",
-      "enemyGroup": "",
-      "conditions": [],
-      "actions": [
-        {
-          "type": "showMonologue",
-          "text": "Я очнулся внутри старого эфира. Канал не выпускает меня просто так: нужно держаться в движении, искать пульт, читать записки и открыть выход."
-        }
-      ]
-    },
-    {
       "id": "remote_hint_monologue",
       "enabled": true,
       "once": true,
@@ -548,7 +536,7 @@
       "actions": [
         {
           "type": "showMonologue",
-          "text": "Пульт выглядит как единственный способ спорить с этим местом. Если найду его, смогу глушить врагов клавишей Q."
+          "text": "Что произошло? Где я?\n......\nЯ сплю..?"
         }
       ]
     },
@@ -564,7 +552,7 @@
       "actions": [
         {
           "type": "showMonologue",
-          "text": "Выход закрыт. Значит, нужно разобраться с механизмами комнаты: двигать заглушки на плиты, читать заметки и не давать рейтингу умереть."
+          "text": "Мне нужно разобраться и выбраться отсюда."
         }
       ]
     }
@@ -580,22 +568,24 @@
       "id": "remote_hint",
       "runs": [
         {
-          "tile": "floor",
+          "x": 3,
           "y": 6,
-          "x": 3,
-          "length": 5
+          "length": 7
         },
         {
-          "tile": "floor",
+          "x": 3,
           "y": 7,
-          "x": 3,
-          "length": 5
+          "length": 7
         },
         {
-          "tile": "floor",
-          "y": 8,
           "x": 3,
-          "length": 5
+          "y": 8,
+          "length": 7
+        },
+        {
+          "x": 3,
+          "y": 9,
+          "length": 7
         }
       ]
     },
@@ -603,22 +593,19 @@
       "id": "first_choice",
       "runs": [
         {
-          "tile": "floor",
+          "x": 13,
+          "y": 8,
+          "length": 3
+        },
+        {
+          "x": 13,
           "y": 9,
-          "x": 12,
-          "length": 6
+          "length": 3
         },
         {
-          "tile": "floor",
+          "x": 12,
           "y": 10,
-          "x": 12,
-          "length": 6
-        },
-        {
-          "tile": "floor",
-          "y": 11,
-          "x": 12,
-          "length": 6
+          "length": 4
         }
       ]
     }

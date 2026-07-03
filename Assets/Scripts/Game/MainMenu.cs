@@ -231,7 +231,7 @@ public sealed class MainMenu : MonoBehaviour
             : new Rect(panel.x + 28f, playRect.y + 2f, panel.width - playRect.width - 76f, 48f);
         GUI.Label(selectedRect, footerMessage, statusStyle);
 
-        GUI.Label(new Rect(panel.x + 28f, panel.yMax - 42f, panel.width - 56f, 22f), "WASD/стрелки - движение | Space/ЛКМ - атака | E - действие | Q - пульт | Esc - меню", hintStyle);
+        GUI.Label(new Rect(panel.x + 28f, panel.yMax - 42f, panel.width - 56f, 22f), "WASD/стрелки - движение | Space/ЛКМ - атака | E - действие | Q - пульт, если выбран | Esc - меню", hintStyle);
     }
 
     private void DrawLightingToggle(Rect rect)

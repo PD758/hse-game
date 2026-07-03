@@ -53,6 +53,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
+    private const float FlashlightIntensity = 0.94f;
+    private const float FlashlightRadius = 40f;
+    private const float FlashlightOuterAngle = 58f;
+    private const float FlashlightInnerAngle = 22f;
     private const string CameraLightName = "Camera Light";
     private const string EnemyLightName = "Enemy Light";
     private const string EnemyBeamName = "Enemy Beam";
@@ -114,6 +118,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite rubbleSprite;
     [SerializeField] private Sprite trapSprite;
     [SerializeField] private Sprite remoteSprite;
+    [SerializeField] private Sprite flashlightSprite;
     [SerializeField] private Sprite storySprite;
     [SerializeField] private Sprite healSprite;
     [SerializeField] private Sprite playerSprite;
@@ -166,7 +171,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private float attackCooldown;
     private float remoteCooldown;
     private float remoteJamTimer;
-    private bool hasRemote;
+    private AbilitySlot equippedAbility = AbilitySlot.None;
     private bool gameEnded;
     private bool runCompleted;
     private bool paused;
@@ -186,6 +191,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             ? EndlessRunState.CurrentLevelId
             : LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
         BuildLevel();
+        EnsureRuntimeFallbackSprites();
 
         if (!HasBakedAssets() || !BindSceneViews())
         {
@@ -226,6 +232,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdateNoteMessage(Time.deltaTime);
         ReadMoveInput();
         UpdatePlayerSprite();
+        UpdatePlayerLight();
 
         if (gameEnded)
             return;
@@ -449,7 +456,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         attackCooldown = 0f;
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
-        hasRemote = false;
+        equippedAbility = AbilitySlot.None;
         noteMessage = null;
         noteMessageTimer = 0f;
         noteMessageAge = 0f;
@@ -499,7 +506,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         attackCooldown = 0f;
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
-        hasRemote = false;
+        equippedAbility = AbilitySlot.None;
         noteMessage = null;
         noteMessageTimer = 0f;
         noteMessageAge = 0f;
@@ -650,13 +657,13 @@ public sealed partial class PrototypeGame : MonoBehaviour
             Tile tile = tiles[next.x, next.y];
             if (tile == Tile.Remote)
             {
-                hasRemote = true;
-                tiles[next.x, next.y] = Tile.Floor;
-                tileVariants[next.x, next.y] = -1;
-                NarrativeRunState.RecordSignalInsight();
-                RestoreRating(10f);
-                message = "Пульт: Q глушит эфир на 3 секунды. Кд 18 секунд.";
-                RedrawTile(next);
+                PickupAbility(next, AbilitySlot.Remote);
+                return;
+            }
+
+            if (tile == Tile.Flashlight)
+            {
+                PickupAbility(next, AbilitySlot.Flashlight);
                 return;
             }
 
@@ -698,9 +705,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         MarkActivity();
 
-        if (!hasRemote)
+        if (!HasRemote)
         {
-            message = "Пульт ещё где-то в эфире. Найдите его и нажмите E.";
+            message = HasFlashlight ? "Сейчас в слоте фонарь: он светит сам, а Q не использует пульт." : "Пульт ещё где-то в эфире. Найдите его и нажмите E.";
             return;
         }
 
@@ -716,6 +723,45 @@ public sealed partial class PrototypeGame : MonoBehaviour
         MakeNoise(PlayerCell(), 2);
         message = "Пульт глушит эфир. Дикторы вязнут в помехах.";
     }
+
+    private void PickupAbility(Vector2Int cell, AbilitySlot ability)
+    {
+        AbilitySlot previous = equippedAbility;
+        equippedAbility = ability;
+        if (ability != AbilitySlot.Remote || previous != AbilitySlot.Remote)
+        {
+            remoteCooldown = 0f;
+            remoteJamTimer = 0f;
+        }
+
+        Tile droppedTile = AbilityTile(previous);
+        bool swappedAbility = previous != AbilitySlot.None && previous != ability && droppedTile != Tile.Floor;
+        tiles[cell.x, cell.y] = swappedAbility ? droppedTile : Tile.Floor;
+        tileVariants[cell.x, cell.y] = -1;
+        NarrativeRunState.RecordSignalInsight();
+        RestoreRating(ability == AbilitySlot.Remote ? 10f : 6f);
+        RedrawTile(cell);
+        UpdatePlayerLight();
+
+        if (ability == AbilitySlot.Remote)
+            message = previous == AbilitySlot.Flashlight ? "Вы сменили фонарь на пульт. Фонарь остался лежать рядом." : "Пульт: Q глушит эфир на 3 секунды. КД 18 секунд.";
+        else
+            message = previous == AbilitySlot.Remote ? "Вы сменили пульт на фонарь. Пульт остался лежать рядом." : "Фонарь: пассивно светит по направлению движения. Слот занят фонарём.";
+    }
+
+    private static Tile AbilityTile(AbilitySlot ability)
+    {
+        return ability switch
+        {
+            AbilitySlot.Remote => Tile.Remote,
+            AbilitySlot.Flashlight => Tile.Flashlight,
+            _ => Tile.Floor,
+        };
+    }
+
+    private bool HasRemote => equippedAbility == AbilitySlot.Remote;
+
+    private bool HasFlashlight => equippedAbility == AbilitySlot.Flashlight;
 
     private bool TryPushStone()
     {
@@ -2629,6 +2675,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             "rubble" => Tile.Rubble,
             "trap" => Tile.Trap,
             "remote" => Tile.Remote,
+            "flashlight" => Tile.Flashlight,
             "story" => Tile.Story,
             "heal" => Tile.Heal,
             _ => Tile.Wall,
@@ -2684,6 +2731,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 break;
             case "remote":
                 tiles[cell.x, cell.y] = Tile.Remote;
+                tileVariants[cell.x, cell.y] = obj.variant;
+                break;
+            case "flashlight":
+                tiles[cell.x, cell.y] = Tile.Flashlight;
                 tileVariants[cell.x, cell.y] = obj.variant;
                 break;
             case "trap":

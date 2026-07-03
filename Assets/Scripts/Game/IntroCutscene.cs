@@ -11,19 +11,30 @@ using UnityEditor;
 
 public sealed class IntroCutscene : MonoBehaviour
 {
-    private const float Duration = 9.5f;
+    private const float Duration = 10.5f;
     private const int IntroAtlasColumns = 4;
     private const int IntroAtlasRows = 8;
     private const float IntroAtlasPixelsPerUnit = 64f;
+    private const string IntroTextResourcePath = "Texts/intro_cutscene_ru";
+    private static readonly string[] DefaultThoughtLines =
+    {
+        "template",
+        "template",
+        "template"
+    };
 
     public Texture2D IntroAtlas;
 
     [SerializeField] private SpriteRenderer screenRenderer;
+    [SerializeField] private SpriteRenderer staticRenderer;
     [SerializeField] private SpriteRenderer glowRenderer;
     [SerializeField] private SpriteRenderer beamRenderer;
+    [SerializeField] private SpriteRenderer signalRingRenderer;
     [SerializeField] private SpriteRenderer fadeRenderer;
     [SerializeField] private SpriteRenderer viewerRenderer;
     [SerializeField] private SpriteRenderer viewerCastShadowRenderer;
+    [SerializeField] private SpriteRenderer tvCabinetRenderer;
+    [SerializeField] private SpriteRenderer tvBodyRenderer;
     [SerializeField] private Light2D tvLight;
     [SerializeField] private Light2D pullLight;
     [SerializeField] private Texture2D hudTexture;
@@ -31,6 +42,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private VolumeProfile postProcessProfile;
     private ColorAdjustments postProcessColor;
     private float startedAt;
+    private string[] thoughtLines = DefaultThoughtLines;
 
     private void Awake()
     {
@@ -38,6 +50,7 @@ public sealed class IntroCutscene : MonoBehaviour
         SetupCamera();
         EnsurePostProcessing();
         NarrativeRunState.Reset();
+        LoadCutsceneText();
         if (!BindSceneReferences())
         {
             Debug.LogError("Intro scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
@@ -45,6 +58,7 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
         }
 
+        EnsureOptionalIntroLayers();
         EnsureLighting();
         startedAt = Time.time;
     }
@@ -77,20 +91,21 @@ public sealed class IntroCutscene : MonoBehaviour
 
         if (!string.IsNullOrEmpty(thought))
         {
-            float width = Mathf.Min(760f, screenWidth - 40f);
-            var panel = new Rect((screenWidth - width) * 0.5f, 22f, width, 86f);
-            GUI.color = new Color(1f, 1f, 1f, Mathf.SmoothStep(0f, 1f, Mathf.Min(t * 8f, 1f)));
+            float width = Mathf.Min(820f, screenWidth - 48f);
+            float height = screenWidth < 760 ? 112f : 132f;
+            var panel = new Rect((screenWidth - width) * 0.5f, (screenHeight - height) * 0.5f, width, height);
+            GUI.color = new Color(1f, 1f, 1f, TextAlpha(t));
             GUI.DrawTexture(panel, hudTexture);
 
             var style = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.MiddleCenter,
-                fontSize = screenWidth < 760 ? 15 : 18,
+                fontSize = screenWidth < 760 ? 20 : 28,
                 wordWrap = true,
-                normal = { textColor = new Color(0.86f, 0.90f, 0.94f) },
+                normal = { textColor = new Color(0.94f, 0.96f, 0.98f) },
             };
             PixelGui.Apply(style);
-            GUI.Label(new Rect(panel.x + 18f, panel.y + 14f, panel.width - 36f, panel.height - 22f), thought, style);
+            GUI.Label(new Rect(panel.x + 28f, panel.y + 18f, panel.width - 56f, panel.height - 36f), thought, style);
             GUI.color = Color.white;
         }
 
@@ -105,17 +120,58 @@ public sealed class IntroCutscene : MonoBehaviour
         GUI.matrix = previousMatrix;
     }
 
-    private static string ThoughtLine(float t)
+    private void LoadCutsceneText()
     {
-        if (t < 0.24f)
-            return "Почему все делают вид, что этот канал единственный?";
-        if (t < 0.48f)
-            return "Почему тех, кто не смотрит, будто выносят за дверь?";
-        if (t < 0.72f)
-            return "Экран становится ближе, хотя комната не двигается.";
-        if (t < 0.90f)
-            return "сон проваливается внутрь эфира";
+        TextAsset text = Resources.Load<TextAsset>(IntroTextResourcePath);
+        if (text == null || string.IsNullOrWhiteSpace(text.text))
+            return;
+
+        string[] rawLines = text.text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var lines = new System.Collections.Generic.List<string>();
+        foreach (string rawLine in rawLines)
+        {
+            string line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal))
+                continue;
+            lines.Add(line);
+        }
+
+        if (lines.Count >= 3)
+            thoughtLines = lines.GetRange(0, 3).ToArray();
+    }
+
+    private string ThoughtLine(float t)
+    {
+        if (t < 0.26f)
+            return thoughtLines[0];
+        if (t < 0.56f)
+            return thoughtLines[1];
+        if (t < 0.86f)
+            return thoughtLines[2];
         return string.Empty;
+    }
+
+    private static float TextAlpha(float t)
+    {
+        return Mathf.Max(
+            BeatAlpha(t, 0.06f, 0.26f),
+            Mathf.Max(BeatAlpha(t, 0.35f, 0.56f), BeatAlpha(t, 0.65f, 0.86f)));
+    }
+
+    private static float BeatAlpha(float t, float start, float end)
+    {
+        float fadeIn = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - start) / 0.055f));
+        float fadeOut = Mathf.SmoothStep(1f, 0f, Mathf.Clamp01((t - (end - 0.055f)) / 0.055f));
+        return fadeIn * fadeOut;
+    }
+
+    private static float SleepFadeAlpha(float t)
+    {
+        float beats = Mathf.Max(
+            BeatAlpha(t, 0.02f, 0.30f),
+            Mathf.Max(BeatAlpha(t, 0.31f, 0.60f), BeatAlpha(t, 0.61f, 0.90f)));
+        float finalFade = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.90f) / 0.09f));
+        return Mathf.Clamp01(beats * 0.58f + finalFade);
     }
 
     private void AnimateScene()
@@ -123,29 +179,75 @@ public sealed class IntroCutscene : MonoBehaviour
         float elapsed = Time.time - startedAt;
         float t = Mathf.Clamp01(elapsed / Duration);
         float pulse = 0.5f + Mathf.Sin(Time.time * 18f) * 0.5f;
+        float drowsy = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.12f) / 0.58f));
+        float sleep = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.54f) / 0.32f));
+        float screenFade = SleepFadeAlpha(t);
+        float staticPulse = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.08f) / 0.36f));
+        float shake = (0.004f + drowsy * 0.010f) * (0.45f + pulse * 0.55f);
+        Vector3 cameraShake = new Vector3(Mathf.Sin(Time.time * 11f) * shake, Mathf.Cos(Time.time * 9f) * shake * 0.55f, 0f);
+        Vector3 tvShake = new Vector3(Mathf.Sin(Time.time * 31f) * 0.006f * drowsy, Mathf.Cos(Time.time * 29f) * 0.004f * drowsy, 0f);
 
-        screenRenderer.color = Color.Lerp(new Color(0.36f, 0.48f, 0.64f), new Color(0.82f, 0.92f, 1.00f), pulse * 0.45f + t * 0.25f);
-        glowRenderer.color = new Color(0.55f, 0.82f, 1f, Mathf.Lerp(0.04f, 0.14f, t) + pulse * 0.02f);
-        glowRenderer.transform.localScale = new Vector3(1f + pulse * 0.05f, 1f + t * 0.18f, 1f);
-        beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.12f, Mathf.Clamp01((t - 0.44f) / 0.34f)));
-        float castShadow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.58f) / 0.30f));
-        float shadowAlpha = Mathf.Lerp(0f, 0.42f, castShadow) * GameLightingSettings.IntroShadowAlphaMultiplier;
+        screenRenderer.color = Color.Lerp(new Color(0.22f, 0.29f, 0.42f), new Color(0.70f, 0.88f, 1.00f), pulse * 0.32f + staticPulse * 0.28f);
+        screenRenderer.transform.position = new Vector3(0f, 2.09f, 0f) + tvShake;
+        screenRenderer.transform.localScale = Vector3.one * (1f + pulse * 0.018f + drowsy * 0.025f);
+        if (staticRenderer != null)
+        {
+            staticRenderer.color = new Color(0.78f, 0.93f, 1f, Mathf.Lerp(0.04f, 0.26f, staticPulse) + pulse * 0.05f + screenFade * 0.10f);
+            staticRenderer.transform.position = new Vector3(0f, 2.09f, 0f) + tvShake + new Vector3(Mathf.Sin(Time.time * 43f) * 0.012f, Mathf.Cos(Time.time * 37f) * 0.008f, 0f);
+            staticRenderer.transform.localScale = Vector3.one * (1.02f + pulse * 0.035f);
+        }
+
+        if (tvCabinetRenderer != null)
+            tvCabinetRenderer.transform.position = new Vector3(0f, 1.82f, 0f) + tvShake;
+        if (tvBodyRenderer != null)
+            tvBodyRenderer.transform.position = new Vector3(0f, 2.08f, 0f) + tvShake;
+
+        glowRenderer.color = new Color(0.55f, 0.82f, 1f, 0.08f + pulse * 0.06f + drowsy * 0.18f + screenFade * 0.08f);
+        glowRenderer.transform.localScale = new Vector3(1.0f + drowsy * 0.42f + pulse * 0.06f, 1.0f + drowsy * 0.62f + pulse * 0.08f, 1f);
+        beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.18f, drowsy) * (1f - sleep * 0.45f));
+        beamRenderer.transform.localScale = new Vector3(0.78f + drowsy * 0.22f + pulse * 0.04f, 0.74f + drowsy * 0.18f, 1f);
+        if (signalRingRenderer != null)
+        {
+            signalRingRenderer.color = new Color(0.76f, 0.94f, 1f, Mathf.SmoothStep(0f, 0.24f, drowsy) * (1f - sleep * 0.65f));
+            signalRingRenderer.transform.position = new Vector3(0f, 2.08f, 0f) + tvShake;
+            signalRingRenderer.transform.localScale = Vector3.one * Mathf.Lerp(0.54f, 1.45f, drowsy + pulse * 0.08f);
+            signalRingRenderer.transform.Rotate(0f, 0f, (32f + drowsy * 74f) * Time.deltaTime);
+        }
+
+        float castShadow = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.22f) / 0.46f));
+        float shadowAlpha = Mathf.Lerp(0f, 0.58f, castShadow) * GameLightingSettings.IntroShadowAlphaMultiplier;
         viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, shadowAlpha);
-        viewerCastShadowRenderer.transform.localScale = new Vector3(1f + castShadow * 0.22f, 1f + castShadow * 0.30f, 1f);
+        viewerCastShadowRenderer.transform.localScale = new Vector3(1f + castShadow * 0.42f, 1f + castShadow * 0.24f, 1f);
         if (tvLight != null)
         {
-            tvLight.intensity = Mathf.Lerp(1.15f, 1.75f, t) + pulse * 0.12f;
-            tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.8f, t);
+            tvLight.intensity = Mathf.Lerp(1.05f, 1.95f, drowsy) + pulse * 0.18f + screenFade * 0.20f;
+            tvLight.pointLightOuterRadius = Mathf.Lerp(5.2f, 6.6f, drowsy);
         }
 
         if (pullLight != null)
-            pullLight.intensity = Mathf.SmoothStep(0f, 1.55f, Mathf.Clamp01((t - 0.48f) / 0.34f));
-        viewerRenderer.transform.position = Vector3.Lerp(new Vector3(0f, -1.82f, 0f), new Vector3(0f, -1.52f, 0f), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.55f) / 0.35f)));
-        fadeRenderer.color = new Color(0f, 0f, 0f, Mathf.SmoothStep(0f, 0.96f, Mathf.Clamp01((t - 0.72f) / 0.28f)));
+            pullLight.intensity = Mathf.SmoothStep(0f, 0.42f, drowsy) * (1f - sleep * 0.55f);
+
+        Vector3 viewerStart = new Vector3(0f, -1.82f, 0f);
+        Vector3 viewerSleep = new Vector3(0.12f, -1.98f, 0f);
+        viewerRenderer.transform.position = Vector3.Lerp(viewerStart, viewerSleep, sleep) + new Vector3(0f, Mathf.Sin(Time.time * 2.8f) * 0.018f * (1f - sleep), 0f);
+        viewerRenderer.transform.localScale = new Vector3(1f + Mathf.Sin(Time.time * 2.6f) * 0.018f * drowsy, 1f - sleep * 0.08f, 1f);
+        viewerRenderer.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(0f, -13f, sleep) + Mathf.Sin(Time.time * 2.3f) * drowsy * 1.8f);
+        viewerRenderer.color = Color.Lerp(Color.white, new Color(0.68f, 0.76f, 0.86f, 0.88f), sleep * 0.52f);
+        fadeRenderer.color = new Color(0f, 0f, 0f, SleepFadeAlpha(t));
+
+        if (postProcessColor != null)
+        {
+            postProcessColor.contrast.Override(Mathf.Lerp(10f, 24f, drowsy));
+            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -30f, sleep));
+            postProcessColor.postExposure.Override(-0.04f + GameLightingSettings.IntroExposureOffset - screenFade * 0.34f);
+        }
 
         Camera camera = Camera.main;
         if (camera != null)
-            camera.orthographicSize = Mathf.Lerp(5.4f, 4.15f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.35f) / 0.55f)));
+        {
+            camera.orthographicSize = Mathf.Lerp(5.4f, 4.65f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.20f) / 0.60f)));
+            camera.transform.position = new Vector3(0f, Mathf.Lerp(0f, -0.12f, sleep), -10f) + cameraShake;
+        }
     }
 
     private void BuildScene()
@@ -155,6 +257,7 @@ public sealed class IntroCutscene : MonoBehaviour
         CreateSpriteObject("Room Floor", IntroSpriteOrFallback(0, 3, "intro_floor", CreateRoomFloorSprite()), Vector3.zero, new Vector3(2.5f, 1.6f, 1f), -10);
         CreateSpriteObject("Window Shadow", IntroSpriteOrFallback(3, 0, "intro_window_shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f))), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
         SpriteRenderer tvCabinet = CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
+        tvCabinetRenderer = tvCabinet;
 
         SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", IntroSpriteOrFallback(0, 1, "intro_couch_shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f))), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
@@ -165,13 +268,16 @@ public sealed class IntroCutscene : MonoBehaviour
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
         SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroAtlas != null ? null : CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
+        tvBodyRenderer = tvBody;
         screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
+        staticRenderer = CreateSpriteObject("TV Static Overlay", IntroSpriteOrFallback(1, 1, "intro_tv_static_overlay", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 6);
         glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
         beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
+        signalRingRenderer = CreateSpriteObject("Signal Ring", CreateSignalRingSprite(), new Vector3(0f, 2.08f, 0f), new Vector3(0.52f, 0.52f, 1f), 8);
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
-        SetUnlit(couchShadow, screenRenderer, glowRenderer, beamRenderer, viewerCastShadowRenderer, fadeRenderer);
+        SetUnlit(couchShadow, screenRenderer, staticRenderer, glowRenderer, beamRenderer, signalRingRenderer, viewerCastShadowRenderer, fadeRenderer);
         Urp2DLighting.AddGlobalLight(gameObject, new Color(0.58f, 0.62f, 0.68f), 0.52f);
         tvLight = Urp2DLighting.AddPointLight(screenRenderer.gameObject, new Color(0.58f, 0.84f, 1.00f), 1.15f, 5.2f, 0.25f);
         pullLight = Urp2DLighting.AddPointLight(beamRenderer.gameObject, new Color(0.70f, 0.92f, 1.00f), 0f, 3.2f, 0.1f);
@@ -187,9 +293,13 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private bool BindSceneReferences()
     {
+        tvCabinetRenderer = FindRenderer("TV Cabinet");
+        tvBodyRenderer = FindRenderer("TV Body");
         screenRenderer = FindRenderer("TV Screen");
+        staticRenderer = FindRenderer("TV Static Overlay");
         glowRenderer = FindRenderer("TV Glow");
         beamRenderer = FindRenderer("Pull Beam");
+        signalRingRenderer = FindRenderer("Signal Ring");
         fadeRenderer = FindRenderer("Fade");
         viewerRenderer = FindRenderer("Viewer");
         viewerCastShadowRenderer = FindRenderer("Viewer Cast Shadow");
@@ -230,6 +340,32 @@ public sealed class IntroCutscene : MonoBehaviour
     {
         GameObject obj = GameObject.Find(objectName);
         return obj == null ? null : obj.GetComponent<SpriteRenderer>();
+    }
+
+    private void EnsureOptionalIntroLayers()
+    {
+        if (staticRenderer == null && screenRenderer != null)
+            staticRenderer = CreateRuntimeSpriteObject("TV Static Overlay", screenRenderer.sprite, new Vector3(0f, 2.09f, 0f), Vector3.one, 6);
+        if (signalRingRenderer == null)
+            signalRingRenderer = CreateRuntimeSpriteObject("Signal Ring", CreateSignalRingSprite(), new Vector3(0f, 2.08f, 0f), new Vector3(0.52f, 0.52f, 1f), 8);
+
+        SetUnlit(staticRenderer, signalRingRenderer);
+    }
+
+    private static SpriteRenderer CreateRuntimeSpriteObject(string name, Sprite sprite, Vector3 position, Vector3 scale, int sortingOrder)
+    {
+        var obj = new GameObject(name);
+        Transform root = GameObject.Find("Intro Art")?.transform;
+        if (root != null)
+            obj.transform.SetParent(root);
+        obj.transform.position = position;
+        obj.transform.localScale = scale;
+        var renderer = obj.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.sortingOrder = sortingOrder;
+        if (Urp2DLighting.SpriteLitMaterial != null)
+            renderer.sharedMaterial = Urp2DLighting.SpriteLitMaterial;
+        return renderer;
     }
 
 #if UNITY_EDITOR
@@ -358,7 +494,10 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
 
         foreach (SpriteRenderer renderer in renderers)
-            renderer.sharedMaterial = material;
+        {
+            if (renderer != null)
+                renderer.sharedMaterial = material;
+        }
     }
 
     private Sprite IntroSpriteOrFallback(int row, int column, string spriteName, Sprite fallback)
@@ -556,6 +695,29 @@ public sealed class IntroCutscene : MonoBehaviour
 
         texture.Apply(false, false);
         return Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(0.5f, 0.82f), 32f, 0, SpriteMeshType.FullRect);
+    }
+
+    private static Sprite CreateSignalRingSprite()
+    {
+        const int size = 128;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear };
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                Vector2 delta = new Vector2(x, y) - center;
+                float distance = delta.magnitude / (size * 0.5f);
+                float ring = Mathf.Clamp01(1f - Mathf.Abs(distance - 0.62f) * 18f);
+                float outer = Mathf.Clamp01(1f - Mathf.Abs(distance - 0.92f) * 24f) * 0.45f;
+                float spoke = Mathf.Abs(Mathf.Sin(Mathf.Atan2(delta.y, delta.x) * 6f)) > 0.93f ? 0.28f : 0f;
+                float alpha = Mathf.Clamp01(Mathf.Max(ring, outer) + spoke * Mathf.Clamp01(1f - distance)) * Mathf.SmoothStep(1f, 0f, distance);
+                texture.SetPixel(x, y, new Color(0.70f, 0.92f, 1f, alpha));
+            }
+        }
+
+        texture.Apply(false, false);
+        return Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), 32f, 0, SpriteMeshType.FullRect);
     }
 
     private static Sprite CreateHumanCastShadowSprite()

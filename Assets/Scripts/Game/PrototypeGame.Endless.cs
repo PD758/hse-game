@@ -159,9 +159,7 @@ public sealed partial class PrototypeGame
 
     private void AddEndlessObjects(LevelDefinition level, List<EndlessRoom> rooms, HashSet<Vector2Int> occupied, System.Random rng)
     {
-        float remoteChance = EndlessRunState.Level == 1 ? 0.45f : 0.14f;
-        if (!hasRemote && rng.NextDouble() < remoteChance)
-            AddEndlessObject(level, "remote", rooms[Mathf.Min(1, rooms.Count - 1)], occupied, rng);
+        AddEndlessAbilityPickup(level, rooms, occupied, rng);
 
         if (rng.NextDouble() < 0.72)
             AddEndlessObject(level, "heal", rooms[rng.Next(1, rooms.Count)], occupied, rng);
@@ -169,6 +167,32 @@ public sealed partial class PrototypeGame
         int trapCount = Mathf.Clamp(1 + EndlessRunState.Level / 2, 1, 7);
         for (int i = 0; i < trapCount; i++)
             AddEndlessObject(level, "trap", rooms[rng.Next(1, rooms.Count)], occupied, rng);
+    }
+
+    private void AddEndlessAbilityPickup(LevelDefinition level, List<EndlessRoom> rooms, HashSet<Vector2Int> occupied, System.Random rng)
+    {
+        EndlessRoom pickupRoom = rooms[Mathf.Min(1, rooms.Count - 1)];
+        if (HasRemote)
+        {
+            if (rng.NextDouble() < 0.32)
+                AddEndlessObject(level, "flashlight", pickupRoom, occupied, rng);
+            return;
+        }
+
+        if (HasFlashlight)
+        {
+            float remoteChance = EndlessRunState.Level == 1 ? 0.24f : 0.12f;
+            if (rng.NextDouble() < remoteChance)
+                AddEndlessObject(level, "remote", pickupRoom, occupied, rng);
+            return;
+        }
+
+        double roll = rng.NextDouble();
+        float firstLevelBonus = EndlessRunState.Level == 1 ? 0.12f : 0f;
+        if (roll < 0.16 + firstLevelBonus)
+            AddEndlessObject(level, "remote", pickupRoom, occupied, rng);
+        else if (roll < 0.52 + firstLevelBonus)
+            AddEndlessObject(level, "flashlight", pickupRoom, occupied, rng);
     }
 
     private void AddEndlessObject(LevelDefinition level, string type, EndlessRoom room, HashSet<Vector2Int> occupied, System.Random rng)

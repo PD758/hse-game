@@ -310,6 +310,7 @@ public sealed partial class PrototypeGame
         rubbleSprite = CreateSprite(new Color(0.18f, 0.18f, 0.20f), new Color(0.08f, 0.08f, 0.09f), new Color(0.72f, 0.76f, 0.82f), SpriteMark.Rubble);
         trapSprite = CreateSprite(new Color(0.18f, 0.10f, 0.13f), new Color(0.08f, 0.05f, 0.06f), new Color(0.94f, 0.18f, 0.28f), SpriteMark.Trap);
         remoteSprite = CreateSprite(new Color(0.12f, 0.13f, 0.14f), new Color(0.05f, 0.05f, 0.05f), new Color(1.00f, 0.86f, 0.25f), SpriteMark.Remote);
+        flashlightSprite = CreateSprite(new Color(0.16f, 0.13f, 0.08f), new Color(0.06f, 0.05f, 0.035f), new Color(1.00f, 0.92f, 0.54f), SpriteMark.Flashlight);
         storySprite = CreateSprite(new Color(0.12f, 0.17f, 0.20f), new Color(0.04f, 0.07f, 0.08f), new Color(0.68f, 0.94f, 1.00f), SpriteMark.Story);
         healSprite = CreateSprite(new Color(0.10f, 0.20f, 0.18f), new Color(0.04f, 0.08f, 0.07f), new Color(0.74f, 1.00f, 0.74f), SpriteMark.Heal);
         playerSprite = CreateSprite(new Color(0.22f, 0.33f, 0.40f), new Color(0.07f, 0.10f, 0.13f), new Color(0.86f, 0.96f, 1.00f), SpriteMark.Player);
@@ -325,6 +326,37 @@ public sealed partial class PrototypeGame
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
         enemyBeamSprite = CreateEnemyBeamSprite();
+    }
+
+    private void EnsureRuntimeFallbackSprites()
+    {
+        if (flashlightSprite == null)
+            flashlightSprite = CreateRuntimeFlashlightSprite();
+    }
+
+    private static Sprite CreateRuntimeFlashlightSprite()
+    {
+        const int size = 16;
+        var texture = new Texture2D(size, size, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Bilinear,
+            name = "flashlight_runtime",
+        };
+
+        for (int x = 0; x < size; x++)
+        {
+            for (int y = 0; y < size; y++)
+            {
+                bool edge = x == 0 || y == 0 || x == size - 1 || y == size - 1;
+                texture.SetPixel(x, y, edge ? new Color(0.06f, 0.05f, 0.035f) : new Color(0.16f, 0.13f, 0.08f));
+            }
+        }
+
+        DrawMark(texture, SpriteMark.Flashlight, new Color(1.00f, 0.92f, 0.54f));
+        texture.Apply(false, false);
+        Sprite sprite = Sprite.Create(texture, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+        sprite.name = "flashlight_runtime";
+        return sprite;
     }
 
     private static Sprite CreateEnemyBeamSprite()
@@ -444,6 +476,12 @@ public sealed partial class PrototypeGame
                 DrawRect(texture, 5, 4, 6, 9, color, false);
                 SetSafe(texture, 8, 6, color);
                 SetSafe(texture, 8, 9, color);
+                break;
+            case SpriteMark.Flashlight:
+                DrawRect(texture, 4, 6, 8, 4, color, true);
+                DrawRect(texture, 10, 5, 3, 6, color, false);
+                DrawLine(texture, 3, 8, 1, 6, color);
+                DrawLine(texture, 3, 8, 1, 10, color);
                 break;
             case SpriteMark.Story:
                 DrawRect(texture, 4, 3, 8, 10, color, false);

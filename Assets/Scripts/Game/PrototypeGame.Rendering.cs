@@ -261,11 +261,29 @@ public sealed partial class PrototypeGame
         playerLightObject.transform.localPosition = Vector3.zero;
         playerLight = playerLightObject.GetComponent<Light2D>() ??
                       Urp2DLighting.AddPointLight(playerLightObject, new Color(0.82f, 0.94f, 1.00f), 0.44f, 2.5f, 0.55f);
+        UpdatePlayerLight();
+    }
+
+    private void UpdatePlayerLight()
+    {
+        if (playerLight == null)
+            return;
+
+        if (HasFlashlight)
+        {
+            Vector2 direction = DirectionOrFallback(lastAim, Vector2.right);
+            Urp2DLighting.ConfigureConeLight(playerLight, new Color(1.00f, 0.94f, 0.72f), FlashlightIntensity, FlashlightRadius, 0.45f, FlashlightOuterAngle, FlashlightInnerAngle, direction);
+            Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.46f, 0.46f, 0.66f);
+            return;
+        }
+
         playerLight.lightType = Light2D.LightType.Point;
         playerLight.color = new Color(0.82f, 0.94f, 1.00f);
         playerLight.intensity = 0.44f;
         playerLight.pointLightOuterRadius = 2.5f;
         playerLight.pointLightInnerRadius = 0.55f;
+        playerLight.pointLightOuterAngle = 360f;
+        playerLight.pointLightInnerAngle = 360f;
         Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
     }
 
@@ -780,6 +798,7 @@ public sealed partial class PrototypeGame
             Tile.Rubble => rubbleSprite,
             Tile.Trap => trapSprite,
             Tile.Remote => remoteSprite,
+            Tile.Flashlight => flashlightSprite,
             Tile.Story => storySprite,
             Tile.Heal => healSprite,
             Tile.Exit => CanUseExit(cell) ? openExitSprite ?? exitSprite : exitSprite,
@@ -806,6 +825,7 @@ public sealed partial class PrototypeGame
         return tile switch
         {
             Tile.Remote => new Vector3(1.25f, 1.25f, 1f),
+            Tile.Flashlight => new Vector3(1.18f, 1.18f, 1f),
             Tile.Story => new Vector3(1.15f, 1.15f, 1f),
             Tile.Heal => new Vector3(1.18f, 1.18f, 1f),
             Tile.Exit => new Vector3(1.10f, 1.10f, 1f),
@@ -999,6 +1019,7 @@ public sealed partial class PrototypeGame
                tile == Tile.Rubble ||
                tile == Tile.Trap ||
                tile == Tile.Remote ||
+               tile == Tile.Flashlight ||
                tile == Tile.Story ||
                tile == Tile.Heal ||
                tile == Tile.Exit;
