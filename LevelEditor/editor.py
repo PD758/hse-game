@@ -368,7 +368,7 @@ def handle_left_click(
         return selected_ref, None, True
 
     if tool["kind"] == "enemy":
-        level["enemies"].append({"id": f"enemy_{cell[0]}_{cell[1]}", "type": "announcer", "branch": "none", "level": 3, "hp": 2, "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
+        level["enemies"].append({"id": f"enemy_{cell[0]}_{cell[1]}", "type": "patrol", "branch": "none", "level": 3, "hp": 2, "x": cell[0], "y": cell[1], "patrol": [[cell[0], cell[1]]]})
         return (ENEMY_TYPE, len(level["enemies"]) - 1), None, True
 
     if tool["kind"] == "exit":

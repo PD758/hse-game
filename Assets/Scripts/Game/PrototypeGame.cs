@@ -44,6 +44,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float EnemySideSightRange = 4.5f;
     private const float EnemyBackSightRange = 2.5f;
     private const float EnemyCloseDetectionRange = 4.0f;
+    private const float EnemyBaseSearchDuration = 3.2f;
+    private const float EnemyAlertRadius = 5.5f;
+    private const float EnemyDamageAlertRadius = 7.0f;
+    private const float EnemyCallHelpCooldown = 5.8f;
+    private const float EnemyFlankCooldown = 1.15f;
     private const float RemoteCooldown = 18f;
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
@@ -164,9 +169,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private bool hasRemote;
     private bool gameEnded;
     private bool runCompleted;
+    private bool paused;
+    private bool showPauseBindings;
     private string message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
     private string noteMessage;
     private float noteMessageTimer;
+    private float noteMessageAge;
 
     private void Awake()
     {
@@ -197,15 +205,21 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         Mouse mouse = Mouse.current;
 
-        if (Pressed(keyboard?.rKey))
+        if (Pressed(keyboard?.escapeKey) && !gameEnded)
         {
-            Restart();
+            SetPaused(!paused);
             return;
         }
 
-        if (Pressed(keyboard?.escapeKey))
+        if (paused)
+            return;
+
+        if (Pressed(keyboard?.rKey))
         {
-            SceneManager.LoadScene("MainMenu");
+            if (gameEnded)
+                RetryAfterDeath();
+            else
+                Restart();
             return;
         }
 
@@ -238,7 +252,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (gameEnded || playerBody == null)
+        if (gameEnded || paused || playerBody == null)
         {
             if (playerBody != null)
                 playerBody.linearVelocity = Vector2.zero;
@@ -400,6 +414,30 @@ public sealed partial class PrototypeGame : MonoBehaviour
         ResetCurrentLevel();
     }
 
+    private void RetryAfterDeath()
+    {
+        if (EndlessRunState.Enabled)
+            RestartRun();
+        else
+            ResetCurrentLevel();
+    }
+
+    private void SetPaused(bool value)
+    {
+        paused = value;
+        showPauseBindings = false;
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+    }
+
+    private void ReturnToMainMenu()
+    {
+        EndlessRunState.StartStory();
+        paused = false;
+        SceneManager.LoadScene("MainMenu");
+    }
+
     private void ResetCurrentLevel()
     {
         ClearLevelEntityViews();
@@ -414,9 +452,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
         hasRemote = false;
         noteMessage = null;
         noteMessageTimer = 0f;
+        noteMessageAge = 0f;
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
         gameEnded = false;
+        paused = false;
+        showPauseBindings = false;
         runCompleted = false;
         camerasBroken = 0;
 
@@ -461,7 +502,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
         hasRemote = false;
         noteMessage = null;
         noteMessageTimer = 0f;
+        noteMessageAge = 0f;
         gameEnded = false;
+        paused = false;
+        showPauseBindings = false;
         runCompleted = false;
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
@@ -572,6 +616,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private void ShowNoteMessage(string text)
     {
         noteMessage = text;
+        noteMessageAge = 0f;
         noteMessageTimer = Mathf.Clamp(4.5f + (text?.Length ?? 0) * 0.045f, 5.5f, 12f);
     }
 
@@ -580,9 +625,13 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (noteMessageTimer <= 0f)
             return;
 
+        noteMessageAge += dt;
         noteMessageTimer = Mathf.Max(0f, noteMessageTimer - dt);
         if (noteMessageTimer <= 0f)
+        {
             noteMessage = null;
+            noteMessageAge = 0f;
+        }
     }
 
     private void TryInteract()
@@ -756,10 +805,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
         target.Mode = EnemyMode.Hunt;
         target.LastSeen = PlayerCell();
         target.LostSightTimer = 0f;
+        target.SearchTimer = EnemySearchDurationFor(target);
+        BuildEnemySearchPoints(target, target.LastSeen);
         target.StunTimer = EnemyStunDuration;
         target.HitFlashTimer = EnemyHitFlashDuration;
         target.KnockbackVelocity = away * EnemyKnockbackSpeed;
         CancelEnemyAttack(target);
+        AlertEnemiesAround(PlayerCell(), target.Position, EnemyDamageAlertRadius);
+        TryAlertEnemies(target, PlayerCell(), target.Archetype == EnemyArchetype.Caller);
         SpawnHitBurst(target.Position, target.Hp <= 0);
         if (target.Hp <= 0)
             SpawnEnemyDeathFlash(target.Position);
@@ -840,17 +893,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
 
         playerHp -= amount;
-        message = playerHp <= 0 ? "Game Over: эфир оставил только шум. Нажмите R, чтобы пересмотреть канал." : text;
+        message = playerHp <= 0 ? "Game Over: эфир оставил только шум." : text;
         if (playerHp <= 0)
         {
-            if (EndlessRunState.Enabled)
-            {
-                EndlessRunState.StartStory();
-                SceneManager.LoadScene("MainMenu");
-                return;
-            }
-
             gameEnded = true;
+            paused = false;
+            showPauseBindings = false;
             currentVelocity = Vector2.zero;
             if (playerBody != null)
                 playerBody.linearVelocity = Vector2.zero;
@@ -995,6 +1043,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         lastNoisePower = 0;
         noteMessage = null;
         noteMessageTimer = 0f;
+        noteMessageAge = 0f;
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
     }
@@ -1305,6 +1354,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
             case "playEffect":
                 SpawnHitBurst(ToWorld(new Vector2Int(action.x, action.y)), true);
                 return false;
+            case "showMonologue":
+                ShowNoteMessage(action.text);
+                return false;
             default:
                 return false;
         }
@@ -1316,10 +1368,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
         {
             id = action.id,
             group = action.group,
+            type = action.enemy?.type ?? action.objectType,
+            alertGroup = action.enemy?.alertGroup ?? action.group,
             x = action.x,
             y = action.y,
             level = action.enemy?.level ?? 3,
             hp = action.enemy?.hp ?? 2,
+            hearing = action.enemy?.hearing ?? 0f,
+            vision = action.enemy?.vision ?? 0f,
             patrol = action.enemy?.patrol ?? new List<List<int>> { new List<int> { action.x, action.y } },
         };
     }
@@ -1438,7 +1494,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             UpdateEnemyState(enemy, dt);
 
             Vector2 target = ChooseEnemyTarget(enemy);
-            float speed = enemy.Mode == EnemyMode.Hunt ? 2.55f : enemy.Mode == EnemyMode.Investigate ? 2.1f : 1.55f;
+            float speed = EnemyBaseMoveSpeed(enemy);
             speed *= EnemySpeedScale(enemy);
             if (RemoteJamActive())
                 speed *= RemoteEnemySpeedMultiplier;
@@ -1473,6 +1529,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         enemy.HitFlashTimer = Mathf.Max(0f, enemy.HitFlashTimer - dt);
         enemy.StunTimer = Mathf.Max(0f, enemy.StunTimer - dt);
+        enemy.SearchTimer = Mathf.Max(0f, enemy.SearchTimer - dt);
+        enemy.AlertTimer = Mathf.Max(0f, enemy.AlertTimer - dt);
+        enemy.FlankCooldown = Mathf.Max(0f, enemy.FlankCooldown - dt);
+        enemy.CallHelpCooldown = Mathf.Max(0f, enemy.CallHelpCooldown - dt);
     }
 
     private bool UpdateEnemyKnockback(Enemy enemy, float dt)
@@ -1555,7 +1615,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemy.Mode == EnemyMode.Patrol || playerView == null)
             return false;
 
-        return Vector2.Distance(enemy.Position, playerView.transform.position) <= EnemyAttackRange;
+        return Vector2.Distance(enemy.Position, playerView.transform.position) <= EnemyAttackRangeFor(enemy);
     }
 
     private void StartEnemyAttack(Enemy enemy)
@@ -1586,7 +1646,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return false;
 
         Vector2 toPlayer = (Vector2)playerView.transform.position - enemy.Position;
-        if (toPlayer.magnitude > EnemyAttackRange)
+        if (toPlayer.magnitude > EnemyAttackRangeFor(enemy))
             return false;
         if (toPlayer.sqrMagnitude < 0.001f)
             return true;
@@ -1607,22 +1667,64 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private static float EnemySpeedScale(Enemy enemy)
     {
-        return Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.10f, 0.70f, 1.60f);
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        float archetype = kind switch
+        {
+            EnemyArchetype.Hunter => 1.16f,
+            EnemyArchetype.Brute => 0.82f,
+            EnemyArchetype.Caller => 0.95f,
+            _ => 1f,
+        };
+        return Mathf.Clamp((1f + EnemyLevelOffset(enemy) * 0.10f) * archetype, 0.70f, 1.68f);
     }
 
     private static float EnemyAttackWindupFor(Enemy enemy)
     {
-        return EnemyAttackWindup / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.08f, 0.70f, 1.60f);
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        float archetype = kind switch
+        {
+            EnemyArchetype.Hunter => 0.88f,
+            EnemyArchetype.Brute => 1.24f,
+            EnemyArchetype.Caller => 1.08f,
+            _ => 1f,
+        };
+        return EnemyAttackWindup * archetype / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.08f, 0.70f, 1.60f);
     }
 
     private static float EnemyAttackRecoveryFor(Enemy enemy)
     {
-        return EnemyAttackRecovery / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.15f, 0.60f, 1.90f);
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        float archetype = kind switch
+        {
+            EnemyArchetype.Hunter => 0.88f,
+            EnemyArchetype.Brute => 1.18f,
+            EnemyArchetype.Caller => 1.05f,
+            _ => 1f,
+        };
+        return EnemyAttackRecovery * archetype / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.15f, 0.60f, 1.90f);
     }
 
     private static int EnemyAttackDamageFor(Enemy enemy)
     {
-        return 1 + Mathf.FloorToInt((EnemyLevel(enemy) - 1) / 4f);
+        int damage = 1 + Mathf.FloorToInt((EnemyLevel(enemy) - 1) / 4f);
+        if (enemy != null && enemy.Archetype == EnemyArchetype.Brute)
+            damage += 1;
+        return damage;
+    }
+
+    private static float EnemyAttackRangeFor(Enemy enemy)
+    {
+        return enemy != null && enemy.Archetype == EnemyArchetype.Brute ? EnemyAttackRange * 1.12f : EnemyAttackRange;
+    }
+
+    private static float EnemyBaseMoveSpeed(Enemy enemy)
+    {
+        return enemy.Mode switch
+        {
+            EnemyMode.Hunt => 2.55f,
+            EnemyMode.Investigate => 2.1f,
+            _ => 1.55f,
+        };
     }
 
     private void UpdateEnemyVisual(Enemy enemy)
@@ -1632,7 +1734,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
 
         enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
-        Color color = EnemyColor(enemy.Mode);
+        Color color = EnemyColor(enemy);
         if (RemoteJamActive())
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1.00f), 0.62f);
 
@@ -1643,10 +1745,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         enemyRenderer.color = color;
+        float archetypeScale = enemy.Archetype == EnemyArchetype.Brute ? 1.14f : enemy.Archetype == EnemyArchetype.Hunter ? 0.96f : 1f;
         float punch = enemy.HitFlashTimer > 0f ? Mathf.Lerp(1.0f, 1.18f, enemy.HitFlashTimer / EnemyHitFlashDuration) : 1f;
         if (enemy.AttackWindupTimer > 0f)
             punch += Mathf.PingPong(Time.time * 10f, 0.05f);
-        enemy.View.transform.localScale = new Vector3(punch, punch, 1f);
+        enemy.View.transform.localScale = new Vector3(punch * archetypeScale, punch * archetypeScale, 1f);
         ConfigureEnemyLight(enemy);
     }
 
@@ -1656,9 +1759,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
             enemy.TelegraphView = CreateTelegraphView(enemy);
 
         Vector2 direction = enemy.AttackDirection.sqrMagnitude > 0.001f ? enemy.AttackDirection.normalized : Vector2.down;
+        float range = EnemyAttackRangeFor(enemy);
         enemy.TelegraphView.SetActive(true);
-        enemy.TelegraphView.transform.position = enemy.Position + direction * (EnemyAttackRange * 0.48f);
-        enemy.TelegraphView.transform.localScale = new Vector3(0.62f, EnemyAttackRange * 0.92f, 1f);
+        enemy.TelegraphView.transform.position = enemy.Position + direction * (range * 0.48f);
+        enemy.TelegraphView.transform.localScale = new Vector3(enemy.Archetype == EnemyArchetype.Brute ? 0.78f : 0.62f, range * 0.92f, 1f);
         enemy.TelegraphView.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
 
         SpriteRenderer renderer = enemy.TelegraphView.GetComponent<SpriteRenderer>();
@@ -1891,9 +1995,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2Int enemyCell = WorldToCell(enemy.Position);
         if (CanSeePlayer(enemy))
         {
+            bool newlyAlerted = enemy.Mode != EnemyMode.Hunt;
             enemy.Mode = EnemyMode.Hunt;
             enemy.LastSeen = PlayerCell();
             enemy.LostSightTimer = 0f;
+            enemy.SearchTimer = EnemySearchDurationFor(enemy);
+            BuildEnemySearchPoints(enemy, enemy.LastSeen);
+            if (newlyAlerted || enemy.Archetype == EnemyArchetype.Caller)
+                TryAlertEnemies(enemy, enemy.LastSeen, enemy.Archetype == EnemyArchetype.Caller);
             return;
         }
 
@@ -1904,22 +2013,39 @@ public sealed partial class PrototypeGame : MonoBehaviour
             if (playerDistance > EnemyAggroResetDistance && enemy.LostSightTimer >= EnemyAggroResetDelay)
             {
                 enemy.Mode = EnemyMode.Investigate;
+                enemy.SearchTimer = EnemySearchDurationFor(enemy);
+                BuildEnemySearchPoints(enemy, enemy.LastSeen);
                 CancelEnemyAttack(enemy);
             }
         }
 
-        if (lastNoisePower > 0 && Manhattan(enemyCell, lastNoiseCell) <= lastNoisePower)
+        if (lastNoisePower > 0 && EnemyCanHearNoise(enemy, enemyCell, lastNoiseCell, lastNoisePower))
         {
-            enemy.Mode = EnemyMode.Investigate;
+            if (enemy.Mode != EnemyMode.Hunt)
+                enemy.Mode = EnemyMode.Investigate;
             enemy.LastSeen = lastNoiseCell;
+            enemy.SearchTimer = EnemySearchDurationFor(enemy);
+            BuildEnemySearchPoints(enemy, lastNoiseCell);
             enemy.LostSightTimer = 0f;
             return;
         }
 
-        if (enemy.Mode != EnemyMode.Patrol && Vector2.Distance(enemy.Position, ToWorld(enemy.LastSeen)) <= 0.1f)
+        if (enemy.Mode == EnemyMode.Investigate && ReachedEnemySearchPoint(enemy))
+        {
+            enemy.SearchIndex++;
+            if (enemy.SearchIndex < enemy.SearchPoints.Count)
+            {
+                enemy.LastSeen = enemy.SearchPoints[enemy.SearchIndex];
+                return;
+            }
+        }
+
+        if (enemy.Mode != EnemyMode.Patrol && enemy.SearchTimer <= 0f && Vector2.Distance(enemy.Position, ToWorld(enemy.LastSeen)) <= 0.16f)
         {
             enemy.Mode = EnemyMode.Patrol;
             enemy.LostSightTimer = 0f;
+            enemy.SearchPoints.Clear();
+            enemy.SearchIndex = 0;
         }
     }
 
@@ -1928,7 +2054,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemy.Mode == EnemyMode.Hunt)
         {
             if (playerView != null && enemy.LostSightTimer <= EnemyDirectChaseGrace)
-                return playerView.transform.position;
+                return EnemyEngagementTarget(enemy, playerView.transform.position);
 
             return ToWorld(enemy.LastSeen);
         }
@@ -1947,6 +2073,185 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         return target;
+    }
+
+    private bool EnemyCanHearNoise(Enemy enemy, Vector2Int enemyCell, Vector2Int noiseCell, int power)
+    {
+        float hearing = enemy.HearingOverride > 0f ? enemy.HearingOverride : EnemyHearingScale(enemy);
+        float effectivePower = power * hearing;
+        return Manhattan(enemyCell, noiseCell) <= Mathf.CeilToInt(effectivePower);
+    }
+
+    private static float EnemyHearingScale(Enemy enemy)
+    {
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        return kind switch
+        {
+            EnemyArchetype.Hunter => 1.28f,
+            EnemyArchetype.Caller => 1.18f,
+            EnemyArchetype.Brute => 0.88f,
+            _ => 1f,
+        };
+    }
+
+    private static float EnemyVisionScale(Enemy enemy)
+    {
+        if (enemy != null && enemy.VisionOverride > 0f)
+            return enemy.VisionOverride;
+
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        return kind switch
+        {
+            EnemyArchetype.Hunter => 1.18f,
+            EnemyArchetype.Caller => 1.08f,
+            EnemyArchetype.Brute => 0.92f,
+            _ => 1f,
+        };
+    }
+
+    private static float EnemySearchDurationFor(Enemy enemy)
+    {
+        EnemyArchetype kind = enemy == null ? EnemyArchetype.Patrol : enemy.Archetype;
+        float archetype = kind switch
+        {
+            EnemyArchetype.Hunter => 1.35f,
+            EnemyArchetype.Caller => 1.20f,
+            EnemyArchetype.Brute => 0.90f,
+            _ => 1f,
+        };
+        return Mathf.Clamp(EnemyBaseSearchDuration * archetype + EnemyLevelOffset(enemy) * 0.12f, 1.8f, 6.0f);
+    }
+
+    private void BuildEnemySearchPoints(Enemy enemy, Vector2Int origin)
+    {
+        enemy.SearchPoints.Clear();
+        enemy.SearchIndex = 0;
+        if (Inside(origin) && !IsSolidCell(origin))
+            enemy.SearchPoints.Add(origin);
+
+        Vector2Int[] candidates =
+        {
+            origin + Vector2Int.up,
+            origin + Vector2Int.right,
+            origin + Vector2Int.down,
+            origin + Vector2Int.left,
+            origin + new Vector2Int(1, 1),
+            origin + new Vector2Int(-1, 1),
+        };
+
+        int limit = enemy.Archetype == EnemyArchetype.Hunter ? 4 : 3;
+        foreach (Vector2Int candidate in candidates)
+        {
+            if (enemy.SearchPoints.Count >= limit)
+                break;
+            if (!Inside(candidate) || IsSolidCell(candidate) || StoneAt(candidate) != null)
+                continue;
+            if (!enemy.SearchPoints.Contains(candidate))
+                enemy.SearchPoints.Add(candidate);
+        }
+    }
+
+    private bool ReachedEnemySearchPoint(Enemy enemy)
+    {
+        if (enemy.SearchPoints.Count == 0 || enemy.SearchIndex >= enemy.SearchPoints.Count)
+            return Vector2.Distance(enemy.Position, ToWorld(enemy.LastSeen)) <= 0.14f;
+
+        return Vector2.Distance(enemy.Position, ToWorld(enemy.SearchPoints[enemy.SearchIndex])) <= 0.14f;
+    }
+
+    private void TryAlertEnemies(Enemy source, Vector2Int alertCell, bool callerPulse)
+    {
+        if (source == null)
+            return;
+        if (source.AlertTimer > 0f && !callerPulse)
+            return;
+        if (callerPulse && source.CallHelpCooldown > 0f)
+            return;
+
+        source.AlertTimer = 1.1f;
+        if (callerPulse)
+            source.CallHelpCooldown = EnemyCallHelpCooldown;
+
+        string sourceGroup = !string.IsNullOrWhiteSpace(source.AlertGroup) ? source.AlertGroup : source.Group;
+        float radius = callerPulse ? EnemyAlertRadius * 1.45f : EnemyAlertRadius;
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy == null || enemy == source || enemy.View == null)
+                continue;
+
+            bool sameGroup = !string.IsNullOrWhiteSpace(sourceGroup) && (enemy.Group == sourceGroup || enemy.AlertGroup == sourceGroup);
+            bool nearby = Vector2.Distance(enemy.Position, source.Position) <= radius;
+            if (!sameGroup && !nearby)
+                continue;
+
+            if (enemy.Mode != EnemyMode.Hunt)
+                enemy.Mode = callerPulse && sameGroup && enemy.Archetype == EnemyArchetype.Hunter ? EnemyMode.Hunt : EnemyMode.Investigate;
+            enemy.LastSeen = alertCell;
+            enemy.SearchTimer = EnemySearchDurationFor(enemy);
+            enemy.LostSightTimer = 0f;
+            BuildEnemySearchPoints(enemy, alertCell);
+        }
+    }
+
+    private void AlertEnemiesAround(Vector2Int alertCell, Vector2 position, float radius)
+    {
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy == null || enemy.View == null)
+                continue;
+            if (Vector2.Distance(enemy.Position, position) > radius)
+                continue;
+
+            enemy.Mode = enemy.Archetype == EnemyArchetype.Hunter ? EnemyMode.Hunt : EnemyMode.Investigate;
+            enemy.LastSeen = alertCell;
+            enemy.SearchTimer = EnemySearchDurationFor(enemy);
+            enemy.LostSightTimer = 0f;
+            BuildEnemySearchPoints(enemy, alertCell);
+        }
+    }
+
+    private Vector2 EnemyEngagementTarget(Enemy enemy, Vector2 playerPosition)
+    {
+        if (enemy.Archetype == EnemyArchetype.Caller && Vector2.Distance(enemy.Position, playerPosition) < EnemyAttackRangeFor(enemy) * 1.6f)
+            return enemy.Position;
+        if (Vector2.Distance(enemy.Position, playerPosition) <= EnemyAttackRangeFor(enemy) * 0.92f)
+            return playerPosition;
+
+        Vector2Int playerCell = WorldToCell(playerPosition);
+        Vector2Int bestCell = playerCell;
+        float bestScore = float.PositiveInfinity;
+        foreach (Vector2Int candidate in CardinalCells(playerCell))
+        {
+            if (!EnemyPathPassable(candidate, playerCell))
+                continue;
+            Enemy occupant = EnemyAt(candidate);
+            if (occupant != null && occupant != enemy)
+                continue;
+
+            float score = Vector2.Distance(enemy.Position, ToWorld(candidate));
+            if (enemy.Archetype == EnemyArchetype.Hunter)
+            {
+                Vector2 fromPlayer = DirectionOrFallback((Vector2)(candidate - playerCell), Vector2.down);
+                score += Mathf.Abs(Vector2.Dot(fromPlayer, DirectionOrFallback(lastAim, Vector2.down))) * 0.55f;
+            }
+            if (candidate == WorldToCell(enemy.Position))
+                score -= 0.45f;
+
+            if (score < bestScore)
+            {
+                bestScore = score;
+                bestCell = candidate;
+            }
+        }
+
+        if (bestCell != playerCell)
+        {
+            if (enemy.Archetype == EnemyArchetype.Hunter && enemy.FlankCooldown <= 0f)
+                enemy.FlankCooldown = EnemyFlankCooldown;
+            return ToWorld(bestCell);
+        }
+
+        return playerPosition;
     }
 
     private Vector2 EnemySteeringTarget(Enemy enemy, Vector2 directTarget)
@@ -2061,7 +2366,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         float distance = toPlayer.magnitude;
         if (distance <= 0.05f)
             return true;
-        if (distance > EnemyForwardSightRange)
+        float vision = EnemyVisionScale(enemy);
+        if (distance > EnemyForwardSightRange * vision)
             return false;
 
         Vector2Int enemyCell = WorldToCell(enemy.Position);
@@ -2069,16 +2375,16 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (!HasSightLine(enemyCell, playerCell))
             return false;
 
-        if (distance <= EnemyCloseDetectionRange)
+        if (distance <= EnemyCloseDetectionRange * Mathf.Lerp(1f, vision, 0.55f))
             return true;
 
         Vector2 look = DirectionOrFallback(enemy.LookDirection, Vector2.down);
         float forward = Vector2.Dot(toPlayer, look);
         Vector2 sideAxis = new Vector2(-look.y, look.x);
         float side = Mathf.Abs(Vector2.Dot(toPlayer, sideAxis));
-        float forwardRange = forward >= 0f ? EnemyForwardSightRange : EnemyBackSightRange;
+        float forwardRange = (forward >= 0f ? EnemyForwardSightRange : EnemyBackSightRange) * vision;
+        float sideRatio = side / (EnemySideSightRange * Mathf.Lerp(1f, vision, 0.65f));
         float forwardRatio = forward / forwardRange;
-        float sideRatio = side / EnemySideSightRange;
         return forwardRatio * forwardRatio + sideRatio * sideRatio <= 1f;
     }
 
@@ -2456,9 +2762,15 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         string id = string.IsNullOrWhiteSpace(data.id) ? $"enemy_{start.x}_{start.y}_{enemies.Count}" : data.id.Trim();
+        EnemyArchetype archetype = ParseEnemyArchetype(data.type);
         int level = Mathf.Clamp(data.level <= 0 ? EnemyBaseLevel : data.level, EnemyMinLevel, EnemyMaxLevel);
         int hp = Mathf.Max(1, data.hp <= 0 ? 2 : data.hp);
-        AddEnemy(id, data.group, ParseBranch(data.branch), level, hp, start, patrol.ToArray());
+        if (archetype == EnemyArchetype.Brute)
+            hp += 2;
+        else if (archetype == EnemyArchetype.Caller)
+            hp = Mathf.Max(1, hp - 1);
+
+        AddEnemy(id, data.group, data.alertGroup, ParseBranch(data.branch), archetype, level, hp, data.hearing, data.vision, start, patrol.ToArray());
     }
 
     private void ResetPlayerTransformIfBound()
@@ -2507,18 +2819,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
         });
     }
 
-    private Enemy AddEnemy(string id, string group, BranchChoice branch, int level, int hp, Vector2Int start, params Vector2Int[] patrol)
+    private Enemy AddEnemy(string id, string group, string alertGroup, BranchChoice branch, EnemyArchetype archetype, int level, int hp, float hearing, float vision, Vector2Int start, params Vector2Int[] patrol)
     {
         var enemy = new Enemy
         {
             Id = id,
             Group = string.IsNullOrWhiteSpace(group) ? string.Empty : group.Trim(),
+            AlertGroup = string.IsNullOrWhiteSpace(alertGroup) ? string.Empty : alertGroup.Trim(),
             Position = ToWorld(start),
             LastSeen = start,
             Mode = EnemyMode.Patrol,
             Branch = branch,
+            Archetype = archetype,
             Level = level,
             Hp = hp,
+            HearingOverride = Mathf.Max(0f, hearing),
+            VisionOverride = Mathf.Max(0f, vision),
             LookDirection = InitialEnemyLookDirection(start, patrol),
         };
         enemy.Patrol.AddRange(patrol);
@@ -2526,6 +2842,25 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (!string.IsNullOrEmpty(enemy.Group))
             activeEnemyGroups.Add(enemy.Group);
         return enemy;
+    }
+
+    private static EnemyArchetype ParseEnemyArchetype(string value)
+    {
+        switch ((value ?? string.Empty).Trim().ToLowerInvariant())
+        {
+            case "":
+            case "patrol":
+            case "announcer":
+                return EnemyArchetype.Patrol;
+            case "hunter":
+                return EnemyArchetype.Hunter;
+            case "brute":
+                return EnemyArchetype.Brute;
+            case "caller":
+                return EnemyArchetype.Caller;
+            default:
+                return EnemyArchetype.Patrol;
+        }
     }
 
 

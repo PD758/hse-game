@@ -102,9 +102,12 @@ public sealed class LevelEnemy
     public string id;
     public string type;
     public string group;
+    public string alertGroup;
     public string branch;
     public int level = 3;
     public int hp = 2;
+    public float hearing;
+    public float vision;
     public int x;
     public int y;
     public List<List<int>> patrol = new List<List<int>>();
@@ -157,6 +160,7 @@ public sealed class LevelEventAction
     public string tile;
     public string objectType;
     public string effect;
+    public string text;
     public int x;
     public int y;
     public int variant = -1;

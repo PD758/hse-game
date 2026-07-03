@@ -12,7 +12,7 @@ TOOLS = [
     {"kind": "object", "value": "trap", "label": "Camera", "key": "7"},
     {"kind": "object", "value": "remote", "label": "Remote", "key": "8"},
     {"kind": "object", "value": "heal", "label": "Heal", "key": "9"},
-    {"kind": "enemy", "value": "announcer", "label": "Enemy", "key": "0"},
+    {"kind": "enemy", "value": "patrol", "label": "Enemy", "key": "0"},
     {"kind": "exit", "value": "exit", "label": "Exit", "key": "x"},
     {"kind": "object", "value": "story", "label": "Story", "key": "-"},
     {"kind": "decoration", "value": "decoration", "label": "Texture", "key": "t"},

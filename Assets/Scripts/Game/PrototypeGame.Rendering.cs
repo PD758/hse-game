@@ -469,9 +469,16 @@ public sealed partial class PrototypeGame
         bool hunting = enemy.Mode == EnemyMode.Hunt || attacking;
         Vector2 direction = DirectionOrFallback(attacking ? enemy.AttackDirection : enemy.LookDirection, Vector2.down);
         Color color = hunting ? new Color(1f, 0.58f, 0.52f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.82f, 0.52f) : new Color(0.82f, 0.92f, 1f);
+        color = Color.Lerp(color, EnemyArchetypeTint(enemy.Archetype), EnemyArchetypeTintWeight(enemy.Archetype));
         float intensity = hunting ? 0.72f : enemy.Mode == EnemyMode.Investigate ? 0.55f : 0.42f;
         float radius = hunting ? 4.7f : enemy.Mode == EnemyMode.Investigate ? 4.4f : 4.1f;
         Color beamColor = hunting ? new Color(1f, 0.42f, 0.34f, 0.34f) : enemy.Mode == EnemyMode.Investigate ? new Color(1f, 0.78f, 0.38f, 0.26f) : new Color(0.72f, 0.90f, 1f, 0.20f);
+        if (enemy.Archetype == EnemyArchetype.Hunter)
+            radius *= 1.08f;
+        else if (enemy.Archetype == EnemyArchetype.Brute)
+            intensity *= 1.12f;
+        else if (enemy.Archetype == EnemyArchetype.Caller)
+            beamColor = Color.Lerp(beamColor, new Color(0.78f, 0.46f, 1f, beamColor.a), 0.55f);
         if (RemoteJamActive())
         {
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1f), 0.72f);
@@ -688,14 +695,31 @@ public sealed partial class PrototypeGame
         }
     }
 
-    private static Color EnemyColor(EnemyMode mode)
+    private static Color EnemyColor(Enemy enemy)
     {
-        return mode switch
+        Color modeColor = enemy.Mode switch
         {
             EnemyMode.Hunt => new Color(1.00f, 0.42f, 0.56f),
             EnemyMode.Investigate => new Color(1.00f, 0.78f, 0.36f),
             _ => Color.white,
         };
+        return Color.Lerp(modeColor, EnemyArchetypeTint(enemy.Archetype), EnemyArchetypeTintWeight(enemy.Archetype));
+    }
+
+    private static Color EnemyArchetypeTint(EnemyArchetype archetype)
+    {
+        return archetype switch
+        {
+            EnemyArchetype.Hunter => new Color(0.70f, 0.92f, 1.00f),
+            EnemyArchetype.Brute => new Color(1.00f, 0.34f, 0.26f),
+            EnemyArchetype.Caller => new Color(0.88f, 0.58f, 1.00f),
+            _ => Color.white,
+        };
+    }
+
+    private static float EnemyArchetypeTintWeight(EnemyArchetype archetype)
+    {
+        return archetype == EnemyArchetype.Patrol ? 0f : 0.26f;
     }
 
     private Sprite SpriteForEnemyMode(EnemyMode mode)

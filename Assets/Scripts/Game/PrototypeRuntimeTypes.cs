@@ -23,6 +23,14 @@ internal enum EnemyMode
     Hunt,
 }
 
+internal enum EnemyArchetype
+{
+    Patrol,
+    Hunter,
+    Brute,
+    Caller,
+}
+
 internal enum FacingDirection
 {
     Down,
@@ -65,15 +73,25 @@ internal sealed class Enemy
     public Vector2Int LastSeen;
     public BranchChoice Branch;
     public string Group;
+    public string AlertGroup;
+    public EnemyArchetype Archetype = EnemyArchetype.Patrol;
     public int Level = 3;
     public int Hp = 2;
+    public float HearingOverride;
+    public float VisionOverride;
     public float StunTimer;
     public float HitFlashTimer;
     public float AttackWindupTimer;
     public float AttackStrikeTimer;
     public float AttackRecoveryTimer;
     public float LostSightTimer;
+    public float SearchTimer;
+    public float AlertTimer;
+    public float FlankCooldown;
+    public float CallHelpCooldown;
     public bool AttackApplied;
+    public readonly List<Vector2Int> SearchPoints = new List<Vector2Int>();
+    public int SearchIndex;
     public Vector2 AttackDirection = Vector2.down;
     public Vector2 LookDirection = Vector2.down;
     public Vector2 KnockbackVelocity;

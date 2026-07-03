@@ -10,7 +10,8 @@ from schema import ENEMY_TYPE, OBJECT_TYPES, TILE_TYPES, TILE_WALL, object_at
 STAT_OPERATORS = {"gt", "lt", "ge", "le", "eq", "ne"}
 STAT_NAMES = {"enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating"}
 EVENT_TRIGGERS = {"levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared"}
-EVENT_ACTIONS = {"spawnEnemy", "spawnEnemies", "fallStone", "setTile", "spawnObject", "removeObject", "playEffect"}
+EVENT_ACTIONS = {"showMonologue", "spawnEnemy", "spawnEnemies", "fallStone", "setTile", "spawnObject", "removeObject", "playEffect"}
+ENEMY_ARCHETYPES = {"patrol", "hunter", "brute", "caller"}
 
 
 @dataclass
@@ -133,13 +134,18 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
         enemy_group = str(enemy.get("group", "")).strip()
         if enemy_group:
             enemy_groups.add(enemy_group)
+        enemy_type = str(enemy.get("type", "patrol") or "patrol").strip()
+        if enemy_type == "announcer":
+            issues.append(ValidationIssue("warning", "enemy type 'announcer' is legacy; use 'patrol'", cell, target))
+        elif enemy_type not in ENEMY_ARCHETYPES:
+            issues.append(ValidationIssue("error", f"unknown enemy type '{enemy_type}'", cell, target))
 
         try:
             enemy_level = int(enemy.get("level", 3))
         except (TypeError, ValueError):
             enemy_level = 0
-        if enemy_level < 1 or enemy_level > 9:
-            issues.append(ValidationIssue("error", "enemy level must be 1..9", cell, target))
+        if enemy_level < 1 or enemy_level > 99:
+            issues.append(ValidationIssue("error", "enemy level must be 1..99", cell, target))
 
         try:
             hp = int(enemy.get("hp", 2))
@@ -147,6 +153,10 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
             hp = 0
         if hp < 1:
             issues.append(ValidationIssue("error", "enemy hp must be >= 1", cell, target))
+        if numeric_value(enemy.get("hearing", 0), 0) < 0:
+            issues.append(ValidationIssue("error", "enemy hearing must be >= 0", cell, target))
+        if numeric_value(enemy.get("vision", 0), 0) < 0:
+            issues.append(ValidationIssue("error", "enemy vision must be >= 0", cell, target))
 
         patrol = enemy.get("patrol", [])
         if not patrol:
@@ -394,6 +404,11 @@ def validate_event_action(
         issues.append(ValidationIssue("error", f"unknown event action '{action_type}'", target=target))
         return
 
+    if action_type == "showMonologue":
+        if not str(action.get("text", "")).strip():
+            issues.append(ValidationIssue("warning", "showMonologue has empty text", target=target))
+        return
+
     if action_type in {"fallStone", "setTile", "spawnObject", "removeObject", "playEffect", "spawnEnemy"}:
         cell = (int(action.get("x", 0)), int(action.get("y", 0)))
         if not inside(tiles, cell):
@@ -437,6 +452,11 @@ def validate_spawned_enemy(
     enemy_group = str(enemy.get("group", "")).strip()
     if enemy_group:
         spawned_enemy_groups.add(enemy_group)
+    enemy_type = str(enemy.get("objectType", enemy.get("type", "patrol")) or "patrol").strip()
+    if enemy_type == "announcer":
+        issues.append(ValidationIssue("warning", "spawned enemy type 'announcer' is legacy; use 'patrol'", cell, target))
+    elif enemy_type not in ENEMY_ARCHETYPES:
+        issues.append(ValidationIssue("error", f"unknown spawned enemy type '{enemy_type}'", cell, target))
 
 
 def validate_walkable_cell(issues: list[ValidationIssue], tiles: list[list[str]], cell: tuple[int, int], target: tuple[str, int], label: str) -> None:

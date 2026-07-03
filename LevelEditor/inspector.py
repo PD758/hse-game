@@ -9,13 +9,14 @@ import pygame
 
 
 BRANCHES = ("none", "puzzle", "combat")
+ENEMY_ARCHETYPES = ("patrol", "hunter", "brute", "caller")
 FRAMES = ("vertical", "horizontal")
 BOOLS = ("true", "false")
 LIGHT_TYPES = ("point", "cone")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
-ACTION_TYPES = ("fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
+ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
 ACTION_OBJECTS = ("gate", "remote", "trap", "story", "heal", "plate", "stone", "rubble")
 
@@ -160,8 +161,12 @@ def draw_inspector(
     elif kind == "enemy":
         y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "group", target.get("group", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "alertGroup", target.get("alertGroup", ""), x + margin, y, width - margin * 2, scale)
+        y = draw_enemy_type_buttons(screen, font, state, target.get("type", "patrol"), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "level", target.get("level", 3), x + margin, y, width - margin * 2, scale)
         y = draw_text_field(screen, font, state, selected_ref, "hp", target.get("hp", 2), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "hearing", target.get("hearing", 0), x + margin, y, width - margin * 2, scale)
+        y = draw_text_field(screen, font, state, selected_ref, "vision", target.get("vision", 0), x + margin, y, width - margin * 2, scale)
         y = draw_enum_buttons(screen, font, state, "branch", target.get("branch", "none"), BRANCHES, x + margin, y, width - margin * 2, scale)
         patrol = target.setdefault("patrol", [])
         y = draw_text(screen, font, f"patrol points: {len(patrol)}", x + margin, y, (188, 196, 204))
@@ -225,7 +230,7 @@ def handle_key(state: InspectorState, level: dict, selected_ref: tuple[str, int]
         state.clear_text()
         return False
 
-    if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and state.active_field in ("text", "actions", "conditions", "requiresStats") and not pygame.key.get_mods() & pygame.KMOD_CTRL:
+    if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER) and is_multiline_field(state.active_field) and not pygame.key.get_mods() & pygame.KMOD_CTRL:
         state.text += "\n"
     elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_ESCAPE):
         state.clear_text()
@@ -344,6 +349,10 @@ def handle_click(
             target[action.field] = clamp_number_field(action.field, parse_number(str(target.get(action.field, 0))) if target.get(action.field, "") != "" else 0, action.amount)
             state.clear_text()
             return True, current_tile_variant
+        if action.kind == "add_monologue":
+            target.setdefault("actions", []).append({"type": "showMonologue", "text": "Я должен понять, где оказался, и найти выход из эфира."})
+            state.clear_text()
+            return True, current_tile_variant
         if action.kind == "add_action":
             target.setdefault("actions", []).append({"type": "fallStone", "x": 0, "y": 0})
             state.clear_text()
@@ -358,6 +367,8 @@ def handle_click(
             return cycle_action_value(target, action_index(action), "tile", ACTION_TILES, state), current_tile_variant
         if action.kind == "cycle_action_object":
             return cycle_action_value(target, action_index(action), "objectType", ACTION_OBJECTS, state), current_tile_variant
+        if action.kind == "cycle_enemy_type":
+            return cycle_action_value(target, action_index(action), "objectType", ENEMY_ARCHETYPES, state), current_tile_variant
         if action.kind == "adjust_action_int":
             return adjust_action_int(target, action_index(action), action.field, int(action.amount), state), current_tile_variant
         if action.kind == "action_use_cell":
@@ -579,6 +590,20 @@ def draw_choice_buttons(
     return draw_wrapped_buttons(screen, font, state, [(value, value or "none", "set") for value in normalized], str(current or ""), field, x, y, width, scale)
 
 
+def draw_enemy_type_buttons(
+    screen: pygame.Surface,
+    font: pygame.font.Font,
+    state: InspectorState,
+    current: str,
+    x: int,
+    y: int,
+    width: int,
+    scale: float,
+) -> int:
+    y = draw_text(screen, font, "type:", x, y, (188, 196, 204))
+    return draw_wrapped_buttons(screen, font, state, [(value, value, "set") for value in ENEMY_ARCHETYPES], current or "patrol", "type", x, y, width, scale)
+
+
 def draw_dependency_picker(
     screen: pygame.Surface,
     font: pygame.font.Font,
@@ -715,7 +740,8 @@ def draw_action_editor(
 ) -> int:
     actions = event.setdefault("actions", [])
     y = draw_text(screen, font, f"actions: {len(actions)}", x, y, (188, 196, 204))
-    y = draw_button_row(screen, font, state, [("add_action", "+ action"), ("add_region_fallstones", "+ stones in region")], x, y, width, scale)
+    y = draw_button_row(screen, font, state, [("add_monologue", "+ monologue"), ("add_action", "+ action")], x, y, width, scale)
+    y = draw_button_row(screen, font, state, [("add_region_fallstones", "+ stones in region")], x, y, width, scale)
     if event.get("trigger") == "enterRegion" and event.get("region"):
         y = draw_text(screen, font, f"region source: {event.get('region')}", x, y, (132, 174, 188))
     elif actions:
@@ -748,11 +774,16 @@ def draw_action_row(
     screen.blit(font.render("x", True, (238, 190, 190)), (rect.right - round(24 * scale), y + round(7 * scale)))
     y += rect.height + round(5 * scale)
 
-    y = draw_action_buttons(screen, font, state, index, [("cycle_action_type", "type", 0), ("action_use_cell", "cell", 0)], x, y, width, scale)
-    y = draw_action_coordinate_row(screen, font, state, index, action, selected_cell, x, y, width, scale)
+    y = draw_action_buttons(screen, font, state, index, [("cycle_action_type", "type", 0)], x, y, width, scale)
+    if action_uses_cell(action):
+        y = draw_action_buttons(screen, font, state, index, [("action_use_cell", "use selected cell", 0)], x, y, width, scale)
+        y = draw_action_coordinate_row(screen, font, state, index, action, selected_cell, x, y, width, scale)
 
     action_type = action.get("type", "fallStone")
-    if action_type == "setTile":
+    if action_type == "showMonologue":
+        y = draw_text(screen, font, "Shows player monologue in the top story band.", x, y, (132, 174, 188))
+        y = draw_action_text_field(screen, font, state, index, "text", action.get("text", ""), x, y, width, scale, multiline=True)
+    elif action_type == "setTile":
         y = draw_action_buttons(screen, font, state, index, [("cycle_action_tile", f"tile:{action.get('tile', 'floor')}", 0)], x, y, width, scale)
         y = draw_action_buttons(screen, font, state, index, [("adjust_action_int", "variant -1", -1), ("adjust_action_int", "variant +1", 1)], x, y, width, scale, field="variant")
     elif action_type == "spawnObject":
@@ -760,6 +791,7 @@ def draw_action_row(
         y = draw_action_text_field(screen, font, state, index, "id", action.get("id", ""), x, y, width, scale)
         y = draw_action_text_field(screen, font, state, index, "group", action.get("group", ""), x, y, width, scale)
     elif action_type == "spawnEnemy":
+        y = draw_action_buttons(screen, font, state, index, [("cycle_enemy_type", f"enemy:{action.get('objectType', 'patrol')}", 0)], x, y, width, scale)
         y = draw_action_text_field(screen, font, state, index, "id", action.get("id", ""), x, y, width, scale)
         y = draw_action_text_field(screen, font, state, index, "group", action.get("group", ""), x, y, width, scale)
         y = draw_action_buttons(screen, font, state, index, [("adjust_action_int", "level -1", -1), ("adjust_action_int", "level +1", 1), ("adjust_action_int", "hp -1", -1), ("adjust_action_int", "hp +1", 1)], x, y, width, scale)
@@ -830,14 +862,19 @@ def draw_action_text_field(
     y: int,
     width: int,
     scale: float,
+    multiline: bool = False,
 ) -> int:
-    height = round(26 * scale)
+    height = round((84 if multiline else 26) * scale)
     rect = pygame.Rect(x, y, width, height)
     encoded = f"action:{index}:{field}"
     active = state.active_field == encoded
     pygame.draw.rect(screen, (58, 66, 74) if active else (36, 40, 46), rect, border_radius=max(2, round(4 * scale)))
     shown = state.text if active else str(value or "")
-    screen.blit(font.render(f"{field}: {shown}"[:34], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
+    if multiline:
+        screen.blit(font.render(f"{field}:", True, (166, 212, 230)), (x + round(7 * scale), y + round(5 * scale)))
+        draw_field_value(screen, font, shown, pygame.Rect(x, y + round(22 * scale), width, height - round(24 * scale)), scale)
+    else:
+        screen.blit(font.render(f"{field}: {shown}"[:34], True, (224, 228, 232)), (x + round(7 * scale), y + round(5 * scale)))
     state.actions.append(InspectorAction(rect, "action_text", field=field, target=("action", index)))
     return y + height + round(5 * scale)
 
@@ -1095,6 +1132,10 @@ def action_at(event: dict, index: int) -> dict | None:
 
 def normalize_action_defaults(action: dict) -> None:
     action_type = action.get("type", "fallStone")
+    if action_type == "showMonologue":
+        action.setdefault("text", "")
+        return
+
     action.setdefault("x", 0)
     action.setdefault("y", 0)
     if action_type == "setTile":
@@ -1103,8 +1144,13 @@ def normalize_action_defaults(action: dict) -> None:
     elif action_type == "spawnObject":
         action.setdefault("objectType", "plate")
     elif action_type == "spawnEnemy":
+        action.setdefault("objectType", "patrol")
         action.setdefault("level", 3)
         action.setdefault("hp", 2)
+
+
+def action_uses_cell(action: dict) -> bool:
+    return action.get("type", "fallStone") not in ("showMonologue",)
 
 
 def region_cells(region: dict) -> set[tuple[int, int]]:
@@ -1197,7 +1243,7 @@ def target_title(kind: str, target: dict) -> str:
     if kind == "object":
         return f"Object: {target.get('type', 'unknown')}"
     if kind == "enemy":
-        return "Enemy: announcer"
+        return f"Enemy: {target.get('type', 'patrol')}"
     if kind == "player":
         return "Player start"
     if kind == "exit":
@@ -1319,7 +1365,7 @@ def coerce_text_value(field: str, value: str) -> object:
             return []
     if field == "level":
         try:
-            return min(9, max(1, int(value)))
+            return min(99, max(1, int(value)))
         except ValueError:
             return 3
     if field == "hp":
@@ -1327,7 +1373,7 @@ def coerce_text_value(field: str, value: str) -> object:
             return max(1, int(value))
         except ValueError:
             return 2
-    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle"):
+    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle", "hearing", "vision"):
         parsed = parse_number(value)
         return parsed if isinstance(parsed, (int, float)) else 0
     if field == "sortingOrder":
@@ -1339,7 +1385,9 @@ def coerce_text_value(field: str, value: str) -> object:
 
 
 def is_allowed_text(value: str, field: str) -> bool:
-    if field in ("text", "actions"):
+    if is_action_field(field, "text") or field in ("text", "actions"):
+        return all(ch >= " " for ch in value)
+    if field.startswith("action:"):
         return all(ch >= " " for ch in value)
     if field in ("requiresPlates", "requiresStories", "requiresEnemies"):
         return all(ch.isalnum() or ch in "_-., " for ch in value)
@@ -1349,13 +1397,21 @@ def is_allowed_text(value: str, field: str) -> bool:
         return value.isdigit()
     if field == "hp":
         return value.isdigit()
-    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle", "sortingOrder"):
+    if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle", "hearing", "vision", "sortingOrder"):
         return value.isdigit() or value in ".-"
     if field == "texturePath":
         return all(ch >= " " and ch not in "\"<>" for ch in value)
     if field == "color":
         return all(ch.isalnum() or ch in "#(),. " for ch in value)
     return all(ch.isalnum() or ch in "_-." for ch in value)
+
+
+def is_multiline_field(field: str) -> bool:
+    return field in ("text", "actions", "conditions", "requiresStats") or is_action_field(field, "text")
+
+
+def is_action_field(field: str, action_field: str) -> bool:
+    return field.startswith("action:") and field.endswith(f":{action_field}")
 
 
 def coerce_action_value(field: str, value: object) -> object:

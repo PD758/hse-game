@@ -430,7 +430,7 @@
   "enemies": [
     {
       "id": "start_anchor",
-      "type": "announcer",
+      "type": "patrol",
       "branch": "none",
       "level": 3,
       "hp": 2,
@@ -453,7 +453,7 @@
     },
     {
       "id": "combat_anchor_1",
-      "type": "announcer",
+      "type": "patrol",
       "branch": "combat",
       "level": 4,
       "hp": 2,
@@ -476,7 +476,7 @@
     },
     {
       "id": "combat_anchor_2",
-      "type": "announcer",
+      "type": "patrol",
       "branch": "combat",
       "level": 5,
       "hp": 3,
@@ -499,7 +499,7 @@
     },
     {
       "id": "combat_anchor_3",
-      "type": "announcer",
+      "type": "patrol",
       "branch": "combat",
       "level": 4,
       "hp": 2,
@@ -519,12 +519,108 @@
   ],
   "decorations": [],
   "lights": [],
-  "events": [],
+  "events": [
+    {
+      "id": "intro_monologue",
+      "enabled": true,
+      "once": true,
+      "trigger": "levelStart",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Я очнулся внутри старого эфира. Канал не выпускает меня просто так: нужно держаться в движении, искать пульт, читать записки и открыть выход."
+        }
+      ]
+    },
+    {
+      "id": "remote_hint_monologue",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "remote_hint",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Пульт выглядит как единственный способ спорить с этим местом. Если найду его, смогу глушить врагов клавишей Q."
+        }
+      ]
+    },
+    {
+      "id": "first_choice_monologue",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "first_choice",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Выход закрыт. Значит, нужно разобраться с механизмами комнаты: двигать заглушки на плиты, читать заметки и не давать рейтингу умереть."
+        }
+      ]
+    }
+  ],
   "logic": {
     "gates": [],
     "branchTriggers": [],
     "branchBlocks": [],
     "exitRules": []
   },
-  "regions": []
+  "regions": [
+    {
+      "id": "remote_hint",
+      "runs": [
+        {
+          "tile": "floor",
+          "y": 6,
+          "x": 3,
+          "length": 5
+        },
+        {
+          "tile": "floor",
+          "y": 7,
+          "x": 3,
+          "length": 5
+        },
+        {
+          "tile": "floor",
+          "y": 8,
+          "x": 3,
+          "length": 5
+        }
+      ]
+    },
+    {
+      "id": "first_choice",
+      "runs": [
+        {
+          "tile": "floor",
+          "y": 9,
+          "x": 12,
+          "length": 6
+        },
+        {
+          "tile": "floor",
+          "y": 10,
+          "x": 12,
+          "length": 6
+        },
+        {
+          "tile": "floor",
+          "y": 11,
+          "x": 12,
+          "length": 6
+        }
+      ]
+    }
+  ]
 }

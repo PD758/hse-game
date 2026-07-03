@@ -215,10 +215,17 @@ public sealed partial class PrototypeGame
                 Vector2Int patrol = PickEndlessPatrolCell(rooms[roomIndex], cell, rng);
                 int enemyLevel = Mathf.Clamp(EnemyBaseLevel + floor - 1 + roomIndex / 2 + rng.Next(-1, 2), EnemyMinLevel, EnemyMaxLevel);
                 int hp = Mathf.Clamp(2 + (floor - 1) / 2 + roomIndex / 3, 2, 12);
+                string enemyType = PickEndlessEnemyType(floor, roomIndex, enemyIndex, rng);
+                if (enemyType == "brute")
+                    hp = Mathf.Clamp(hp + 1, 2, 14);
+                else if (enemyType == "caller")
+                    hp = Mathf.Clamp(hp - 1, 1, 12);
                 level.enemies.Add(new LevelEnemy
                 {
                     id = $"endless_l{floor}_r{roomIndex}_e{enemyIndex}",
+                    type = enemyType,
                     group = $"room_{roomIndex}",
+                    alertGroup = $"room_{roomIndex}",
                     branch = "combat",
                     level = enemyLevel,
                     hp = hp,
@@ -231,6 +238,26 @@ public sealed partial class PrototypeGame
                 });
             }
         }
+    }
+
+    private static string PickEndlessEnemyType(int floor, int roomIndex, int enemyIndex, System.Random rng)
+    {
+        if (floor <= 2)
+            return "patrol";
+
+        double roll = rng.NextDouble();
+        if (floor <= 5)
+            return roll < Mathf.Clamp01(0.22f + roomIndex * 0.03f) ? "hunter" : "patrol";
+
+        float callerChance = Mathf.Clamp01(0.04f + (floor - 6) * 0.012f);
+        if (enemyIndex == 0 && roomIndex >= 2 && roll < callerChance)
+            return "caller";
+        if (roll < callerChance + Mathf.Clamp01(0.18f + floor * 0.012f))
+            return "hunter";
+        if (roll < callerChance + Mathf.Clamp01(0.32f + floor * 0.018f))
+            return "brute";
+
+        return "patrol";
     }
 
     private static Vector2Int PickEndlessPatrolCell(EndlessRoom room, Vector2Int start, System.Random rng)
