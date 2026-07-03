@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -16,6 +17,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private const int IntroAtlasRows = 8;
     private const float IntroAtlasPixelsPerUnit = 64f;
     private const string IntroTextResourcePath = "Texts/intro_cutscene_ru";
+    private const string IntroSlideResourcePrefix = "Cutscenes/intro_";
     private static readonly string[] DefaultThoughtLines =
     {
         "template",
@@ -41,8 +43,19 @@ public sealed class IntroCutscene : MonoBehaviour
     private Volume postProcessVolume;
     private VolumeProfile postProcessProfile;
     private ColorAdjustments postProcessColor;
+    private readonly List<IntroSlide> introSlides = new List<IntroSlide>();
     private float startedAt;
+    private float slideStartedAt;
+    private int currentSlideIndex;
+    private bool storySlidesActive;
     private string[] thoughtLines = DefaultThoughtLines;
+
+    private sealed class IntroSlide
+    {
+        public Texture2D Image;
+        public string Text;
+        public float Duration;
+    }
 
     private void Awake()
     {
@@ -60,7 +73,10 @@ public sealed class IntroCutscene : MonoBehaviour
 
         EnsureOptionalIntroLayers();
         EnsureLighting();
-        startedAt = Time.time;
+        LoadIntroSlides();
+        storySlidesActive = introSlides.Count > 0;
+        slideStartedAt = Time.time;
+        startedAt = storySlidesActive ? float.PositiveInfinity : Time.time;
     }
 
     private void Update()
@@ -72,7 +88,15 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
         }
 
-        if (keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame) || Time.time - startedAt >= Duration)
+        if (storySlidesActive)
+        {
+            bool advance = keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame);
+            if (advance || Time.time - slideStartedAt >= introSlides[currentSlideIndex].Duration)
+                AdvanceIntroSlide();
+            return;
+        }
+
+        if ((keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame)) || Time.time - startedAt >= Duration)
             SceneManager.LoadScene("Prototype");
 
         AnimateScene();
@@ -81,14 +105,21 @@ public sealed class IntroCutscene : MonoBehaviour
     private void OnGUI()
     {
         EnsureHudTexture();
-        float t = Mathf.Clamp01((Time.time - startedAt) / Duration);
-        string thought = ThoughtLine(t);
         Matrix4x4 previousMatrix = GUI.matrix;
         GUI.matrix = PixelGui.ScaledMatrix;
         Vector2 guiSize = PixelGui.LogicalSize;
         float screenWidth = guiSize.x;
         float screenHeight = guiSize.y;
 
+        if (storySlidesActive)
+        {
+            DrawIntroSlide(screenWidth, screenHeight);
+            GUI.matrix = previousMatrix;
+            return;
+        }
+
+        float t = Mathf.Clamp01((Time.time - startedAt) / Duration);
+        string thought = ThoughtLine(t);
         if (!string.IsNullOrEmpty(thought))
         {
             float width = Mathf.Min(820f, screenWidth - 48f);
@@ -118,6 +149,115 @@ public sealed class IntroCutscene : MonoBehaviour
         PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(12, screenHeight - 36, screenWidth - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
         GUI.matrix = previousMatrix;
+    }
+
+    private void LoadIntroSlides()
+    {
+        introSlides.Clear();
+        for (int i = 1; i < 100; i++)
+        {
+            string key = $"{IntroSlideResourcePrefix}{i}";
+            TextAsset textAsset = Resources.Load<TextAsset>(key);
+            Texture2D image = Resources.Load<Texture2D>(key);
+            if (textAsset == null && image == null)
+                break;
+
+            string text = textAsset == null ? string.Empty : textAsset.text.Trim('\r', '\n');
+            introSlides.Add(new IntroSlide
+            {
+                Image = image,
+                Text = text,
+                Duration = SlideDurationFor(text),
+            });
+        }
+    }
+
+    private void AdvanceIntroSlide()
+    {
+        currentSlideIndex++;
+        if (currentSlideIndex < introSlides.Count)
+        {
+            slideStartedAt = Time.time;
+            return;
+        }
+
+        storySlidesActive = false;
+        startedAt = Time.time;
+    }
+
+    private static float SlideDurationFor(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return 2.4f;
+
+        int wordCount = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+        return 1.6f + text.Length * 0.010f + wordCount * 0.065f;
+    }
+
+    private void DrawIntroSlide(float screenWidth, float screenHeight)
+    {
+        IntroSlide slide = introSlides[Mathf.Clamp(currentSlideIndex, 0, introSlides.Count - 1)];
+        GUI.color = Color.black;
+        GUI.DrawTexture(new Rect(0f, 0f, screenWidth, screenHeight), Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        float margin = screenWidth < 760f ? 22f : 40f;
+        float imageTop = screenHeight < 620f ? 28f : 42f;
+        float maxImageWidth = screenWidth - margin * 2f;
+        float maxImageHeight = screenHeight * 0.58f;
+        Rect imageBounds = new Rect((screenWidth - maxImageWidth) * 0.5f, imageTop, maxImageWidth, maxImageHeight);
+        Rect imageRect = imageBounds;
+        if (slide.Image != null)
+        {
+            imageRect = FitTextureRect(slide.Image, imageBounds);
+            GUI.DrawTexture(imageBounds, slide.Image, ScaleMode.ScaleToFit, true);
+        }
+
+        float textTop = imageRect.yMax + (screenHeight < 620f ? 18f : 28f);
+        float textWidth = Mathf.Min(820f, screenWidth - margin * 2f);
+        float availableTextHeight = Mathf.Max(90f, screenHeight - textTop - 58f);
+        int fontSize = screenWidth < 760f ? 15 : 18;
+        var textStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.UpperCenter,
+            fontSize = fontSize,
+            wordWrap = true,
+            normal = { textColor = new Color(0.88f, 0.90f, 0.94f) },
+        };
+        PixelGui.Apply(textStyle);
+        GUIContent content = new GUIContent(slide.Text);
+        float preferredHeight = textStyle.CalcHeight(content, textWidth);
+        while (preferredHeight > availableTextHeight && textStyle.fontSize > 11)
+        {
+            textStyle.fontSize--;
+            preferredHeight = textStyle.CalcHeight(content, textWidth);
+        }
+
+        Rect textRect = new Rect((screenWidth - textWidth) * 0.5f, textTop, textWidth, availableTextHeight);
+        GUI.Label(textRect, content, textStyle);
+
+        var hintStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = screenWidth < 760f ? 11 : 13,
+            normal = { textColor = new Color(0.55f, 0.58f, 0.64f, 0.82f) },
+        };
+        PixelGui.Apply(hintStyle);
+        GUI.Label(new Rect(12f, screenHeight - 36f, screenWidth - 24f, 24f), "Space/Enter: дальше | Esc: меню", hintStyle);
+    }
+
+    private static Rect FitTextureRect(Texture2D texture, Rect bounds)
+    {
+        float aspect = texture.width / Mathf.Max(1f, (float)texture.height);
+        float width = bounds.width;
+        float height = width / Mathf.Max(0.01f, aspect);
+        if (height > bounds.height)
+        {
+            height = bounds.height;
+            width = height * aspect;
+        }
+
+        return new Rect(bounds.x + (bounds.width - width) * 0.5f, bounds.y, width, height);
     }
 
     private void LoadCutsceneText()
