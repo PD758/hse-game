@@ -213,8 +213,8 @@ public sealed class MainMenu : MonoBehaviour
             endlessRect = new Rect(storyRect.xMax + 24f, cardsTop, cardWidth, cardsHeight);
         }
 
-        DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.", "ГОТОВ");
-        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.", "ГОТОВ");
+        DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.");
+        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.");
 
         Rect lightingRect = new Rect(panel.x + 28f, panel.yMax - (compact ? 154f : 142f), panel.width - 56f, 42f);
         DrawLightingToggle(lightingRect);
@@ -256,7 +256,7 @@ public sealed class MainMenu : MonoBehaviour
         }
     }
 
-    private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description, string badge)
+    private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description)
     {
         bool selected = selectedMode == mode;
         Color fill = selected ? new Color(0.045f, 0.083f, 0.096f, 0.96f) : new Color(0.018f, 0.024f, 0.032f, 0.86f);
@@ -271,13 +271,9 @@ public sealed class MainMenu : MonoBehaviour
                 : "Бесконечный режим: случайные уровни с пятью комнатами и растущей сложностью.";
         }
 
-        Rect badgeRect = new Rect(rect.x + 18f, rect.y + 16f, 84f, 24f);
-        DrawPanel(badgeRect, selected ? new Color(0.12f, 0.34f, 0.38f, 0.84f) : new Color(0.060f, 0.070f, 0.080f, 0.84f), border);
-        GUI.Label(new Rect(badgeRect.x + 8f, badgeRect.y + 4f, badgeRect.width - 16f, 18f), badge, modeMetaStyle);
-
-        GUI.Label(new Rect(rect.x + 18f, rect.y + 54f, rect.width - 36f, 34f), title, modeTitleStyle);
-        GUI.Label(new Rect(rect.x + 18f, rect.y + 88f, rect.width - 36f, 24f), meta, labelStyle);
-        GUI.Label(new Rect(rect.x + 18f, rect.y + 124f, rect.width - 36f, Mathf.Max(52f, rect.height - 144f)), description, hintStyle);
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 22f, rect.width - 36f, 34f), title, modeTitleStyle);
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 58f, rect.width - 36f, 24f), meta, labelStyle);
+        GUI.Label(new Rect(rect.x + 18f, rect.y + 94f, rect.width - 36f, Mathf.Max(52f, rect.height - 114f)), description, hintStyle);
     }
 
     private void DrawPanel(Rect rect, Color fill, Color border)
