@@ -191,7 +191,7 @@ public sealed class IntroCutscene : MonoBehaviour
             return 2.4f;
 
         int wordCount = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
-        return 1.6f + text.Length * 0.010f + wordCount * 0.065f;
+        return 1.6f + text.Length * 0.018f + wordCount * 0.12f;
     }
 
     private void DrawIntroSlide(float screenWidth, float screenHeight)
