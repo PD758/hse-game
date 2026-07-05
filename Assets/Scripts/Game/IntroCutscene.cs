@@ -16,6 +16,11 @@ public sealed class IntroCutscene : MonoBehaviour
     private const int IntroAtlasColumns = 4;
     private const int IntroAtlasRows = 8;
     private const float IntroAtlasPixelsPerUnit = 64f;
+    private static readonly Vector3 TvCabinetPosition = new Vector3(0f, 1.50f, 0f);
+    private static readonly Vector3 TvBodyPosition = new Vector3(0f, 2.20f, 0f);
+    private static readonly Vector3 TvGlowPosition = TvBodyPosition + new Vector3(0f, -1.82f, 0f);
+    private static readonly Vector3 TvBeamPosition = TvBodyPosition + new Vector3(0f, -1.66f, 0f);
+    private static readonly Vector3 ViewerPosition = new Vector3(0f, -1.82f, 0f);
     private const string IntroTextResourcePath = "Texts/intro_cutscene_ru";
     private const string IntroSlideResourcePrefix = "Cutscenes/intro_";
     private static readonly string[] DefaultThoughtLines =
@@ -42,6 +47,7 @@ public sealed class IntroCutscene : MonoBehaviour
     [SerializeField] private Texture2D hudTexture;
     private Volume postProcessVolume;
     private VolumeProfile postProcessProfile;
+    private Vignette postProcessVignette;
     private ColorAdjustments postProcessColor;
     private readonly List<IntroSlide> introSlides = new List<IntroSlide>();
     private float startedAt;
@@ -328,28 +334,30 @@ public sealed class IntroCutscene : MonoBehaviour
         Vector3 tvShake = new Vector3(Mathf.Sin(Time.time * 31f) * 0.006f * drowsy, Mathf.Cos(Time.time * 29f) * 0.004f * drowsy, 0f);
 
         screenRenderer.color = Color.Lerp(new Color(0.22f, 0.29f, 0.42f), new Color(0.70f, 0.88f, 1.00f), pulse * 0.32f + staticPulse * 0.28f);
-        screenRenderer.transform.position = new Vector3(0f, 2.09f, 0f) + tvShake;
+        screenRenderer.transform.position = TvBodyPosition + tvShake;
         screenRenderer.transform.localScale = Vector3.one * (1f + pulse * 0.018f + drowsy * 0.025f);
         if (staticRenderer != null)
         {
             staticRenderer.color = new Color(0.78f, 0.93f, 1f, Mathf.Lerp(0.04f, 0.26f, staticPulse) + pulse * 0.05f + screenFade * 0.10f);
-            staticRenderer.transform.position = new Vector3(0f, 2.09f, 0f) + tvShake + new Vector3(Mathf.Sin(Time.time * 43f) * 0.012f, Mathf.Cos(Time.time * 37f) * 0.008f, 0f);
+            staticRenderer.transform.position = TvBodyPosition + tvShake + new Vector3(Mathf.Sin(Time.time * 43f) * 0.012f, Mathf.Cos(Time.time * 37f) * 0.008f, 0f);
             staticRenderer.transform.localScale = Vector3.one * (1.02f + pulse * 0.035f);
         }
 
         if (tvCabinetRenderer != null)
-            tvCabinetRenderer.transform.position = new Vector3(0f, 1.82f, 0f) + tvShake;
+            tvCabinetRenderer.transform.position = TvCabinetPosition;
         if (tvBodyRenderer != null)
-            tvBodyRenderer.transform.position = new Vector3(0f, 2.08f, 0f) + tvShake;
+            tvBodyRenderer.transform.position = TvBodyPosition + tvShake;
 
         glowRenderer.color = new Color(0.55f, 0.82f, 1f, 0.08f + pulse * 0.06f + drowsy * 0.18f + screenFade * 0.08f);
+        glowRenderer.transform.position = TvGlowPosition;
         glowRenderer.transform.localScale = new Vector3(1.0f + drowsy * 0.42f + pulse * 0.06f, 1.0f + drowsy * 0.62f + pulse * 0.08f, 1f);
         beamRenderer.color = new Color(0.62f, 0.88f, 1f, Mathf.SmoothStep(0f, 0.18f, drowsy) * (1f - sleep * 0.45f));
+        beamRenderer.transform.position = TvBeamPosition;
         beamRenderer.transform.localScale = new Vector3(0.78f + drowsy * 0.22f + pulse * 0.04f, 0.74f + drowsy * 0.18f, 1f);
         if (signalRingRenderer != null)
         {
             signalRingRenderer.color = new Color(0.76f, 0.94f, 1f, Mathf.SmoothStep(0f, 0.24f, drowsy) * (1f - sleep * 0.65f));
-            signalRingRenderer.transform.position = new Vector3(0f, 2.08f, 0f) + tvShake;
+            signalRingRenderer.transform.position = TvBodyPosition + tvShake;
             signalRingRenderer.transform.localScale = Vector3.one * Mathf.Lerp(0.54f, 1.45f, drowsy + pulse * 0.08f);
             signalRingRenderer.transform.Rotate(0f, 0f, (32f + drowsy * 74f) * Time.deltaTime);
         }
@@ -367,11 +375,9 @@ public sealed class IntroCutscene : MonoBehaviour
         if (pullLight != null)
             pullLight.intensity = Mathf.SmoothStep(0f, 0.42f, drowsy) * (1f - sleep * 0.55f);
 
-        Vector3 viewerStart = new Vector3(0f, -1.82f, 0f);
-        Vector3 viewerSleep = new Vector3(0.12f, -1.98f, 0f);
-        viewerRenderer.transform.position = Vector3.Lerp(viewerStart, viewerSleep, sleep) + new Vector3(0f, Mathf.Sin(Time.time * 2.8f) * 0.018f * (1f - sleep), 0f);
-        viewerRenderer.transform.localScale = new Vector3(1f + Mathf.Sin(Time.time * 2.6f) * 0.018f * drowsy, 1f - sleep * 0.08f, 1f);
-        viewerRenderer.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(0f, -13f, sleep) + Mathf.Sin(Time.time * 2.3f) * drowsy * 1.8f);
+        viewerRenderer.transform.position = ViewerPosition;
+        viewerRenderer.transform.localScale = Vector3.one;
+        viewerRenderer.transform.localRotation = Quaternion.identity;
         viewerRenderer.color = Color.Lerp(Color.white, new Color(0.68f, 0.76f, 0.86f, 0.88f), sleep * 0.52f);
         fadeRenderer.color = new Color(0f, 0f, 0f, SleepFadeAlpha(t));
 
@@ -381,11 +387,18 @@ public sealed class IntroCutscene : MonoBehaviour
             postProcessColor.saturation.Override(Mathf.Lerp(-4f, -30f, sleep));
             postProcessColor.postExposure.Override(-0.04f + GameLightingSettings.IntroExposureOffset - screenFade * 0.34f);
         }
+        if (postProcessVignette != null)
+        {
+            float vignettePulse = Mathf.Max(BeatAlpha(t, 0.30f, 0.42f), Mathf.Max(BeatAlpha(t, 0.58f, 0.70f), BeatAlpha(t, 0.78f, 0.90f)));
+            postProcessVignette.intensity.Override(Mathf.Lerp(0.18f, 0.34f, drowsy) + vignettePulse * 0.22f + screenFade * 0.10f);
+            postProcessVignette.smoothness.Override(Mathf.Lerp(0.58f, 0.76f, drowsy));
+        }
 
         Camera camera = Camera.main;
         if (camera != null)
         {
-            camera.orthographicSize = Mathf.Lerp(5.4f, 4.65f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.20f) / 0.60f)));
+            float zoomPulse = Mathf.Max(BeatAlpha(t, 0.30f, 0.42f), Mathf.Max(BeatAlpha(t, 0.58f, 0.70f), BeatAlpha(t, 0.78f, 0.90f)));
+            camera.orthographicSize = Mathf.Lerp(5.4f, 4.65f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.20f) / 0.60f))) - zoomPulse * 0.28f;
             camera.transform.position = new Vector3(0f, Mathf.Lerp(0f, -0.12f, sleep), -10f) + cameraShake;
         }
     }
@@ -396,24 +409,24 @@ public sealed class IntroCutscene : MonoBehaviour
         new GameObject("Intro Art");
         CreateSpriteObject("Room Floor", IntroSpriteOrFallback(0, 3, "intro_floor", CreateRoomFloorSprite()), Vector3.zero, new Vector3(2.5f, 1.6f, 1f), -10);
         CreateSpriteObject("Window Shadow", IntroSpriteOrFallback(3, 0, "intro_window_shadow", CreateSoftRectSprite(128, 32, new Color(0.015f, 0.018f, 0.022f, 0.46f))), new Vector3(-3.8f, 2.3f, 0f), new Vector3(2.0f, 1f, 1f), -8);
-        SpriteRenderer tvCabinet = CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), new Vector3(0f, 1.82f, 0f), new Vector3(1.25f, 1f, 1f), -3);
+        SpriteRenderer tvCabinet = CreateSpriteObject("TV Cabinet", IntroSpriteOrFallback(1, 0, "intro_tv_cabinet", CreateRectSprite(96, 26, new Color(0.13f, 0.115f, 0.108f), new Color(0.060f, 0.054f, 0.052f))), TvCabinetPosition, new Vector3(1.25f, 1f, 1f), -3);
         tvCabinetRenderer = tvCabinet;
 
         SpriteRenderer couchShadow = CreateSpriteObject("Couch Shadow", IntroSpriteOrFallback(0, 1, "intro_couch_shadow", CreateEllipseSprite(160, 48, new Color(0f, 0f, 0f, 0.45f))), new Vector3(0f, -2.18f, 0f), Vector3.one, -4);
         couchShadow.transform.localScale = new Vector3(1.4f, 0.9f, 1f);
         SpriteRenderer couch = CreateSpriteObject("Couch", IntroSpriteOrFallback(0, 0, "intro_couch", CreateCouchSprite()), new Vector3(0f, -2.0f, 0f), Vector3.one, 1);
-        viewerRenderer = CreateSpriteObject("Viewer", IntroSpriteOrFallback(2, 0, "intro_viewer_seated", CreateViewerSprite()), new Vector3(0f, -1.82f, 0f), Vector3.one, 5);
+        viewerRenderer = CreateSpriteObject("Viewer", IntroSpriteOrFallback(2, 0, "intro_viewer_seated", CreateViewerSprite()), ViewerPosition, Vector3.one, 5);
         viewerCastShadowRenderer = CreateSpriteObject("Viewer Cast Shadow", CreateHumanCastShadowSprite(), new Vector3(0f, -2.34f, 0f), Vector3.one, 2);
         viewerCastShadowRenderer.color = new Color(0f, 0f, 0f, 0f);
         CreateSpriteObject("Viewer Shadow", CreateEllipseSprite(54, 24, new Color(0f, 0f, 0f, 0.42f)), new Vector3(0f, -1.96f, 0f), Vector3.one, 0);
 
-        SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroAtlas != null ? null : CreateTvBodySprite(), new Vector3(0f, 2.08f, 0f), Vector3.one, 4);
+        SpriteRenderer tvBody = CreateSpriteObject("TV Body", IntroAtlas != null ? null : CreateTvBodySprite(), TvBodyPosition, Vector3.one, 4);
         tvBodyRenderer = tvBody;
-        screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 5);
-        staticRenderer = CreateSpriteObject("TV Static Overlay", IntroSpriteOrFallback(1, 1, "intro_tv_static_overlay", CreateStaticScreenSprite()), new Vector3(0f, 2.09f, 0f), Vector3.one, 6);
-        glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), new Vector3(0f, 0.26f, 0f), new Vector3(1.2f, 1f, 1f), -2);
-        beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), new Vector3(0f, 0.42f, 0f), Vector3.one, 7);
-        signalRingRenderer = CreateSpriteObject("Signal Ring", CreateSignalRingSprite(), new Vector3(0f, 2.08f, 0f), new Vector3(0.52f, 0.52f, 1f), 8);
+        screenRenderer = CreateSpriteObject("TV Screen", IntroSpriteOrFallback(1, 1, "intro_tv_screen", CreateStaticScreenSprite()), TvBodyPosition, Vector3.one, 5);
+        staticRenderer = CreateSpriteObject("TV Static Overlay", IntroSpriteOrFallback(1, 1, "intro_tv_static_overlay", CreateStaticScreenSprite()), TvBodyPosition, Vector3.one, 6);
+        glowRenderer = CreateSpriteObject("TV Glow", CreateGlowConeSprite(), TvGlowPosition, new Vector3(1.2f, 1f, 1f), -2);
+        beamRenderer = CreateSpriteObject("Pull Beam", CreateBeamSprite(), TvBeamPosition, Vector3.one, 7);
+        signalRingRenderer = CreateSpriteObject("Signal Ring", CreateSignalRingSprite(), TvBodyPosition, new Vector3(0.52f, 0.52f, 1f), 8);
         fadeRenderer = CreateSpriteObject("Fade", CreateSolidSprite(new Color(0f, 0f, 0f, 1f), 16, 10), Vector3.zero, Vector3.one, 100);
         fadeRenderer.color = new Color(0f, 0f, 0f, 0f);
 
@@ -485,9 +498,9 @@ public sealed class IntroCutscene : MonoBehaviour
     private void EnsureOptionalIntroLayers()
     {
         if (staticRenderer == null && screenRenderer != null)
-            staticRenderer = CreateRuntimeSpriteObject("TV Static Overlay", screenRenderer.sprite, new Vector3(0f, 2.09f, 0f), Vector3.one, 6);
+            staticRenderer = CreateRuntimeSpriteObject("TV Static Overlay", screenRenderer.sprite, TvBodyPosition, Vector3.one, 6);
         if (signalRingRenderer == null)
-            signalRingRenderer = CreateRuntimeSpriteObject("Signal Ring", CreateSignalRingSprite(), new Vector3(0f, 2.08f, 0f), new Vector3(0.52f, 0.52f, 1f), 8);
+            signalRingRenderer = CreateRuntimeSpriteObject("Signal Ring", CreateSignalRingSprite(), TvBodyPosition, new Vector3(0.52f, 0.52f, 1f), 8);
 
         SetUnlit(staticRenderer, signalRingRenderer);
     }
@@ -1030,12 +1043,12 @@ public sealed class IntroCutscene : MonoBehaviour
         postProcessProfile = ScriptableObject.CreateInstance<VolumeProfile>();
         postProcessProfile.name = "Intro Runtime Post Processing";
 
-        Vignette vignette = postProcessProfile.Add<Vignette>(true);
-        vignette.color.Override(new Color(0.008f, 0.010f, 0.016f));
-        vignette.center.Override(new Vector2(0.5f, 0.5f));
-        vignette.intensity.Override(0.18f);
-        vignette.smoothness.Override(0.58f);
-        vignette.rounded.Override(true);
+        postProcessVignette = postProcessProfile.Add<Vignette>(true);
+        postProcessVignette.color.Override(new Color(0.008f, 0.010f, 0.016f));
+        postProcessVignette.center.Override(new Vector2(0.5f, 0.5f));
+        postProcessVignette.intensity.Override(0.18f);
+        postProcessVignette.smoothness.Override(0.58f);
+        postProcessVignette.rounded.Override(true);
 
         postProcessColor = postProcessProfile.Add<ColorAdjustments>(true);
         postProcessColor.postExposure.Override(-0.04f);
