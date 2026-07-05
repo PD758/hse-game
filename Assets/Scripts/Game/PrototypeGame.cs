@@ -776,8 +776,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (stone == null || stone.Moving)
             return false;
 
-        Vector2Int destination = stone.Cell + direction;
-        if (!CanStoneEnter(destination))
+        if (!TryFindStonePushDestination(stone, from, direction, out Vector2Int destination))
         {
             message = "Заглушка сигнала упирается в эфир.";
             return true;
@@ -794,6 +793,30 @@ public sealed partial class PrototypeGame : MonoBehaviour
         message = "Заглушка скользит на соседнюю метку.";
         UpdatePuzzle();
         return true;
+    }
+
+    private bool TryFindStonePushDestination(Stone stone, Vector2Int playerCell, Vector2Int pushDirection, out Vector2Int destination)
+    {
+        Vector2Int left = new Vector2Int(-pushDirection.y, pushDirection.x);
+        Vector2Int[] candidates =
+        {
+            stone.Cell + pushDirection,
+            playerCell - pushDirection,
+            stone.Cell + left,
+            stone.Cell - left,
+        };
+
+        foreach (Vector2Int candidate in candidates)
+        {
+            if (CanStoneEnter(candidate, playerCell))
+            {
+                destination = candidate;
+                return true;
+            }
+        }
+
+        destination = stone.Cell;
+        return false;
     }
 
     private void TryAttack()
@@ -2505,9 +2528,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
     }
 
-    private bool CanStoneEnter(Vector2Int cell)
+    private bool CanStoneEnter(Vector2Int cell, Vector2Int playerCell)
     {
-        return Inside(cell) && !IsSolidCell(cell) && StoneAt(cell) == null && EnemyAt(cell) == null;
+        return cell != playerCell && Inside(cell) && !IsSolidCell(cell) && StoneAt(cell) == null && EnemyAt(cell) == null;
     }
 
     private void BuildLevel()

@@ -1022,7 +1022,7 @@ public sealed partial class PrototypeGame
             if (!Inside(next))
                 continue;
 
-            if (DecalBlockingTile(tiles[next.x, next.y]) || StoneAt(next) != null || EnemyAt(next) != null)
+            if (DecalBlockingTile(tiles[next.x, next.y]))
                 return true;
         }
 
