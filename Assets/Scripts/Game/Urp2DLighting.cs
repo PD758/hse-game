@@ -1,3 +1,4 @@
+using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 
@@ -5,6 +6,8 @@ public static class Urp2DLighting
 {
     private static Material spriteLitMaterial;
     private static Material spriteUnlitMaterial;
+    private static readonly FieldInfo ShadowShapePathField = typeof(ShadowCaster2D).GetField("m_ShapePath", BindingFlags.Instance | BindingFlags.NonPublic);
+    private static readonly FieldInfo ShadowShapePathHashField = typeof(ShadowCaster2D).GetField("m_ShapePathHash", BindingFlags.Instance | BindingFlags.NonPublic);
 
     public static Material SpriteLitMaterial
     {
@@ -100,16 +103,40 @@ public static class Urp2DLighting
         transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
     }
 
-    public static void ConfigureShadowCaster(ShadowCaster2D caster, bool enabled)
+    public static void ConfigureShadowCaster(ShadowCaster2D caster, bool enabled, bool selfShadows = false)
     {
         if (caster == null)
             return;
 
         bool shadowsEnabled = enabled && GameLightingSettings.ShadowsEnabled;
         caster.castsShadows = shadowsEnabled;
-        caster.selfShadows = false;
+        caster.selfShadows = shadowsEnabled && selfShadows;
         caster.alphaCutoff = 0.02f;
         caster.enabled = shadowsEnabled;
+    }
+
+    public static void ConfigureBoxShadowShape(ShadowCaster2D caster, float width, float height)
+    {
+        if (caster == null || ShadowShapePathField == null || ShadowShapePathHashField == null)
+            return;
+
+        float halfWidth = Mathf.Max(0.01f, width) * 0.5f;
+        float halfHeight = Mathf.Max(0.01f, height) * 0.5f;
+        var shape = new[]
+        {
+            new Vector3(-halfWidth, -halfHeight, 0f),
+            new Vector3(-halfWidth, halfHeight, 0f),
+            new Vector3(halfWidth, halfHeight, 0f),
+            new Vector3(halfWidth, -halfHeight, 0f),
+        };
+
+        ShadowShapePathField.SetValue(caster, shape);
+        ShadowShapePathHashField.SetValue(caster, unchecked((int)2166136261 ^ shape.Length ^ Mathf.RoundToInt(width * 1000f) ^ Mathf.RoundToInt(height * 1000f)));
+        if (caster.enabled)
+        {
+            caster.enabled = false;
+            caster.enabled = GameLightingSettings.ShadowsEnabled;
+        }
     }
 
     private static Material CreateMaterial(string shaderName, string materialName)

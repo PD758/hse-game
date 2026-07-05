@@ -273,7 +273,7 @@ public sealed partial class PrototypeGame
         {
             Vector2 direction = UpdateFlashlightAim();
             Urp2DLighting.ConfigureConeLight(playerLight, new Color(1.00f, 0.94f, 0.72f), FlashlightIntensity, FlashlightRadius, 0.45f, FlashlightOuterAngle, FlashlightInnerAngle, direction);
-            Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.46f, 0.46f, 0.66f);
+            Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.58f, 0.40f, 0.62f);
             return;
         }
 
@@ -678,7 +678,12 @@ public sealed partial class PrototypeGame
         if (caster == null && blocksLight)
             caster = Urp2DLighting.AddShadowCaster(view);
         else
-            Urp2DLighting.ConfigureShadowCaster(caster, blocksLight);
+            Urp2DLighting.ConfigureShadowCaster(caster, blocksLight, true);
+        if (blocksLight)
+        {
+            Urp2DLighting.ConfigureShadowCaster(caster, true, true);
+            Urp2DLighting.ConfigureBoxShadowShape(caster, 1.04f, 1.04f);
+        }
     }
 
     private bool TileBlocksLight(Vector2Int cell)

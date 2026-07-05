@@ -54,9 +54,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
     private const float FlashlightIntensity = 0.94f;
-    private const float FlashlightRadius = 40f;
-    private const float FlashlightOuterAngle = 58f;
-    private const float FlashlightInnerAngle = 22f;
+    private const float FlashlightRadius = 9.5f;
+    private const float FlashlightOuterAngle = 66f;
+    private const float FlashlightInnerAngle = 28f;
     private const float FlashlightAimResponsiveness = 14f;
     private const string CameraLightName = "Camera Light";
     private const string EnemyLightName = "Enemy Light";
