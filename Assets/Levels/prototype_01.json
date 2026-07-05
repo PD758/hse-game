@@ -16,7 +16,7 @@
       "y": 15,
       "branch": "none",
       "requiresGate": "puzzle_exit_gate",
-      "targetLevel": ""
+      "targetLevel": "prototype_02"
     }
   ],
   "tiles": [
