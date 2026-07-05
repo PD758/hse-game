@@ -57,6 +57,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float FlashlightRadius = 40f;
     private const float FlashlightOuterAngle = 58f;
     private const float FlashlightInnerAngle = 22f;
+    private const float FlashlightAimResponsiveness = 14f;
     private const string CameraLightName = "Camera Light";
     private const string EnemyLightName = "Enemy Light";
     private const string EnemyBeamName = "Enemy Beam";
@@ -157,6 +158,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private Vector2 moveInput;
     private Vector2 currentVelocity;
     private Vector2 lastAim = Vector2.right;
+    private Vector2 flashlightAim = Vector2.right;
     private string currentLevelId;
     private Vector2Int playerStart = new Vector2Int(3, 10);
     private Vector2Int lastEventPlayerCell = new Vector2Int(-1, -1);

@@ -71,7 +71,7 @@ public static class ProjectBootstrap
 
         GraphicsSettings.defaultRenderPipeline = pipeline;
         ApplyPipelineToAllQualityLevels(pipeline);
-        QualitySettings.antiAliasing = 4;
+        QualitySettings.antiAliasing = 0;
         AssetDatabase.SaveAssets();
     }
 

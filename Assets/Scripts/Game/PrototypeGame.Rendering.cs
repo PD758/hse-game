@@ -271,7 +271,7 @@ public sealed partial class PrototypeGame
 
         if (HasFlashlight)
         {
-            Vector2 direction = DirectionOrFallback(lastAim, Vector2.right);
+            Vector2 direction = UpdateFlashlightAim();
             Urp2DLighting.ConfigureConeLight(playerLight, new Color(1.00f, 0.94f, 0.72f), FlashlightIntensity, FlashlightRadius, 0.45f, FlashlightOuterAngle, FlashlightInnerAngle, direction);
             Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.46f, 0.46f, 0.66f);
             return;
@@ -285,6 +285,18 @@ public sealed partial class PrototypeGame
         playerLight.pointLightOuterAngle = 360f;
         playerLight.pointLightInnerAngle = 360f;
         Urp2DLighting.ConfigurePointLightShadows(playerLight, 0.36f, 0.52f, 0.64f);
+    }
+
+    private Vector2 UpdateFlashlightAim()
+    {
+        Vector2 target = DirectionOrFallback(lastAim, Vector2.right);
+        flashlightAim = DirectionOrFallback(flashlightAim, target);
+        float blend = 1f - Mathf.Exp(-FlashlightAimResponsiveness * Time.deltaTime);
+        float currentAngle = Mathf.Atan2(flashlightAim.y, flashlightAim.x) * Mathf.Rad2Deg;
+        float targetAngle = Mathf.Atan2(target.y, target.x) * Mathf.Rad2Deg;
+        float angle = Mathf.LerpAngle(currentAngle, targetAngle, blend);
+        flashlightAim = new Vector2(Mathf.Cos(angle * Mathf.Deg2Rad), Mathf.Sin(angle * Mathf.Deg2Rad));
+        return flashlightAim;
     }
 
     private GameObject FindSceneObjectIncludingInactive(string objectName)
