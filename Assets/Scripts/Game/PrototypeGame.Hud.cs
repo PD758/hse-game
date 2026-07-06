@@ -51,6 +51,13 @@ public sealed partial class PrototypeGame
         Rect hpRect = PixelRect(new Rect(margin, margin, hpWidth, 52f * ui));
         DrawHpHeartPanel(hpRect);
 
+        if (NoteOverlayActive())
+        {
+            DrawStoryNoteOverlay(screenWidth, screenHeight, noteStyle, hintStyle);
+            GUI.matrix = previousMatrix;
+            return;
+        }
+
         if (runCompleted)
             DrawCompletionOverlay(screenWidth, screenHeight);
 
@@ -235,6 +242,58 @@ public sealed partial class PrototypeGame
 
         DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + 8f * ui, rect.width - padX * 2f, 18f * ui), string.IsNullOrEmpty(noteMessageSpeaker) ? "Вы" : noteMessageSpeaker, titleStyle);
         DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + padY + 20f * ui, rect.width - padX * 2f, rect.height - padY * 2f - 20f * ui), VisibleNoteText(), noteStyle);
+    }
+
+    private void DrawStoryNoteOverlay(float screenWidth, float screenHeight, GUIStyle noteStyle, GUIStyle hintStyle)
+    {
+        EnsureNotePaperTexture();
+        DrawFilledRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0f, 0f, 0f, 0.72f));
+
+        float ui = HudScale;
+        float frameSize = Mathf.Min(screenWidth - 36f * ui, screenHeight - 34f * ui, 620f * ui);
+        Rect frameRect = PixelRect(new Rect((screenWidth - frameSize) * 0.5f, (screenHeight - frameSize) * 0.5f, frameSize, frameSize));
+
+        if (notePaperTexture != null)
+            DrawTexturePreservingAtlasPart(frameRect, notePaperTexture, Color.white);
+        else
+            DrawHudPanel(frameRect, new Color(0.86f, 0.80f, 0.68f, 0.98f), new Color(0.26f, 0.18f, 0.12f, 0.80f), false);
+
+        bool hasText = !string.IsNullOrEmpty(noteMessage);
+        Rect imageRect = hasText
+            ? new Rect(frameRect.x + frameRect.width * 0.17f, frameRect.y + frameRect.height * 0.16f, frameRect.width * 0.66f, frameRect.height * 0.48f)
+            : new Rect(frameRect.x + frameRect.width * 0.15f, frameRect.y + frameRect.height * 0.15f, frameRect.width * 0.70f, frameRect.height * 0.64f);
+        if (noteImageTexture != null)
+        {
+            Rect fitted = FitRectToAspect(imageRect, noteImageTexture.width / Mathf.Max(1f, noteImageTexture.height));
+            GUI.DrawTexture(fitted, noteImageTexture, ScaleMode.ScaleToFit, true);
+        }
+
+        if (hasText)
+        {
+            var paperTextStyle = new GUIStyle(noteStyle)
+            {
+                alignment = TextAnchor.UpperCenter,
+                fontSize = Mathf.RoundToInt((screenWidth < 860f ? 17 : 20) * ui),
+                normal = { textColor = new Color(0.16f, 0.12f, 0.10f, 0.96f) },
+            };
+            PixelGui.Apply(paperTextStyle);
+            Rect textRect = new Rect(frameRect.x + frameRect.width * 0.15f, frameRect.y + frameRect.height * 0.66f, frameRect.width * 0.70f, frameRect.height * 0.18f);
+            GUI.Label(textRect, VisibleNoteText(), paperTextStyle);
+        }
+
+        var closeStyle = new GUIStyle(hintStyle)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            normal = { textColor = new Color(0.22f, 0.18f, 0.16f, 0.82f) },
+        };
+        PixelGui.Apply(closeStyle);
+        GUI.Label(new Rect(frameRect.x + frameRect.width * 0.18f, frameRect.yMax - frameRect.height * 0.13f, frameRect.width * 0.64f, 26f * ui), "E / Space / Enter", closeStyle);
+    }
+
+    private void EnsureNotePaperTexture()
+    {
+        if (notePaperTexture == null)
+            notePaperTexture = Resources.Load<Texture2D>("UI/note_paper_frame");
     }
 
     private void DrawCompletionOverlay(float screenWidth, float screenHeight)

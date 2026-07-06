@@ -18,7 +18,7 @@ STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
 ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
-ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "heal", "plate", "stone", "rubble")
+ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "storyImage", "heal", "plate", "stone", "rubble")
 
 
 @dataclass
@@ -159,6 +159,9 @@ def draw_inspector(
         elif obj_type == "story":
             y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "text", target.get("text", ""), x + margin, y, width - margin * 2, scale, multiline=True)
+        elif obj_type == "storyImage":
+            y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+            y = draw_text_field(screen, font, state, selected_ref, "imagePath", target.get("imagePath", ""), x + margin, y, width - margin * 2, scale)
         else:
             y = draw_text(screen, font, "No editable properties", x + margin, y, (132, 140, 148))
     elif kind == "enemy":
@@ -1037,7 +1040,7 @@ def collect_level_options(level: dict) -> dict[str, list[str]]:
         obj_type = obj.get("type", "")
         if obj_type == "plate":
             plates.append(str(obj.get("group", "")))
-        elif obj_type == "story":
+        elif obj_type in ("story", "storyImage"):
             stories.append(str(obj.get("id", "")))
         elif obj_type == "gate":
             gates.append(str(obj.get("id", "")))
@@ -1570,7 +1573,7 @@ def is_allowed_text(value: str, field: str) -> bool:
         return value.isdigit()
     if field in ("x", "y", "scale", "rotation", "intensity", "radius", "outerAngle", "innerAngle", "hearing", "vision", "sortingOrder"):
         return value.isdigit() or value in ".-"
-    if field == "texturePath":
+    if field in ("texturePath", "imagePath", "targetLevel"):
         return all(ch >= " " and ch not in "\"<>" for ch in value)
     if field == "color":
         return all(ch.isalnum() or ch in "#(),. " for ch in value)

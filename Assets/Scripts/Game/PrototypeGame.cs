@@ -54,6 +54,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
+    private const int RemoteDamageMultiplier = 2;
     private const float FlashlightIntensity = 0.94f;
     private const float FlashlightRadius = 7.0f;
     private const float FlashlightOuterAngle = 104f;
@@ -182,6 +183,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private string message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
     private string noteMessage;
     private string noteMessageSpeaker;
+    private Texture2D noteImageTexture;
+    private Texture2D notePaperTexture;
     private float noteMessageTimer;
     private float noteMessageAge;
     private float noteGameplayBlockTimer;
@@ -225,6 +228,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         if (paused)
             return;
+
+        if (NoteOverlayActive())
+        {
+            UpdateNoteMessage(Time.deltaTime);
+            if (Pressed(keyboard?.eKey) || Pressed(keyboard?.spaceKey) || Pressed(keyboard?.enterKey))
+                ClearNoteMessage();
+            return;
+        }
 
         if (Pressed(keyboard?.rKey))
         {
@@ -635,6 +646,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         noteMessage = text;
         noteMessageSpeaker = speaker;
         noteMessageAge = 0f;
+        noteImageTexture = null;
         noteMessageTimer = Mathf.Clamp(4.5f + (text?.Length ?? 0) * 0.045f, 5.5f, 12f);
         noteGameplayBlockTimer = blockGameplay ? ((text?.Length ?? 0) / NoteTextRevealCharactersPerSecond) + 1f : 0f;
         noteBlocksGameplay = blockGameplay;
@@ -642,6 +654,64 @@ public sealed partial class PrototypeGame : MonoBehaviour
         currentVelocity = Vector2.zero;
         if (playerBody != null)
             playerBody.linearVelocity = Vector2.zero;
+    }
+
+    private void ShowNoteImage(string imagePath)
+    {
+        noteMessage = string.Empty;
+        noteMessageSpeaker = null;
+        noteMessageAge = 0f;
+        noteImageTexture = LoadNoteImageTexture(imagePath);
+        noteMessageTimer = noteImageTexture != null ? 14f : 0f;
+        noteGameplayBlockTimer = noteImageTexture != null ? 14f : 0f;
+        noteBlocksGameplay = noteImageTexture != null;
+        moveInput = Vector2.zero;
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+    }
+
+    private Texture2D LoadNoteImageTexture(string imagePath)
+    {
+        string resourceKey = ResourceKeyForNoteImage(imagePath);
+        if (string.IsNullOrEmpty(resourceKey))
+            return null;
+
+        Texture2D texture = Resources.Load<Texture2D>(resourceKey);
+        if (texture == null)
+            Debug.LogWarning($"Story note image '{imagePath}' was not found in Resources.");
+        return texture;
+    }
+
+    private static string ResourceKeyForNoteImage(string imagePath)
+    {
+        if (string.IsNullOrWhiteSpace(imagePath))
+            return string.Empty;
+
+        string normalized = imagePath.Replace('\\', '/').Trim();
+        const string prefix = "Assets/Resources/";
+        int index = normalized.IndexOf(prefix, StringComparison.OrdinalIgnoreCase);
+        string key = index >= 0 ? normalized.Substring(index + prefix.Length) : normalized;
+        int extensionIndex = key.LastIndexOf('.');
+        if (extensionIndex > 0)
+            key = key.Substring(0, extensionIndex);
+        return key;
+    }
+
+    private bool NoteOverlayActive()
+    {
+        return noteImageTexture != null && noteMessageTimer > 0f;
+    }
+
+    private void ClearNoteMessage()
+    {
+        noteMessage = null;
+        noteMessageSpeaker = null;
+        noteImageTexture = null;
+        noteMessageTimer = 0f;
+        noteMessageAge = 0f;
+        noteGameplayBlockTimer = 0f;
+        noteBlocksGameplay = false;
     }
 
     private void UpdateNoteMessage(float dt)
@@ -654,24 +724,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (noteGameplayBlockTimer > 0f)
             noteGameplayBlockTimer = Mathf.Max(0f, noteGameplayBlockTimer - dt);
         if (noteMessageTimer <= 0f)
-        {
             ClearNoteMessage();
-        }
-    }
-
-    private void ClearNoteMessage()
-    {
-        noteMessage = null;
-        noteMessageSpeaker = null;
-        noteMessageTimer = 0f;
-        noteMessageAge = 0f;
-        noteGameplayBlockTimer = 0f;
-        noteBlocksGameplay = false;
     }
 
     private bool GameplayBlockedByNote()
     {
-        return noteBlocksGameplay && !string.IsNullOrEmpty(noteMessage) && noteGameplayBlockTimer > 0f;
+        return noteBlocksGameplay && noteGameplayBlockTimer > 0f && (!string.IsNullOrEmpty(noteMessage) || noteImageTexture != null);
     }
 
     private void TryInteract()
@@ -709,8 +767,16 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 tileVariants[next.x, next.y] = -1;
                 NarrativeRunState.RecordPuzzleReflection();
                 RestoreRating(18f);
-                message = string.IsNullOrEmpty(story?.text) ? "В монтажной заметке написано: смотреть не значит соглашаться." : story.text;
-                ShowNoteMessage(message, "Записка");
+                if (story != null && string.Equals(story.type, "storyImage", StringComparison.OrdinalIgnoreCase))
+                {
+                    message = string.Empty;
+                    ShowNoteImage(story.imagePath);
+                }
+                else
+                {
+                    message = string.IsNullOrEmpty(story?.text) ? "В монтажной заметке написано: смотреть не значит соглашаться." : story.text;
+                    ShowNoteMessage(message, "Записка");
+                }
                 RedrawTile(next);
                 UpdatePuzzle();
                 return;
@@ -903,7 +969,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             away = lastAim;
         away.Normalize();
 
-        target.Hp--;
+        int damage = PlayerAttackDamage();
+        target.Hp -= damage;
         target.Mode = EnemyMode.Hunt;
         target.LastSeen = PlayerCell();
         target.LostSightTimer = 0f;
@@ -918,7 +985,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
         SpawnHitBurst(target.Position, target.Hp <= 0);
         if (target.Hp <= 0)
             SpawnEnemyDeathFlash(target.Position);
-        message = target.Hp <= 0 ? "Диктор рассыпался в белый шум." : "Диктор сбился с текста.";
+        message = target.Hp <= 0
+            ? "Диктор рассыпался в белый шум."
+            : RemoteJamActive() ? "Пульт усиливает удар. Диктор теряет сигнал." : "Диктор сбился с текста.";
 
         if (target.Hp > 0)
             return;
@@ -936,6 +1005,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
         CheckEnemyGroupCleared(target.Group);
         RedrawGateGroups();
         RedrawExits();
+    }
+
+    private int PlayerAttackDamage()
+    {
+        return RemoteJamActive() ? RemoteDamageMultiplier : 1;
     }
 
     private bool TryBreakTrap(Vector2 player)
@@ -2748,6 +2822,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             "remote" => Tile.Remote,
             "flashlight" => Tile.Flashlight,
             "story" => Tile.Story,
+            "storyImage" => Tile.Story,
             "heal" => Tile.Heal,
             _ => Tile.Wall,
         };
@@ -2815,6 +2890,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                     cameraDirectionsByCell[cell] = DirectionOrFallback(obj.direction.ToVector2(), Vector2.down);
                 break;
             case "story":
+            case "storyImage":
                 tiles[cell.x, cell.y] = Tile.Story;
                 tileVariants[cell.x, cell.y] = obj.variant;
                 storyObjectsByCell[cell] = obj;

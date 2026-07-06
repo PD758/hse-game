@@ -99,6 +99,19 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
                 issues.append(ValidationIssue("error", "story has no id", cell, target))
             if not obj.get("text"):
                 issues.append(ValidationIssue("warning", "story has empty text", cell, target))
+            if str(obj.get("imagePath", "") or "").strip():
+                issues.append(ValidationIssue("warning", "text story ignores imagePath; use storyImage for picture notes", cell, target))
+        elif obj_type == "storyImage":
+            story_id = obj.get("id", "")
+            if story_id:
+                story_ids.add(story_id)
+            else:
+                issues.append(ValidationIssue("error", "storyImage has no id", cell, target))
+            image_path = str(obj.get("imagePath", "") or "").strip()
+            if not image_path:
+                issues.append(ValidationIssue("error", "storyImage has no imagePath", cell, target))
+            elif not resource_image_exists(image_path):
+                issues.append(ValidationIssue("warning", f"storyImage image '{image_path}' was not found in Assets/Resources", cell, target))
 
     for index, obj in enumerate(level.get("objects", [])):
         if obj.get("type") != "gate":
@@ -457,6 +470,20 @@ def validate_spawned_enemy(
         issues.append(ValidationIssue("warning", "spawned enemy type 'announcer' is legacy; use 'patrol'", cell, target))
     elif enemy_type not in ENEMY_ARCHETYPES:
         issues.append(ValidationIssue("error", f"unknown spawned enemy type '{enemy_type}'", cell, target))
+
+
+def resource_image_exists(value: str) -> bool:
+    normalized = value.replace("\\", "/").strip()
+    resources = Path(__file__).resolve().parents[1] / "Assets" / "Resources"
+    prefix = "Assets/Resources/"
+    if normalized.startswith(prefix):
+        return (Path(__file__).resolve().parents[1] / normalized).exists()
+
+    key = normalized
+    if "." in Path(key).name:
+        return (resources / key).exists()
+
+    return any((resources / f"{key}{extension}").exists() for extension in (".png", ".jpg", ".jpeg"))
 
 
 def validate_walkable_cell(issues: list[ValidationIssue], tiles: list[list[str]], cell: tuple[int, int], target: tuple[str, int], label: str) -> None:

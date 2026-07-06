@@ -52,7 +52,8 @@ The right panel shows editable properties for the current selection.
 - Plate: `group`
 - Remote / Flashlight / Heal: pickup objects for the ability and recovery loops
 - Camera: drag the arrow handle on the map to rotate
-- Story: `id`, text
+- Text Note: `id`, `text`
+- Image Note: `id`, `imagePath`; use repo-relative `Assets/Resources/...` paths or resource keys like `Notes/note_01`
 - Exit: `id`, `targetLevel`, `requiresGate`; `branch` is legacy metadata and ignored by gameplay
 - Enemy: `id`, `level`, `hp`, branch metadata and patrol controls
 - Texture: `texturePath`, `scale`, `rotation`, `sortingOrder`, `castsShadow`; use repo-relative paths under `Assets/Resources/...` for Unity builds

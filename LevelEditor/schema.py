@@ -15,6 +15,7 @@ OBJECT_TYPES = (
     "flashlight",
     "trap",
     "story",
+    "storyImage",
     "heal",
     "plate",
     "stone",

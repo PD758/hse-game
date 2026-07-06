@@ -15,7 +15,8 @@ TOOLS = [
     {"kind": "object", "value": "heal", "label": "Heal", "key": "9"},
     {"kind": "enemy", "value": "patrol", "label": "Enemy", "key": "0"},
     {"kind": "exit", "value": "exit", "label": "Exit", "key": "x"},
-    {"kind": "object", "value": "story", "label": "Story", "key": "-"},
+    {"kind": "object", "value": "story", "label": "Text Note", "key": "-"},
+    {"kind": "object", "value": "storyImage", "label": "Image Note", "key": "="},
     {"kind": "decoration", "value": "decoration", "label": "Texture", "key": "t"},
     {"kind": "light", "value": "light", "label": "Light", "key": "i"},
 ]

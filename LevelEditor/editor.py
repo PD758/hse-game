@@ -393,6 +393,8 @@ def handle_left_click(
         obj["direction"] = {"x": 0.0, "y": -1.0}
     if tool["value"] == "story":
         obj.update({"id": f"story_{cell[0]}_{cell[1]}", "text": ""})
+    if tool["value"] == "storyImage":
+        obj.update({"id": f"story_image_{cell[0]}_{cell[1]}", "imagePath": ""})
     level["objects"].append(obj)
     return ("object", len(level["objects"]) - 1), None, True
 
@@ -984,7 +986,7 @@ def draw_gate_references(surface: pygame.Surface, viewport: Viewport, level: dic
         cell = object_at(obj)
         if obj_type == "plate" and str(obj.get("group", "")) in plate_groups:
             draw_linked_cell(surface, viewport, gate_center, cell, (116, 226, 255, 80), (116, 226, 255, 220), "plate", font)
-        elif obj_type == "story" and str(obj.get("id", "")) in story_ids:
+        elif obj_type in ("story", "storyImage") and str(obj.get("id", "")) in story_ids:
             draw_linked_cell(surface, viewport, gate_center, cell, (176, 146, 255, 78), (196, 176, 255, 230), "story", font)
 
     for enemy in level.get("enemies", []) or []:

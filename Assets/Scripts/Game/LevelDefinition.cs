@@ -71,6 +71,7 @@ public sealed class LevelObject
     public string branch;
     public string frame;
     public string text;
+    public string imagePath;
     public int x;
     public int y;
     public int variant = -1;
