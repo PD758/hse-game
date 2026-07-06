@@ -192,7 +192,7 @@ public sealed class MainMenu : MonoBehaviour
         DrawPanel(panel, new Color(0.018f, 0.024f, 0.032f, 0.94f), new Color(0.48f, 0.68f, 0.74f, 0.38f));
 
         Rect headerRect = new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, compact ? 118f : 128f);
-        GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "..?", titleStyle);
+        GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "Adether.", titleStyle);
         GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите режим игры:", subtitleStyle);
 
         float cardsTop = headerRect.yMax + (compact ? 10f : 18f);
