@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "id": "prototype_03",
+  "size": {
+    "width": 39,
+    "height": 21
+  },
+  "playerStart": {
+    "x": 36,
+    "y": 18
+  },
+  "exits": [],
+  "tiles": [
+    {
+      "tile": "floor",
+      "y": 17,
+      "x": 35,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 18,
+      "x": 35,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 19,
+      "x": 35,
+      "length": 3
+    }
+  ],
+  "walls": [],
+  "objects": [],
+  "enemies": [],
+  "decorations": [],
+  "lights": [],
+  "events": [],
+  "logic": {
+    "gates": [],
+    "branchTriggers": [],
+    "branchBlocks": [],
+    "exitRules": []
+  },
+  "regions": []
+}

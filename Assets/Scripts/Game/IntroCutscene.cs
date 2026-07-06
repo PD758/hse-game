@@ -13,6 +13,8 @@ using UnityEditor;
 public sealed class IntroCutscene : MonoBehaviour
 {
     private const float Duration = 10.5f;
+    private const float IntroSlideExitFadeDuration = 2.15f;
+    private const float SceneRevealFadeDuration = 1.25f;
     private const int IntroAtlasColumns = 4;
     private const int IntroAtlasRows = 8;
     private const float IntroAtlasPixelsPerUnit = 64f;
@@ -52,8 +54,10 @@ public sealed class IntroCutscene : MonoBehaviour
     private readonly List<IntroSlide> introSlides = new List<IntroSlide>();
     private float startedAt;
     private float slideStartedAt;
+    private float slideExitFadeStartedAt;
     private int currentSlideIndex;
     private bool storySlidesActive;
+    private bool slideExitFadeActive;
     private string[] thoughtLines = DefaultThoughtLines;
 
     private sealed class IntroSlide
@@ -96,9 +100,21 @@ public sealed class IntroCutscene : MonoBehaviour
 
         if (storySlidesActive)
         {
+            if (slideExitFadeActive)
+            {
+                if (Time.time - slideExitFadeStartedAt >= IntroSlideExitFadeDuration)
+                    FinishIntroSlides();
+                return;
+            }
+
             bool advance = keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame);
             if (advance || Time.time - slideStartedAt >= introSlides[currentSlideIndex].Duration)
-                AdvanceIntroSlide();
+            {
+                if (currentSlideIndex >= introSlides.Count - 1)
+                    StartIntroSlideExitFade();
+                else
+                    AdvanceIntroSlide();
+            }
             return;
         }
 
@@ -154,6 +170,14 @@ public sealed class IntroCutscene : MonoBehaviour
         };
         PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(12, screenHeight - 36, screenWidth - 24, 24), "Space/Enter: пропустить | Esc: меню", hintStyle);
+
+        float revealAlpha = SceneRevealFadeAlpha();
+        if (revealAlpha > 0f)
+        {
+            GUI.color = new Color(0f, 0f, 0f, revealAlpha);
+            GUI.DrawTexture(new Rect(0f, 0f, screenWidth, screenHeight), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
         GUI.matrix = previousMatrix;
     }
 
@@ -187,8 +211,28 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
         }
 
+        FinishIntroSlides();
+    }
+
+    private void StartIntroSlideExitFade()
+    {
+        slideExitFadeActive = true;
+        slideExitFadeStartedAt = Time.time;
+    }
+
+    private void FinishIntroSlides()
+    {
         storySlidesActive = false;
+        slideExitFadeActive = false;
         startedAt = Time.time;
+    }
+
+    private float SceneRevealFadeAlpha()
+    {
+        if (startedAt == float.PositiveInfinity)
+            return 0f;
+
+        return Mathf.SmoothStep(1f, 0f, Mathf.Clamp01((Time.time - startedAt) / SceneRevealFadeDuration));
     }
 
     private static float SlideDurationFor(string text)
@@ -221,8 +265,8 @@ public sealed class IntroCutscene : MonoBehaviour
 
         float textTop = imageRect.yMax + (screenHeight < 620f ? 18f : 28f);
         float textWidth = Mathf.Min(820f, screenWidth - margin * 2f);
-        float availableTextHeight = Mathf.Max(90f, screenHeight - textTop - 58f);
-        int fontSize = screenWidth < 760f ? 15 : 18;
+        float availableTextHeight = Mathf.Max(128f, screenHeight - textTop - 58f);
+        int fontSize = screenWidth < 760f ? 30 : 36;
         var textStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.UpperCenter,
@@ -233,7 +277,7 @@ public sealed class IntroCutscene : MonoBehaviour
         PixelGui.Apply(textStyle);
         GUIContent content = new GUIContent(slide.Text);
         float preferredHeight = textStyle.CalcHeight(content, textWidth);
-        while (preferredHeight > availableTextHeight && textStyle.fontSize > 11)
+        while (preferredHeight > availableTextHeight && textStyle.fontSize > 18)
         {
             textStyle.fontSize--;
             preferredHeight = textStyle.CalcHeight(content, textWidth);
@@ -250,6 +294,14 @@ public sealed class IntroCutscene : MonoBehaviour
         };
         PixelGui.Apply(hintStyle);
         GUI.Label(new Rect(12f, screenHeight - 36f, screenWidth - 24f, 24f), "Space/Enter: дальше | Esc: меню", hintStyle);
+
+        if (slideExitFadeActive)
+        {
+            float alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.time - slideExitFadeStartedAt) / IntroSlideExitFadeDuration));
+            GUI.color = new Color(0f, 0f, 0f, alpha);
+            GUI.DrawTexture(new Rect(0f, 0f, screenWidth, screenHeight), Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
     }
 
     private static Rect FitTextureRect(Texture2D texture, Rect bounds)

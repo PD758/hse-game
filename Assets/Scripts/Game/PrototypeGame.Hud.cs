@@ -19,7 +19,8 @@ public sealed partial class PrototypeGame
         float ui = HudScale;
         float margin = (compact ? 10f : 16f) * ui;
         float meterWidth = (compact ? 54f : 64f) * ui;
-        float meterHeight = Mathf.Min((compact ? 230f : 308f) * ui, Mathf.Max(148f * ui, screenHeight - margin * 2f - 16f * ui));
+        float ratingLabelHeight = (compact ? 18f : 20f) * ui;
+        float meterHeight = Mathf.Min((compact ? 230f : 308f) * ui, Mathf.Max(148f * ui, screenHeight - margin * 2f - ratingLabelHeight - 10f * ui));
         Rect ratingRect = new Rect(screenWidth - margin - meterWidth, margin, meterWidth, meterHeight);
 
         var noteStyle = new GUIStyle(GUI.skin.label)
@@ -39,9 +40,10 @@ public sealed partial class PrototypeGame
         PixelGui.Apply(hintStyle);
 
         DrawVerticalRatingMeter(ratingRect);
+        DrawRatingLabel(ratingRect, compact, ui);
 
         float skillWidth = Mathf.Min((compact ? 178f : 218f) * ui, Mathf.Max(150f * ui, screenWidth - margin * 2f));
-        float skillHeight = (compact ? 50f : 58f) * ui;
+        float skillHeight = (compact ? 62f : 70f) * ui;
         Rect skillRect = PixelRect(new Rect(screenWidth - margin - skillWidth, screenHeight - margin - skillHeight, skillWidth, skillHeight));
         DrawActiveSkillPanel(skillRect);
 
@@ -54,7 +56,7 @@ public sealed partial class PrototypeGame
 
         if (!string.IsNullOrEmpty(noteMessage) && noteMessageTimer > 0f)
         {
-            float noteHeight = (compact ? 92f : 108f) * ui;
+            float noteHeight = (compact ? 108f : 126f) * ui;
             float maxNoteWidth = Mathf.Max(220f * ui, skillRect.x - margin * 2f);
             float noteWidth = Mathf.Min(maxNoteWidth, (compact ? 620f : 860f) * ui);
             DrawNotePanel(PixelRect(new Rect(margin, screenHeight - margin - noteHeight, noteWidth, noteHeight)), noteStyle);
@@ -113,8 +115,6 @@ public sealed partial class PrototypeGame
         DrawHudPanel(rect, hasAbility ? new Color(0.034f, 0.030f, 0.014f, 0.96f) : new Color(0.010f, 0.014f, 0.020f, 0.94f), accent, true);
 
         float ui = HudScale;
-        DrawFilledRect(new Rect(rect.x + 5f * ui, rect.y + 5f * ui, rect.width - 10f * ui, 2f * ui), hasAbility ? new Color(accent.r, accent.g, accent.b, 0.74f) : new Color(0.42f, 0.50f, 0.54f, 0.42f));
-
         float iconSize = Mathf.Min(rect.height - 14f * ui, 38f * ui);
         Rect abilityRect = PixelRect(new Rect(rect.x + 10f * ui, rect.y + (rect.height - iconSize) * 0.5f, iconSize, iconSize));
         DrawAbilityIcon(abilityRect);
@@ -137,7 +137,33 @@ public sealed partial class PrototypeGame
 
         float textX = abilityRect.xMax + 9f * ui;
         DrawLabelWithShadow(new Rect(textX, rect.y + 7f * ui, rect.xMax - textX - 10f * ui, 17f * ui), AbilityTitle(), titleStyle);
-        DrawLabelWithShadow(new Rect(textX, rect.y + 24f * ui, rect.xMax - textX - 10f * ui, 28f * ui), AbilitySkillHudText(), valueStyle);
+        DrawLabelWithShadow(new Rect(textX, rect.y + 24f * ui, rect.xMax - textX - 10f * ui, 24f * ui), AbilitySkillHudText(), valueStyle);
+        DrawRemoteTimerBar(new Rect(textX, rect.yMax - 15f * ui, rect.xMax - textX - 10f * ui, 8f * ui), ui);
+    }
+
+    private void DrawRemoteTimerBar(Rect rect, float ui)
+    {
+        if (!HasRemote || (remoteCooldown <= 0f && !RemoteJamActive()))
+            return;
+
+        bool active = RemoteJamActive();
+        float cooldownOnlyDuration = Mathf.Max(0.01f, RemoteCooldown - RemoteJamDuration);
+        float ratio = active
+            ? Mathf.Clamp01(remoteJamTimer / RemoteJamDuration)
+            : 1f - Mathf.Clamp01(Mathf.Min(remoteCooldown, cooldownOnlyDuration) / cooldownOnlyDuration);
+        Color fill = active ? new Color(0.44f, 0.96f, 1f, 0.96f) : new Color(1.00f, 0.18f, 0.14f, 0.94f);
+        Color border = active ? new Color(0.62f, 1f, 1f, 0.74f) : new Color(1f, 0.36f, 0.30f, 0.72f);
+
+        DrawFilledRect(rect, new Color(0.018f, 0.020f, 0.026f, 0.94f));
+        DrawFilledRect(new Rect(rect.x, rect.y, rect.width, 1f * ui), border);
+        DrawFilledRect(new Rect(rect.x, rect.yMax - 1f * ui, rect.width, 1f * ui), border);
+        DrawFilledRect(new Rect(rect.x, rect.y, 1f * ui, rect.height), border);
+        DrawFilledRect(new Rect(rect.xMax - 1f * ui, rect.y, 1f * ui, rect.height), border);
+
+        float inset = 2f * ui;
+        Rect fillRect = new Rect(rect.x + inset, rect.y + inset, Mathf.Max(0f, rect.width - inset * 2f) * ratio, Mathf.Max(0f, rect.height - inset * 2f));
+        if (fillRect.width > 0.5f)
+            DrawFilledRect(fillRect, fill);
     }
 
     private void DrawHpHeartPanel(Rect rect)
@@ -190,13 +216,6 @@ public sealed partial class PrototypeGame
         Sprite sprite = HasFlashlight ? flashlightSprite : remoteSprite;
         DrawSpritePreservingAtlasPart(new Rect(rect.x + inset, rect.y + inset, rect.width - inset * 2f, rect.height - inset * 2f), sprite, hasAbility ? Color.white : new Color(0.40f, 0.43f, 0.46f, 0.72f));
 
-        if (HasRemote && remoteCooldown > 0f)
-        {
-            float ratio = Mathf.Clamp01(remoteCooldown / RemoteCooldown);
-            GUI.color = new Color(0f, 0f, 0f, 0.58f);
-            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, rect.height * ratio), whiteTexture);
-        }
-
         GUI.color = Color.white;
     }
 
@@ -204,10 +223,18 @@ public sealed partial class PrototypeGame
     {
         DrawHudPanel(rect, new Color(0.010f, 0.018f, 0.026f, 0.96f), new Color(0.58f, 0.92f, 1f, 0.82f), true);
         float ui = HudScale;
-        DrawFilledRect(new Rect(rect.x + 12f * ui, rect.y + 8f * ui, 3f * ui, rect.height - 16f * ui), new Color(0.62f, 1f, 1f, 0.70f));
-        float padX = 24f * ui;
+        float padX = 18f * ui;
         float padY = 12f * ui;
-        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + padY, rect.width - padX * 2f, rect.height - padY * 2f), VisibleNoteText(), noteStyle);
+        var titleStyle = new GUIStyle(noteStyle)
+        {
+            fontSize = Mathf.RoundToInt(12f * ui),
+            alignment = TextAnchor.UpperLeft,
+            normal = { textColor = new Color(0.64f, 0.94f, 1f) },
+        };
+        PixelGui.Apply(titleStyle);
+
+        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + 8f * ui, rect.width - padX * 2f, 18f * ui), string.IsNullOrEmpty(noteMessageSpeaker) ? "Вы" : noteMessageSpeaker, titleStyle);
+        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + padY + 20f * ui, rect.width - padX * 2f, rect.height - padY * 2f - 20f * ui), VisibleNoteText(), noteStyle);
     }
 
     private void DrawCompletionOverlay(float screenWidth, float screenHeight)
@@ -235,7 +262,7 @@ public sealed partial class PrototypeGame
         PixelGui.Apply(hintStyle);
 
         DrawLabelWithShadow(new Rect(panel.x + 18f * ui, panel.y + 30f * ui, panel.width - 36f * ui, 52f * ui), "Вы прошли игру", titleStyle);
-        DrawLabelWithShadow(new Rect(panel.x + 18f * ui, panel.y + 92f * ui, panel.width - 36f * ui, 34f * ui), "Нажмите R, чтобы пересмотреть канал", hintStyle);
+        DrawLabelWithShadow(new Rect(panel.x + 18f * ui, panel.y + 92f * ui, panel.width - 36f * ui, 34f * ui), "Нажмите R, чтобы переиграть", hintStyle);
     }
 
     private string AbilityHudText()
@@ -245,7 +272,7 @@ public sealed partial class PrototypeGame
         if (!HasRemote)
             return "нет";
         if (RemoteJamActive())
-            return "глушит";
+            return "Активен";
         if (remoteCooldown > 0f)
             return $"{Mathf.CeilToInt(remoteCooldown)} сек.";
 
@@ -254,12 +281,12 @@ public sealed partial class PrototypeGame
 
     private void DrawPauseOverlay(float screenWidth, float screenHeight)
     {
-        DrawMenuOverlay(screenWidth, screenHeight, "Пауза", showPauseBindings ? "Бинды" : "Эфир поставлен на паузу.", false);
+        DrawMenuOverlay(screenWidth, screenHeight, "Пауза", showPauseBindings ? "Бинды" : "Вы можете возобновить игру", false);
     }
 
     private void DrawGameOverOverlay(float screenWidth, float screenHeight)
     {
-        DrawMenuOverlay(screenWidth, screenHeight, "Эфир оборвался", EndlessRunState.Enabled ? "Попытка закончена. Повтор начнётся с первого уровня." : "Попробуйте переиграть сцену.", true);
+        DrawMenuOverlay(screenWidth, screenHeight, "Вы умерли", EndlessRunState.Enabled ? "Попытка закончена. Повтор начнётся с первого уровня." : "Попробуйте переиграть.", true);
     }
 
     private void DrawMenuOverlay(float screenWidth, float screenHeight, string title, string subtitle, bool gameOver)
@@ -267,7 +294,7 @@ public sealed partial class PrototypeGame
         DrawFilledRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0f, 0f, 0f, 0.62f));
         float ui = HudScale;
         float panelWidth = Mathf.Min(420f * ui, screenWidth - 32f * ui);
-        float panelHeight = (showPauseBindings && !gameOver ? 330f : gameOver ? 250f : 286f) * ui;
+        float panelHeight = (showPauseBindings && !gameOver ? 330f : gameOver ? 250f : 352f) * ui;
         Rect panel = PixelRect(new Rect((screenWidth - panelWidth) * 0.5f, (screenHeight - panelHeight) * 0.5f, panelWidth, panelHeight));
         DrawHudPanel(panel, new Color(0.014f, 0.020f, 0.028f, 0.97f), gameOver ? new Color(1f, 0.22f, 0.28f, 0.82f) : new Color(0.72f, 0.92f, 1f, 0.80f), true);
 
@@ -323,10 +350,47 @@ public sealed partial class PrototypeGame
             if (GUI.Button(PixelRect(new Rect(buttonX, y, buttonWidth, buttonHeight)), "Бинды", buttonStyle))
                 showPauseBindings = true;
             y += buttonHeight + 12f * ui;
+            DrawPauseLightingToggle(PixelRect(new Rect(buttonX, y, buttonWidth, 42f * ui)), textStyle, buttonStyle, ui);
+            y += 42f * ui + 12f * ui;
         }
 
         if (GUI.Button(PixelRect(new Rect(buttonX, y, buttonWidth, buttonHeight)), "Выйти в главное меню", buttonStyle))
             ReturnToMainMenu();
+    }
+
+    private void DrawPauseLightingToggle(Rect rect, GUIStyle textStyle, GUIStyle buttonStyle, float ui)
+    {
+        DrawPanelBacking(rect, new Color(0.012f, 0.018f, 0.024f, 0.82f), new Color(0.34f, 0.50f, 0.56f, 0.42f));
+
+        bool shadowsEnabled = GameLightingSettings.ShadowsEnabled;
+        var labelStyle = new GUIStyle(textStyle)
+        {
+            alignment = TextAnchor.MiddleLeft,
+            fontSize = Mathf.RoundToInt(12f * ui),
+            normal = { textColor = new Color(0.86f, 0.92f, 0.94f) },
+        };
+        PixelGui.Apply(labelStyle);
+
+        var hintStyle = new GUIStyle(textStyle)
+        {
+            alignment = TextAnchor.MiddleLeft,
+            fontSize = Mathf.RoundToInt(10f * ui),
+            normal = { textColor = new Color(0.62f, 0.72f, 0.76f) },
+        };
+        PixelGui.Apply(hintStyle);
+
+        Rect labelRect = new Rect(rect.x + 12f * ui, rect.y + 4f * ui, rect.width - 138f * ui, 18f * ui);
+        Rect hintRect = new Rect(rect.x + 12f * ui, rect.y + 22f * ui, rect.width - 138f * ui, 16f * ui);
+        Rect buttonRect = new Rect(rect.xMax - 118f * ui, rect.y + 7f * ui, 106f * ui, 28f * ui);
+
+        DrawLabelWithShadow(labelRect, "Тени", labelStyle);
+        DrawLabelWithShadow(hintRect, shadowsEnabled ? "Киношный свет включён." : "Тени отключены.", hintStyle);
+
+        if (GUI.Button(buttonRect, shadowsEnabled ? "Выключить" : "Включить", buttonStyle))
+        {
+            GameLightingSettings.NormalLighting = shadowsEnabled;
+            ApplyGameplayLightingSettings();
+        }
     }
 
     private void DrawBindingsList(Rect panel, GUIStyle textStyle, GUIStyle buttonStyle, float ui)
@@ -346,7 +410,7 @@ public sealed partial class PrototypeGame
         if (string.IsNullOrEmpty(noteMessage))
             return string.Empty;
 
-        int visible = Mathf.Clamp(Mathf.FloorToInt(noteMessageAge * 42f), 1, noteMessage.Length);
+        int visible = Mathf.Clamp(Mathf.FloorToInt(noteMessageAge * NoteTextRevealCharactersPerSecond), 1, noteMessage.Length);
         return noteMessage.Substring(0, visible);
     }
 
@@ -357,7 +421,7 @@ public sealed partial class PrototypeGame
         if (!HasRemote)
             return "нет";
         if (RemoteJamActive())
-            return "глушит";
+            return "Активен";
         if (remoteCooldown > 0f)
             return $"КД {Mathf.CeilToInt(remoteCooldown)} с";
 
@@ -432,10 +496,22 @@ public sealed partial class PrototypeGame
             return;
 
         Color textColor = style.normal.textColor;
-        style.normal.textColor = new Color(0f, 0f, 0f, 0.82f);
+        SetTextStateColors(style, new Color(0f, 0f, 0f, 0.82f));
         GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, style);
-        style.normal.textColor = textColor;
+        SetTextStateColors(style, textColor);
         GUI.Label(rect, text, style);
+    }
+
+    private static void SetTextStateColors(GUIStyle style, Color color)
+    {
+        style.normal.textColor = color;
+        style.hover.textColor = color;
+        style.active.textColor = color;
+        style.focused.textColor = color;
+        style.onNormal.textColor = color;
+        style.onHover.textColor = color;
+        style.onActive.textColor = color;
+        style.onFocused.textColor = color;
     }
 
     private void DrawTexturePreservingAtlasPart(Rect target, Texture2D texture, Color tint)
@@ -473,21 +549,13 @@ public sealed partial class PrototypeGame
         float ui = HudScale;
         Color ratingTone = RatingColor();
 
-        Rect panelRect = PixelRect(new Rect(frameRect.x - 5f * ui, frameRect.y - 5f * ui, frameRect.width + 10f * ui, frameRect.height + 10f * ui));
-        DrawHudPanel(panelRect, new Color(0.012f, 0.015f, 0.021f, 0.90f), new Color(ratingTone.r, ratingTone.g, ratingTone.b, 0.70f), true);
-
-        GUI.color = new Color(0.02f, 0.025f, 0.03f, 0.94f);
-        GUI.DrawTexture(frameRect, whiteTexture);
-
-        Rect inner = new Rect(frameRect.x + frameRect.width * 0.29f, frameRect.y + frameRect.height * 0.12f, frameRect.width * 0.42f, frameRect.height * 0.72f);
-        DrawFilledRect(new Rect(inner.x - 3f * ui, inner.y - 3f * ui, inner.width + 6f * ui, inner.height + 6f * ui), new Color(0f, 0f, 0f, 0.48f));
+        Rect inner = new Rect(frameRect.x + frameRect.width * 0.34f, frameRect.y + frameRect.height * 0.13f, frameRect.width * 0.32f, frameRect.height * 0.71f);
         DrawFilledRect(inner, new Color(0.018f, 0.018f, 0.024f, 0.98f));
 
         float fill = inner.height * Mathf.Clamp01(viewerRating / 100f);
-        if (fill > 4f * ui)
+        if (fill > 1f)
         {
-            Rect fillRect = new Rect(inner.x + 2f * ui, inner.yMax - fill + 2f * ui, inner.width - 4f * ui, fill - 4f * ui);
-            DrawFilledRect(new Rect(fillRect.x - 1f * ui, fillRect.y - 1f * ui, fillRect.width + 2f * ui, fillRect.height + 2f * ui), new Color(ratingTone.r, ratingTone.g, ratingTone.b, 0.28f));
+            Rect fillRect = new Rect(inner.x, inner.yMax - fill, inner.width, fill);
             DrawFilledRect(fillRect, new Color(ratingTone.r, ratingTone.g, ratingTone.b, 0.96f));
             DrawFilledRect(new Rect(fillRect.x + 1f * ui, fillRect.y, Mathf.Max(1f, fillRect.width * 0.28f), fillRect.height), new Color(1f, 1f, 1f, 0.18f));
         }
@@ -511,6 +579,21 @@ public sealed partial class PrototypeGame
         }
 
         GUI.color = Color.white;
+    }
+
+    private void DrawRatingLabel(Rect ratingRect, bool compact, float ui)
+    {
+        Texture2D frame = RatingFrameTexture();
+        Rect frameRect = frame != null ? FitRectToAspect(ratingRect, VisibleTextureBounds(frame).width / Mathf.Max(1f, VisibleTextureBounds(frame).height)) : PixelRect(ratingRect);
+        var labelStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.UpperCenter,
+            fontSize = Mathf.RoundToInt((compact ? 13f : 15f) * ui),
+            normal = { textColor = new Color(0.78f, 0.90f, 0.94f, 0.96f) },
+        };
+        PixelGui.Apply(labelStyle);
+
+        DrawLabelWithShadow(new Rect(frameRect.x - 14f * ui, frameRect.yMax + 1f * ui, frameRect.width + 28f * ui, 24f * ui), "Рейтинг", labelStyle);
     }
 
     private Texture2D RatingFrameTexture()

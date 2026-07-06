@@ -14,6 +14,7 @@ using UnityEditor;
 
 public sealed partial class PrototypeGame : MonoBehaviour
 {
+    private const float NoteTextRevealCharactersPerSecond = 28f;
     private const int Width = 39;
     private const int Height = 21;
     private const float CellSize = 1f;
@@ -54,9 +55,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
     private const float FlashlightIntensity = 0.94f;
-    private const float FlashlightRadius = 9.5f;
-    private const float FlashlightOuterAngle = 66f;
-    private const float FlashlightInnerAngle = 28f;
+    private const float FlashlightRadius = 7.0f;
+    private const float FlashlightOuterAngle = 104f;
+    private const float FlashlightInnerAngle = 52f;
     private const float FlashlightAimResponsiveness = 14f;
     private const string CameraLightName = "Camera Light";
     private const string EnemyLightName = "Enemy Light";
@@ -180,8 +181,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private bool showPauseBindings;
     private string message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
     private string noteMessage;
+    private string noteMessageSpeaker;
     private float noteMessageTimer;
     private float noteMessageAge;
+    private float noteGameplayBlockTimer;
+    private bool noteBlocksGameplay;
 
     private void Awake()
     {
@@ -232,6 +236,17 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         UpdateNoteMessage(Time.deltaTime);
+        if (GameplayBlockedByNote())
+        {
+            moveInput = Vector2.zero;
+            currentVelocity = Vector2.zero;
+            if (playerBody != null)
+                playerBody.linearVelocity = Vector2.zero;
+            UpdatePlayerSprite();
+            UpdatePlayerLight();
+            return;
+        }
+
         ReadMoveInput();
         UpdatePlayerSprite();
         UpdatePlayerLight();
@@ -261,7 +276,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (gameEnded || paused || playerBody == null)
+        if (gameEnded || paused || GameplayBlockedByNote() || playerBody == null)
         {
             if (playerBody != null)
                 playerBody.linearVelocity = Vector2.zero;
@@ -425,10 +440,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void RetryAfterDeath()
     {
-        if (EndlessRunState.Enabled)
-            RestartRun();
-        else
-            ResetCurrentLevel();
+        ResetCurrentLevel();
     }
 
     private void SetPaused(bool value)
@@ -459,9 +471,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
         equippedAbility = AbilitySlot.None;
-        noteMessage = null;
-        noteMessageTimer = 0f;
-        noteMessageAge = 0f;
+        ClearNoteMessage();
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
         gameEnded = false;
@@ -509,9 +519,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = 0f;
         remoteJamTimer = 0f;
         equippedAbility = AbilitySlot.None;
-        noteMessage = null;
-        noteMessageTimer = 0f;
-        noteMessageAge = 0f;
+        ClearNoteMessage();
         gameEnded = false;
         paused = false;
         showPauseBindings = false;
@@ -622,11 +630,18 @@ public sealed partial class PrototypeGame : MonoBehaviour
             RefreshStatGates();
     }
 
-    private void ShowNoteMessage(string text)
+    private void ShowNoteMessage(string text, string speaker, bool blockGameplay = true)
     {
         noteMessage = text;
+        noteMessageSpeaker = speaker;
         noteMessageAge = 0f;
         noteMessageTimer = Mathf.Clamp(4.5f + (text?.Length ?? 0) * 0.045f, 5.5f, 12f);
+        noteGameplayBlockTimer = blockGameplay ? ((text?.Length ?? 0) / NoteTextRevealCharactersPerSecond) + 1f : 0f;
+        noteBlocksGameplay = blockGameplay;
+        moveInput = Vector2.zero;
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
     }
 
     private void UpdateNoteMessage(float dt)
@@ -636,11 +651,27 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         noteMessageAge += dt;
         noteMessageTimer = Mathf.Max(0f, noteMessageTimer - dt);
+        if (noteGameplayBlockTimer > 0f)
+            noteGameplayBlockTimer = Mathf.Max(0f, noteGameplayBlockTimer - dt);
         if (noteMessageTimer <= 0f)
         {
-            noteMessage = null;
-            noteMessageAge = 0f;
+            ClearNoteMessage();
         }
+    }
+
+    private void ClearNoteMessage()
+    {
+        noteMessage = null;
+        noteMessageSpeaker = null;
+        noteMessageTimer = 0f;
+        noteMessageAge = 0f;
+        noteGameplayBlockTimer = 0f;
+        noteBlocksGameplay = false;
+    }
+
+    private bool GameplayBlockedByNote()
+    {
+        return noteBlocksGameplay && !string.IsNullOrEmpty(noteMessage) && noteGameplayBlockTimer > 0f;
     }
 
     private void TryInteract()
@@ -679,7 +710,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 NarrativeRunState.RecordPuzzleReflection();
                 RestoreRating(18f);
                 message = string.IsNullOrEmpty(story?.text) ? "В монтажной заметке написано: смотреть не значит соглашаться." : story.text;
-                ShowNoteMessage(message);
+                ShowNoteMessage(message, "Записка");
                 RedrawTile(next);
                 UpdatePuzzle();
                 return;
@@ -723,7 +754,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = RemoteCooldown;
         RestoreRating(RemoteRatingRestore);
         MakeNoise(PlayerCell(), 2);
-        message = "Пульт глушит эфир. Дикторы вязнут в помехах.";
+        message = "Пульт активен. Дикторы вязнут в помехах.";
     }
 
     private void PickupAbility(Vector2Int cell, AbilitySlot ability)
@@ -746,7 +777,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePlayerLight();
 
         if (ability == AbilitySlot.Remote)
-            message = previous == AbilitySlot.Flashlight ? "Вы сменили фонарь на пульт. Фонарь остался лежать рядом." : "Пульт: Q глушит эфир на 3 секунды. КД 18 секунд.";
+            message = previous == AbilitySlot.Flashlight ? "Вы сменили фонарь на пульт. Фонарь остался лежать рядом." : "Пульт: Q активирует помехи на 3 секунды. КД 18 секунд.";
         else
             message = previous == AbilitySlot.Remote ? "Вы сменили пульт на фонарь. Пульт остался лежать рядом." : "Фонарь: пассивно светит по направлению движения. Слот занят фонарём.";
     }
@@ -1112,9 +1143,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteJamTimer = 0f;
         runCompleted = false;
         lastNoisePower = 0;
-        noteMessage = null;
-        noteMessageTimer = 0f;
-        noteMessageAge = 0f;
+        ClearNoteMessage();
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
     }
@@ -1137,6 +1166,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
         foreach (GameObject visual in levelVisualObjects)
             DestroyRuntimeObject(visual);
         levelVisualObjects.Clear();
+
+        ClearSceneRuntimeLevelObjects();
+        combatVfxRoot = null;
+    }
+
+    private void ClearSceneRuntimeLevelObjects()
+    {
+        DestroySceneObjectsWithPrefix("Enemy ");
+        DestroySceneObjectsWithPrefix("Signal Blocker ");
+        DestroySceneObjectsWithPrefix(LevelVisualRootName);
+        DestroySceneObjectsWithPrefix("Combat VFX");
+        DestroySceneObjectsWithPrefix("Attack Swing");
+        DestroySceneObjectsWithPrefix("White Noise Burst");
+        DestroySceneObjectsWithPrefix("Hit Spark");
+        DestroySceneObjectsWithPrefix("Camera Flash Light");
+        DestroySceneObjectsWithPrefix("Enemy Death Flash");
     }
 
     private static void DestroyRuntimeObject(GameObject obj)
@@ -1144,6 +1189,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (obj == null)
             return;
 
+        obj.SetActive(false);
         if (Application.isPlaying)
             Destroy(obj);
         else
@@ -1426,7 +1472,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 SpawnHitBurst(ToWorld(new Vector2Int(action.x, action.y)), true);
                 return false;
             case "showMonologue":
-                ShowNoteMessage(action.text);
+                ShowNoteMessage(action.text, "Вы");
                 return false;
             default:
                 return false;
@@ -1869,7 +1915,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemy.TelegraphView == null)
             return;
 
-        Destroy(enemy.TelegraphView);
+        DestroyRuntimeObject(enemy.TelegraphView);
         enemy.TelegraphView = null;
     }
 
@@ -2005,7 +2051,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             if (ratio < 1f)
                 continue;
 
-            Destroy(effect.View);
+            DestroyRuntimeObject(effect.View);
             combatEffects.RemoveAt(i);
         }
     }
@@ -2041,19 +2087,19 @@ public sealed partial class PrototypeGame : MonoBehaviour
         for (int i = combatEffects.Count - 1; i >= 0; i--)
         {
             if (combatEffects[i].View != null)
-                Destroy(combatEffects[i].View);
+                DestroyRuntimeObject(combatEffects[i].View);
         }
         combatEffects.Clear();
 
         if (combatVfxRoot != null)
         {
-            Destroy(combatVfxRoot.gameObject);
+            DestroyRuntimeObject(combatVfxRoot.gameObject);
             combatVfxRoot = null;
         }
 
         GameObject staleRoot = FindSceneObjectIncludingInactive("Combat VFX");
         if (staleRoot != null)
-            Destroy(staleRoot);
+            DestroyRuntimeObject(staleRoot);
     }
 
     private bool RemoteJamActive()

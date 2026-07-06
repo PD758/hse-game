@@ -264,6 +264,40 @@ public sealed partial class PrototypeGame
         UpdatePlayerLight();
     }
 
+    private void ApplyGameplayLightingSettings()
+    {
+        EnsureGameplayLighting();
+        CreateLevelVisualViews();
+
+        bool shadowsEnabled = GameLightingSettings.ShadowsEnabled;
+        foreach (CompositeShadowCaster2D caster in FindObjectsByType<CompositeShadowCaster2D>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (caster.gameObject.scene == gameObject.scene)
+                caster.enabled = shadowsEnabled;
+        }
+
+        foreach (Stone stone in stones)
+        {
+            if (stone.View == null)
+                continue;
+
+            ShadowCaster2D caster = stone.View.GetComponent<ShadowCaster2D>() ?? Urp2DLighting.AddShadowCaster(stone.View);
+            Urp2DLighting.ConfigureShadowCaster(caster, true);
+        }
+
+        RedrawAll();
+        UpdatePostProcessing();
+
+        if (!shadowsEnabled)
+        {
+            foreach (Light2D light in FindObjectsByType<Light2D>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (light.gameObject.scene == gameObject.scene)
+                    light.shadowsEnabled = false;
+            }
+        }
+    }
+
     private void UpdatePlayerLight()
     {
         if (playerLight == null)

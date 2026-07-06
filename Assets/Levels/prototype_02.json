@@ -15,8 +15,8 @@
       "x": 35,
       "y": 7,
       "branch": "none",
-      "requiresGate": "",
-      "targetLevel": ""
+      "requiresGate": "gate_33_7",
+      "targetLevel": "prototype_03"
     }
   ],
   "tiles": [
@@ -293,7 +293,7 @@
       "y": 10,
       "variant": -1,
       "id": "story_11_10",
-      "text": "Убей их..\nВыберись отсюда..\n"
+      "text": "Я не держу тебя."
     },
     {
       "type": "gate",
@@ -337,7 +337,7 @@
       "y": 2,
       "variant": -1,
       "id": "story_37_2",
-      "text": "опомнись.\n"
+      "text": "Твой страх всё больше."
     },
     {
       "type": "plate",
@@ -963,6 +963,38 @@
         {
           "type": "showMonologue",
           "text": "Я снова тут..?"
+        }
+      ]
+    },
+    {
+      "id": "event_2",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "region_2",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Нужно убить их всех"
+        }
+      ]
+    },
+    {
+      "id": "event_3",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "region_3",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Я найду способ выбраться отсюда"
         }
       ]
     }

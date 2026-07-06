@@ -192,11 +192,11 @@ public sealed class MainMenu : MonoBehaviour
         DrawPanel(panel, new Color(0.018f, 0.024f, 0.032f, 0.94f), new Color(0.48f, 0.68f, 0.74f, 0.38f));
 
         Rect headerRect = new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, compact ? 118f : 128f);
-        GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "Канал", titleStyle);
-        GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите формат эфира перед входом в игру.", subtitleStyle);
+        GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "..?", titleStyle);
+        GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите режим игры:", subtitleStyle);
 
         float cardsTop = headerRect.yMax + (compact ? 10f : 18f);
-        float controlsTop = panel.yMax - (compact ? 188f : 172f);
+        float controlsTop = panel.yMax - (compact ? 132f : 120f);
         float cardsHeight = controlsTop - cardsTop - 18f;
         Rect storyRect;
         Rect endlessRect;
@@ -213,11 +213,8 @@ public sealed class MainMenu : MonoBehaviour
             endlessRect = new Rect(storyRect.xMax + 24f, cardsTop, cardWidth, cardsHeight);
         }
 
-        DrawModeCard(storyRect, MenuMode.Story, "Сюжетный режим", "Катсцена + первый канал", "Начать прохождение с вступления, выбором развилки и текущим набором уровней.");
-        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный режим", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.");
-
-        Rect lightingRect = new Rect(panel.x + 28f, panel.yMax - (compact ? 154f : 142f), panel.width - 56f, 42f);
-        DrawLightingToggle(lightingRect);
+        DrawModeCard(storyRect, MenuMode.Story, "Сюжетный", "3 уровня", "Прохождение истории главного героя.");
+        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.");
 
         Rect playRect = new Rect(panel.x + 28f, panel.yMax - 104f, Mathf.Min(270f, panel.width - 56f), 50f);
         if (!compact)
@@ -230,30 +227,6 @@ public sealed class MainMenu : MonoBehaviour
             ? new Rect(panel.x + 28f, playRect.y - 32f, panel.width - 56f, 24f)
             : new Rect(panel.x + 28f, playRect.y + 2f, panel.width - playRect.width - 76f, 48f);
         GUI.Label(selectedRect, footerMessage, statusStyle);
-
-        GUI.Label(new Rect(panel.x + 28f, panel.yMax - 42f, panel.width - 56f, 22f), "WASD/стрелки - движение | Space/ЛКМ - атака | E - действие | Q - пульт, если выбран | Esc - меню", hintStyle);
-    }
-
-    private void DrawLightingToggle(Rect rect)
-    {
-        DrawPanel(rect, new Color(0.012f, 0.018f, 0.024f, 0.80f), new Color(0.34f, 0.50f, 0.56f, 0.35f));
-
-        bool normalLighting = GameLightingSettings.NormalLighting;
-        Rect labelRect = new Rect(rect.x + 14f, rect.y + 5f, 160f, 20f);
-        Rect hintRect = new Rect(rect.x + 14f, rect.y + 22f, rect.width - 198f, 18f);
-        Rect buttonRect = new Rect(rect.xMax - 166f, rect.y + 6f, 152f, 30f);
-
-        GUI.Label(labelRect, "Выключение теней", labelStyle);
-        GUI.Label(hintRect, normalLighting ? "Тени отключены, базовый свет усилен." : "Киношный свет и тени включены.", hintStyle);
-
-        string buttonText = normalLighting ? "Вкл" : "Выкл";
-        if (GUI.Button(buttonRect, buttonText, smallButtonStyle))
-        {
-            GameLightingSettings.NormalLighting = !normalLighting;
-            footerMessage = GameLightingSettings.NormalLighting
-                ? "Выключение теней включено: сцена светлее."
-                : "Выключение теней выключено: тени возвращены.";
-        }
     }
 
     private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description)
