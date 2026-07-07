@@ -563,6 +563,50 @@
           "text": "Мне нужно разобраться и выбраться отсюда."
         }
       ]
+    },
+    {
+      "id": "camera_step_hint",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "ge",
+          "camerasTriggered",
+          1
+        ]
+      ],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Ай, эта штука обжигает...\nВозможно, я могу их ломать"
+        }
+      ]
+    },
+    {
+      "id": "camera_break_hint",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "ge",
+          "camerasBroken",
+          1
+        ]
+      ],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Минус один источник света"
+        }
+      ]
     }
   ],
   "logic": {

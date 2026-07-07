@@ -866,7 +866,7 @@ public sealed partial class PrototypeGame
             return new Color(1.18f, 1.38f, 1.52f, 1f);
 
         if (tile == Tile.Plate && StoneAt(cell) != null)
-            return new Color(1.05f, 1.34f, 1.44f, 1f);
+            return new Color(0.62f, 0.82f, 0.88f, 1f);
 
         return Color.white;
     }

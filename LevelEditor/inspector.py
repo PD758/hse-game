@@ -15,7 +15,7 @@ BOOLS = ("true", "false")
 LIGHT_TYPES = ("point", "cone")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
-STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "currentRating")
+STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating")
 ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
 ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "storyImage", "heal", "plate", "stone", "rubble")
@@ -1287,7 +1287,8 @@ def short_stat_name(stat_name: str) -> str:
     aliases = {
         "enemiesKilled": "kills",
         "enemiesKilledOnLevel": "levelKills",
-        "camerasBroken": "cameras",
+        "camerasBroken": "camBreaks",
+        "camerasTriggered": "camHits",
         "currentRating": "rating",
     }
     return aliases.get(stat_name, stat_name[:10])

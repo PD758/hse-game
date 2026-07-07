@@ -48,6 +48,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float EnemyBaseSearchDuration = 3.2f;
     private const float EnemyAlertRadius = 5.5f;
     private const float EnemyDamageAlertRadius = 7.0f;
+    private const float EnemySeparationRadius = 0.74f;
+    private const float EnemySeparationStrength = 0.46f;
     private const float EnemyCallHelpCooldown = 5.8f;
     private const float EnemyFlankCooldown = 1.15f;
     private const float RemoteCooldown = 18f;
@@ -169,6 +171,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private int playerHp = 6;
     private int levelEnemiesKilled;
     private int camerasBroken;
+    private int camerasTriggered;
     private float viewerRating = 100f;
     private float idleTimer;
     private float criticalDamageTimer;
@@ -189,6 +192,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private float noteMessageAge;
     private float noteGameplayBlockTimer;
     private bool noteBlocksGameplay;
+    private int restartPlayerHp = 6;
+    private float restartViewerRating = 100f;
+    private float restartRemoteCooldown;
+    private AbilitySlot restartEquippedAbility = AbilitySlot.None;
 
     private void Awake()
     {
@@ -212,6 +219,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         EnsureGameplayLighting();
         UpdatePostProcessing();
         RedrawAll();
+        CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
     }
 
@@ -474,14 +482,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         ClearLevelEntityViews();
 
-        playerHp = 6;
-        viewerRating = 100f;
+        RestoreLevelRestartState();
         idleTimer = 0f;
         criticalDamageTimer = 0f;
         attackCooldown = 0f;
-        remoteCooldown = 0f;
         remoteJamTimer = 0f;
-        equippedAbility = AbilitySlot.None;
         ClearNoteMessage();
         lastNoisePower = 0;
         currentVelocity = Vector2.zero;
@@ -490,6 +495,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         showPauseBindings = false;
         runCompleted = false;
         camerasBroken = 0;
+        camerasTriggered = 0;
 
         BuildLevel();
         if (!enabled)
@@ -510,6 +516,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
         EvaluateEvents("levelStart", null, null);
         SpawnHitBurst(ToWorld(playerStart), false);
         message = "Канал перемотан к началу текущего уровня.";
+    }
+
+    private void CaptureLevelRestartState()
+    {
+        restartPlayerHp = playerHp;
+        restartViewerRating = viewerRating;
+        restartRemoteCooldown = remoteCooldown;
+        restartEquippedAbility = equippedAbility;
+    }
+
+    private void RestoreLevelRestartState()
+    {
+        playerHp = restartPlayerHp;
+        viewerRating = restartViewerRating;
+        remoteCooldown = restartRemoteCooldown;
+        equippedAbility = restartEquippedAbility;
     }
 
     private void RestartRun()
@@ -543,6 +565,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
         camerasBroken = 0;
+        camerasTriggered = 0;
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
@@ -558,6 +581,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
     }
 
@@ -632,13 +656,15 @@ public sealed partial class PrototypeGame : MonoBehaviour
             RefreshStatGates();
     }
 
-    private void RestoreRating(float amount)
+    private bool RestoreRating(float amount)
     {
         float previousRating = viewerRating;
         viewerRating = Mathf.Min(100f, viewerRating + amount);
         UpdatePostProcessing();
-        if (!Mathf.Approximately(previousRating, viewerRating))
+        bool changed = !Mathf.Approximately(previousRating, viewerRating);
+        if (changed)
             RefreshStatGates();
+        return changed;
     }
 
     private void ShowNoteMessage(string text, string speaker, bool blockGameplay = true)
@@ -1054,7 +1080,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         tileVariants[bestCell.x, bestCell.y] = -1;
         NarrativeRunState.RecordSignalInsight();
         camerasBroken += 1;
-        RestoreRating(8f);
+        if (!RestoreRating(8f))
+            RefreshStatGates();
         RedrawTile(bestCell);
         RedrawGateGroups();
         RedrawExits();
@@ -1111,12 +1138,15 @@ public sealed partial class PrototypeGame : MonoBehaviour
             SpawnCameraFlash(ToWorld(playerCell), CameraDirectionForCell(playerCell));
             tiles[playerCell.x, playerCell.y] = Tile.Floor;
             tileVariants[playerCell.x, playerCell.y] = -1;
+            camerasTriggered += 1;
             NarrativeRunState.RecordTrapMistake();
             MakeNoise(playerCell, 9);
             DamagePlayer(1, "Камера ослепляет вспышкой. Рейтинг вздрагивает.");
             viewerRating = Mathf.Max(0f, viewerRating - 8f);
             UpdatePostProcessing();
             RedrawTile(playerCell);
+            RefreshStatGates();
+            EvaluateEvents("statsChanged", null, null);
         }
 
         if (tile == Tile.Heal && playerHp < 6)
@@ -1207,6 +1237,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
         message = $"Канал переключён: {currentLevelId}.";
     }
@@ -1373,7 +1404,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private GateStatSnapshot CurrentGateStats()
     {
-        return new GateStatSnapshot(NarrativeRunState.EnemiesKilled, levelEnemiesKilled, camerasBroken, viewerRating);
+        return new GateStatSnapshot(NarrativeRunState.EnemiesKilled, levelEnemiesKilled, camerasBroken, camerasTriggered, viewerRating);
     }
 
     private bool ArePlateGroupCovered(string group)
@@ -2405,10 +2436,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         if (enemy.Archetype == EnemyArchetype.Caller && Vector2.Distance(enemy.Position, playerPosition) < EnemyAttackRangeFor(enemy) * 1.6f)
             return enemy.Position;
-        if (Vector2.Distance(enemy.Position, playerPosition) <= EnemyAttackRangeFor(enemy) * 0.92f)
+        float playerDistance = Vector2.Distance(enemy.Position, playerPosition);
+        if (playerDistance <= EnemyAttackRangeFor(enemy) * 0.92f)
             return playerPosition;
 
         Vector2Int playerCell = WorldToCell(playerPosition);
+        Vector2Int currentCell = WorldToCell(enemy.Position);
         Vector2Int bestCell = playerCell;
         float bestScore = float.PositiveInfinity;
         foreach (Vector2Int candidate in CardinalCells(playerCell))
@@ -2425,7 +2458,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 Vector2 fromPlayer = DirectionOrFallback((Vector2)(candidate - playerCell), Vector2.down);
                 score += Mathf.Abs(Vector2.Dot(fromPlayer, DirectionOrFallback(lastAim, Vector2.down))) * 0.55f;
             }
-            if (candidate == WorldToCell(enemy.Position))
+            if (candidate == currentCell && playerDistance <= EnemyAttackRangeFor(enemy))
                 score -= 0.45f;
 
             if (score < bestScore)
@@ -2437,6 +2470,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         if (bestCell != playerCell)
         {
+            if (bestCell == currentCell && playerDistance > EnemyAttackRangeFor(enemy) * 0.92f)
+                return playerPosition;
             if (enemy.Archetype == EnemyArchetype.Hunter && enemy.FlankCooldown <= 0f)
                 enemy.FlankCooldown = EnemyFlankCooldown;
             return ToWorld(bestCell);
@@ -2450,12 +2485,34 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2Int from = WorldToCell(enemy.Position);
         Vector2Int to = WorldToCell(directTarget);
         if (from == to || HasStraightWalkLine(from, to))
-            return directTarget;
+            return ApplyEnemySeparation(enemy, directTarget);
 
         if (TryFindNextPathCell(from, to, out Vector2Int nextCell))
-            return ToWorld(nextCell);
+            return ApplyEnemySeparation(enemy, ToWorld(nextCell));
 
-        return directTarget;
+        return ApplyEnemySeparation(enemy, directTarget);
+    }
+
+    private Vector2 ApplyEnemySeparation(Enemy self, Vector2 target)
+    {
+        Vector2 separation = Vector2.zero;
+        foreach (Enemy other in enemies)
+        {
+            if (other == self)
+                continue;
+
+            Vector2 away = self.Position - other.Position;
+            float distance = away.magnitude;
+            if (distance <= 0.001f || distance >= EnemySeparationRadius)
+                continue;
+
+            separation += away.normalized * ((EnemySeparationRadius - distance) / EnemySeparationRadius);
+        }
+
+        if (separation.sqrMagnitude <= 0.001f)
+            return target;
+
+        return target + separation.normalized * EnemySeparationStrength;
     }
 
     private Vector2 EnemyFallbackStep(Enemy enemy, float distance)
@@ -2518,12 +2575,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2Int cell = WorldToCell(position);
         if (!CanEnemyEnterCell(cell, self))
             return false;
-
-        foreach (Enemy enemy in enemies)
-        {
-            if (enemy != self && Vector2.Distance(enemy.Position, position) < 0.55f)
-                return false;
-        }
 
         return true;
     }

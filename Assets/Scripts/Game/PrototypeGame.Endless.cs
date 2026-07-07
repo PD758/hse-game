@@ -349,6 +349,7 @@ public sealed partial class PrototypeGame
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
         SpawnHitBurst(ToWorld(playerStart), false);
         message = $"Бесконечный эфир: уровень {EndlessRunState.Level}. Комнат: {EndlessRoomsPerLevel}. Враги стали сильнее.";
