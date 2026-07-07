@@ -270,7 +270,7 @@ public sealed partial class PrototypeGame
         CreateLevelVisualViews();
 
         bool shadowsEnabled = GameLightingSettings.ShadowsEnabled;
-        foreach (CompositeShadowCaster2D caster in FindObjectsByType<CompositeShadowCaster2D>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        foreach (CompositeShadowCaster2D caster in FindObjectsByType<CompositeShadowCaster2D>(FindObjectsInactive.Include))
         {
             if (caster.gameObject.scene == gameObject.scene)
                 caster.enabled = shadowsEnabled;
@@ -290,7 +290,7 @@ public sealed partial class PrototypeGame
 
         if (!shadowsEnabled)
         {
-            foreach (Light2D light in FindObjectsByType<Light2D>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (Light2D light in FindObjectsByType<Light2D>(FindObjectsInactive.Include))
             {
                 if (light.gameObject.scene == gameObject.scene)
                     light.shadowsEnabled = false;
