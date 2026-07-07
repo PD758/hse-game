@@ -9,14 +9,18 @@ internal readonly struct GateStatSnapshot
     public readonly int CamerasBroken;
     public readonly int CamerasTriggered;
     public readonly float CurrentRating;
+    public readonly int PlayerHp;
+    public readonly int NearestBossHp;
 
-    public GateStatSnapshot(int enemiesKilled, int enemiesKilledOnLevel, int camerasBroken, int camerasTriggered, float currentRating)
+    public GateStatSnapshot(int enemiesKilled, int enemiesKilledOnLevel, int camerasBroken, int camerasTriggered, float currentRating, int playerHp, int nearestBossHp)
     {
         EnemiesKilled = enemiesKilled;
         EnemiesKilledOnLevel = enemiesKilledOnLevel;
         CamerasBroken = camerasBroken;
         CamerasTriggered = camerasTriggered;
         CurrentRating = currentRating;
+        PlayerHp = playerHp;
+        NearestBossHp = nearestBossHp;
     }
 }
 
@@ -62,6 +66,12 @@ internal static class GateConditionEvaluator
                 return true;
             case "currentRating":
                 value = stats.CurrentRating;
+                return true;
+            case "playerHp":
+                value = stats.PlayerHp;
+                return true;
+            case "nearestBossHp":
+                value = stats.NearestBossHp;
                 return true;
             default:
                 value = 0f;

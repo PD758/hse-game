@@ -30,6 +30,16 @@ internal enum EnemyArchetype
     Hunter,
     Brute,
     Caller,
+    Boss,
+}
+
+internal enum BossAttackKind
+{
+    Slam,
+    BroadcastCone,
+    StaticRing,
+    StaticMines,
+    Summon,
 }
 
 internal enum FacingDirection
@@ -98,7 +108,11 @@ internal sealed class Enemy
     public float AlertTimer;
     public float FlankCooldown;
     public float CallHelpCooldown;
+    public float SpecialAttackCooldown;
+    public float SummonCooldown;
+    public float BossInterruptPoseTimer;
     public bool AttackApplied;
+    public BossAttackKind BossAttackKind = BossAttackKind.Slam;
     public readonly List<Vector2Int> SearchPoints = new List<Vector2Int>();
     public int SearchIndex;
     public Vector2 AttackDirection = Vector2.down;
@@ -123,4 +137,9 @@ internal sealed class CombatEffect
     public float Duration;
     public float Age;
     public float RotationSpeed;
+    public float DamageDelay;
+    public float DamageRadius;
+    public int DamageAmount;
+    public string DamageMessage;
+    public bool DamageApplied;
 }

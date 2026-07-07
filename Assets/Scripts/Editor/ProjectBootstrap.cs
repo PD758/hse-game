@@ -157,7 +157,13 @@ public static class ProjectBootstrap
     [MenuItem("Rogue/Bootstrap Prototype Scene")]
     public static void CreatePrototypeScene()
     {
-        EnsureSceneExists(PrototypeScenePath, RebuildPrototypeScene);
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(PrototypeScenePath) == null)
+        {
+            RebuildPrototypeScene();
+            return;
+        }
+
+        RefreshPrototypeScene();
     }
 
     [MenuItem("Rogue/Force Rebuild/Prototype Scene")]
@@ -177,16 +183,37 @@ public static class ProjectBootstrap
 
         var gameObject = new GameObject("Prototype Game");
         PrototypeGame game = gameObject.AddComponent<PrototypeGame>();
+        ConfigurePrototypeGame(game);
+        game.BakeSceneForEditor();
+
+        EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+    }
+
+    private static void RefreshPrototypeScene()
+    {
+        Scene scene = EditorSceneManager.OpenScene(PrototypeScenePath, OpenSceneMode.Single);
+        PrototypeGame game = UnityEngine.Object.FindAnyObjectByType<PrototypeGame>(FindObjectsInactive.Include);
+        if (game == null)
+        {
+            RebuildPrototypeScene();
+            return;
+        }
+
+        ConfigurePrototypeGame(game);
+        game.BakeSceneForEditor();
+        EditorSceneManager.SaveScene(scene, PrototypeScenePath);
+    }
+
+    private static void ConfigurePrototypeGame(PrototypeGame game)
+    {
         game.CharacterAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/characters_1024.jpg");
+        game.BossAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/boss_512.jpg");
         game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
         game.WallAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
         game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
         game.LevelAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Levels/prototype_01.json");
         game.LevelAssets = LoadLevelAssets();
         game.StartingLevelId = "prototype_01";
-        game.BakeSceneForEditor();
-
-        EditorSceneManager.SaveScene(scene, PrototypeScenePath);
     }
 
     private static TextAsset[] LoadLevelAssets()
@@ -235,6 +262,7 @@ public static class ProjectBootstrap
     private static void ConfigureTextureImports()
     {
         ConfigureReadableSmoothTexture("Assets/Atlases/characters_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/boss_512.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_2_1024.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_v2.png");
         ConfigureReadableSmoothTexture("Assets/Atlases/hud_1024.jpg");

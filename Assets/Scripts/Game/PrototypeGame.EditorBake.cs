@@ -37,6 +37,9 @@ public sealed partial class PrototypeGame
 
         foreach (GameObject obj in FindObjectsByType<GameObject>(FindObjectsInactive.Include))
         {
+            if (obj == null)
+                continue;
+
             if (obj.scene != gameObject.scene)
                 continue;
 
@@ -79,6 +82,17 @@ public sealed partial class PrototypeGame
         enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);
         enemyInvestigateSprite = PersistSpriteForEditor(folder, "enemy_investigate", enemyInvestigateSprite);
         enemyHuntSprite = PersistSpriteForEditor(folder, "enemy_hunt", enemyHuntSprite);
+        bossIdleSprite = PersistSpriteForEditor(folder, "boss_idle", bossIdleSprite);
+        bossWalkSprite = PersistSpriteForEditor(folder, "boss_walk", bossWalkSprite);
+        bossAlertSprite = PersistSpriteForEditor(folder, "boss_alert", bossAlertSprite);
+        bossAttackSprite = PersistSpriteForEditor(folder, "boss_attack", bossAttackSprite);
+        bossHurtSprite = PersistSpriteForEditor(folder, "boss_hurt", bossHurtSprite);
+        bossDeathSprite = PersistSpriteForEditor(folder, "boss_death", bossDeathSprite);
+        bossShockwaveSprite = PersistSpriteForEditor(folder, "boss_shockwave", bossShockwaveSprite);
+        bossTelegraphSprite = PersistSpriteForEditor(folder, "boss_telegraph", bossTelegraphSprite);
+        bossSummonSprite = PersistSpriteForEditor(folder, "boss_summon", bossSummonSprite);
+        bossDashSprite = PersistSpriteForEditor(folder, "boss_dash", bossDashSprite);
+        bossInterruptSprite = PersistSpriteForEditor(folder, "boss_interrupt", bossInterruptSprite);
         enemyBeamSprite = PersistSpriteForEditor(folder, "enemy_beam", enemyBeamSprite);
         floorSprites = PersistSpriteArrayForEditor(folder, "floor", floorSprites);
         floorDecalSprites = PersistSpriteArrayForEditor(folder, "floor_decal", floorDecalSprites);

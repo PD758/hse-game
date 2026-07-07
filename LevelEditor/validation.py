@@ -8,10 +8,10 @@ from pathlib import Path
 from schema import ENEMY_TYPE, OBJECT_TYPES, TILE_TYPES, TILE_WALL, object_at
 
 STAT_OPERATORS = {"gt", "lt", "ge", "le", "eq", "ne"}
-STAT_NAMES = {"enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating"}
+STAT_NAMES = {"enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating", "playerHp", "nearestBossHp"}
 EVENT_TRIGGERS = {"levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared"}
 EVENT_ACTIONS = {"showMonologue", "spawnEnemy", "spawnEnemies", "fallStone", "setTile", "spawnObject", "removeObject", "playEffect"}
-ENEMY_ARCHETYPES = {"patrol", "hunter", "brute", "caller"}
+ENEMY_ARCHETYPES = {"patrol", "hunter", "brute", "caller", "boss"}
 
 
 @dataclass

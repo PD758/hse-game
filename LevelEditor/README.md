@@ -48,7 +48,7 @@ python LevelEditor/editor.py Assets/Levels/prototype_02.json --new
 The right panel shows editable properties for the current selection.
 
 - Gate: `id`, `group`, `requiresPlates`, `requiresStories`, `requiresEnemies`, `requiresStats`, vertical/horizontal frame
-- Gate stat conditions use `op stat value`, separated by semicolons, e.g. `ge enemiesKilledOnLevel 2; ge camerasTriggered 1; lt currentRating 50`
+- Gate stat conditions use `op stat value`, separated by semicolons, e.g. `ge enemiesKilledOnLevel 2; ge camerasTriggered 1; lt currentRating 50; le playerHp 3; le nearestBossHp 10`
 - Plate: `group`
 - Remote / Flashlight / Heal: pickup objects for the ability and recovery loops
 - Camera: drag the arrow handle on the map to rotate

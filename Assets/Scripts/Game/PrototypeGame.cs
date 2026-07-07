@@ -31,6 +31,17 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float EnemyAttackWindup = 0.45f;
     private const float EnemyAttackStrike = 0.12f;
     private const float EnemyAttackRecovery = 0.76f;
+    private const float BossSpecialAttackCooldown = 2.55f;
+    private const float BossBroadcastRangeMultiplier = 1.82f;
+    private const float BossBroadcastConeMinDot = 0.72f;
+    private const float BossStaticRingRangeMultiplier = 1.58f;
+    private const float BossCollisionRadius = 0.48f;
+    private const float BossSummonCooldown = 18f;
+    private const float BossSummonInterruptChance = 0.60f;
+    private const float BossSummonInterruptStunDuration = 3f;
+    private const float BossInterruptedSummonCooldownMultiplier = 0.45f;
+    private const float BossMineRadius = 0.58f;
+    private const float BossMineDamageDelay = 0.672f;
     private const int EnemyBaseLevel = 3;
     private const int EnemyMinLevel = 1;
     private const int EnemyMaxLevel = 99;
@@ -56,6 +67,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float RemoteJamDuration = 3f;
     private const float RemoteRatingRestore = 18f;
     private const float RemoteEnemySpeedMultiplier = 0.18f;
+    private const float RemoteBossChasePlayerSpeedMultiplier = 1.3f;
     private const int RemoteDamageMultiplier = 2;
     private const float FlashlightIntensity = 0.94f;
     private const float FlashlightRadius = 7.0f;
@@ -74,6 +86,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const int HeartAtlasColumn = 5;
 
     public Texture2D CharacterAtlas;
+    public Texture2D BossAtlas;
     public Texture2D EnvironmentAtlas;
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
@@ -135,6 +148,17 @@ public sealed partial class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite enemySprite;
     [SerializeField] private Sprite enemyInvestigateSprite;
     [SerializeField] private Sprite enemyHuntSprite;
+    [SerializeField] private Sprite bossIdleSprite;
+    [SerializeField] private Sprite bossWalkSprite;
+    [SerializeField] private Sprite bossAlertSprite;
+    [SerializeField] private Sprite bossAttackSprite;
+    [SerializeField] private Sprite bossHurtSprite;
+    [SerializeField] private Sprite bossDeathSprite;
+    [SerializeField] private Sprite bossShockwaveSprite;
+    [SerializeField] private Sprite bossTelegraphSprite;
+    [SerializeField] private Sprite bossSummonSprite;
+    [SerializeField] private Sprite bossDashSprite;
+    [SerializeField] private Sprite bossInterruptSprite;
     [SerializeField] private Sprite enemyBeamSprite;
     [SerializeField] private Texture2D hudTexture;
     [SerializeField] private Texture2D hudPanelTexture;
@@ -302,10 +326,15 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
         }
 
-        Vector2 targetVelocity = moveInput * PlayerSpeed;
+        Vector2 targetVelocity = moveInput * PlayerMoveSpeed();
         float rate = moveInput.sqrMagnitude > 0.01f ? PlayerAcceleration : PlayerDeceleration;
         currentVelocity = Vector2.MoveTowards(currentVelocity, targetVelocity, rate * Time.fixedDeltaTime);
         playerBody.linearVelocity = currentVelocity;
+    }
+
+    private float PlayerMoveSpeed()
+    {
+        return PlayerSpeed * (RemoteBossChaseActive() ? RemoteBossChasePlayerSpeedMultiplier : 1f);
     }
 
     private void LateUpdate()
@@ -846,7 +875,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
         remoteCooldown = RemoteCooldown;
         RestoreRating(RemoteRatingRestore);
         MakeNoise(PlayerCell(), 2);
-        message = "Пульт активен. Дикторы вязнут в помехах.";
+        message = RemoteBossChaseActive()
+            ? "Пульт активен. Босс не теряет сигнал, но вы успеваете двигаться быстрее."
+            : "Пульт активен. Дикторы вязнут в помехах.";
     }
 
     private void PickupAbility(Vector2Int cell, AbilitySlot ability)
@@ -995,40 +1026,62 @@ public sealed partial class PrototypeGame : MonoBehaviour
             away = lastAim;
         away.Normalize();
 
+        bool summonInterruptRoll = target.Archetype == EnemyArchetype.Boss &&
+                                   target.BossAttackKind == BossAttackKind.Summon &&
+                                   target.AttackWindupTimer > 0f;
+        bool summonInterrupted = summonInterruptRoll && UnityEngine.Random.value < BossSummonInterruptChance;
         int damage = PlayerAttackDamage();
-        target.Hp -= damage;
+        target.Hp = Mathf.Max(0, target.Hp - damage);
         target.Mode = EnemyMode.Hunt;
         target.LastSeen = PlayerCell();
         target.LostSightTimer = 0f;
         target.SearchTimer = EnemySearchDurationFor(target);
         BuildEnemySearchPoints(target, target.LastSeen);
-        target.StunTimer = EnemyStunDuration;
+        target.StunTimer = summonInterrupted ? BossSummonInterruptStunDuration : summonInterruptRoll ? 0f : EnemyStunDuration;
         target.HitFlashTimer = EnemyHitFlashDuration;
-        target.KnockbackVelocity = away * EnemyKnockbackSpeed;
-        CancelEnemyAttack(target);
+        target.KnockbackVelocity = summonInterruptRoll ? Vector2.zero : away * EnemyKnockbackSpeed;
+        if (!summonInterruptRoll || summonInterrupted)
+            CancelEnemyAttack(target);
+        if (summonInterrupted)
+        {
+            target.SummonCooldown = BossSummonCooldown * BossInterruptedSummonCooldownMultiplier;
+            target.BossInterruptPoseTimer = BossSummonInterruptStunDuration;
+            SpawnBossFlash(target.Position, 2.8f, 3.2f);
+        }
         AlertEnemiesAround(PlayerCell(), target.Position, EnemyDamageAlertRadius);
         TryAlertEnemies(target, PlayerCell(), target.Archetype == EnemyArchetype.Caller);
         SpawnHitBurst(target.Position, target.Hp <= 0);
-        if (target.Hp <= 0)
+        if (target.Hp <= 0 && target.Archetype == EnemyArchetype.Boss)
+            SpawnBossDeathEffect(target.Position);
+        else if (target.Hp <= 0)
             SpawnEnemyDeathFlash(target.Position);
         message = target.Hp <= 0
-            ? "Диктор рассыпался в белый шум."
+            ? target.Archetype == EnemyArchetype.Boss ? "Босс разваливается на мёртвый эфир." : "Диктор рассыпался в белый шум."
+            : summonInterrupted ? "Вы сбиваете призыв. Эфир захлёбывается помехой."
+            : summonInterruptRoll ? "Удар проходит, но босс удерживает канал призыва."
+            : RemoteJamActive() && target.Archetype == EnemyArchetype.Boss ? "Пульт усиливает удар, но босс не теряет сигнал."
             : RemoteJamActive() ? "Пульт усиливает удар. Диктор теряет сигнал." : "Диктор сбился с текста.";
 
         if (target.Hp > 0)
+        {
+            if (target.Archetype == EnemyArchetype.Boss)
+                RefreshStatGates();
             return;
+        }
 
         NarrativeRunState.RecordKill();
         levelEnemiesKilled += 1;
         if (!string.IsNullOrEmpty(target.Id))
             killedEnemyIds.Add(target.Id);
-        RestoreRating(12f);
+        bool ratingChanged = RestoreRating(12f);
         DestroyEnemyTelegraph(target);
         if (target.View != null)
             target.View.SetActive(false);
         enemies.Remove(target);
         EvaluateEvents("enemyKilled", target.Id, target.Group);
         CheckEnemyGroupCleared(target.Group);
+        if (target.Archetype == EnemyArchetype.Boss && !ratingChanged)
+            RefreshStatGates();
         RedrawGateGroups();
         RedrawExits();
     }
@@ -1097,6 +1150,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         playerHp -= amount;
         message = playerHp <= 0 ? "Game Over: эфир оставил только шум." : text;
+        RefreshStatGates();
         if (playerHp <= 0)
         {
             gameEnded = true;
@@ -1123,7 +1177,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         tiles[cell.x, cell.y] = Tile.Floor;
         tileVariants[cell.x, cell.y] = -1;
         message = "Кассета перематывает боль назад. HP +2.";
-        RestoreRating(4f);
+        if (!RestoreRating(4f))
+            RefreshStatGates();
         RedrawTile(cell);
         return true;
     }
@@ -1404,7 +1459,28 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private GateStatSnapshot CurrentGateStats()
     {
-        return new GateStatSnapshot(NarrativeRunState.EnemiesKilled, levelEnemiesKilled, camerasBroken, camerasTriggered, viewerRating);
+        return new GateStatSnapshot(NarrativeRunState.EnemiesKilled, levelEnemiesKilled, camerasBroken, camerasTriggered, viewerRating, playerHp, NearestBossHp());
+    }
+
+    private int NearestBossHp()
+    {
+        Vector2 origin = playerView != null ? (Vector2)playerView.transform.position : ToWorld(playerStart);
+        float bestDistance = float.PositiveInfinity;
+        int hp = 0;
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy == null || enemy.Archetype != EnemyArchetype.Boss || enemy.Hp <= 0)
+                continue;
+
+            float distance = Vector2.SqrMagnitude(enemy.Position - origin);
+            if (distance >= bestDistance)
+                continue;
+
+            bestDistance = distance;
+            hp = enemy.Hp;
+        }
+
+        return hp;
     }
 
     private bool ArePlateGroupCovered(string group)
@@ -1701,6 +1777,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 continue;
 
             UpdateEnemyHitTimers(enemy, dt);
+            if (enemy.SpecialAttackCooldown > 0f)
+                enemy.SpecialAttackCooldown = Mathf.Max(0f, enemy.SpecialAttackCooldown - dt);
+            if (enemy.SummonCooldown > 0f)
+                enemy.SummonCooldown = Mathf.Max(0f, enemy.SummonCooldown - dt);
             if (UpdateEnemyAttack(enemy, dt))
             {
                 UpdateEnemyVisual(enemy);
@@ -1718,7 +1798,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             Vector2 target = ChooseEnemyTarget(enemy);
             float speed = EnemyBaseMoveSpeed(enemy);
             speed *= EnemySpeedScale(enemy);
-            if (RemoteJamActive())
+            if (EnemyBlockedByRemote(enemy))
                 speed *= RemoteEnemySpeedMultiplier;
             Vector2 steeringTarget = EnemySteeringTarget(enemy, target);
             Vector2 previousPosition = enemy.Position;
@@ -1739,7 +1819,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             enemy.View.transform.position = enemy.Position;
             UpdateEnemyVisual(enemy);
 
-            if (!RemoteJamActive() && EnemyCanStartAttack(enemy))
+            if (!EnemyBlockedByRemote(enemy) && EnemyCanStartAttack(enemy))
                 StartEnemyAttack(enemy);
         }
 
@@ -1755,6 +1835,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         enemy.AlertTimer = Mathf.Max(0f, enemy.AlertTimer - dt);
         enemy.FlankCooldown = Mathf.Max(0f, enemy.FlankCooldown - dt);
         enemy.CallHelpCooldown = Mathf.Max(0f, enemy.CallHelpCooldown - dt);
+        enemy.BossInterruptPoseTimer = Mathf.Max(0f, enemy.BossInterruptPoseTimer - dt);
     }
 
     private bool UpdateEnemyKnockback(Enemy enemy, float dt)
@@ -1794,6 +1875,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             {
                 enemy.AttackStrikeTimer = EnemyAttackStrike;
                 enemy.AttackApplied = false;
+                if (enemy.Archetype == EnemyArchetype.Boss)
+                    SpawnBossAttackPulse(enemy);
                 UpdateEnemyTelegraph(enemy, true);
             }
 
@@ -1808,8 +1891,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             if (!enemy.AttackApplied)
             {
                 enemy.AttackApplied = true;
-                if (!RemoteJamActive() && PlayerInEnemyAttackZone(enemy))
-                    DamagePlayer(EnemyAttackDamageFor(enemy), enemy.Mode == EnemyMode.Hunt ? "Диктор ловит вас в кадре после замаха." : "Диктор бьёт микрофоном после паузы.");
+                if (!EnemyBlockedByRemote(enemy))
+                    ApplyEnemyStrike(enemy);
             }
 
             if (enemy.AttackStrikeTimer <= 0f)
@@ -1837,7 +1920,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemy.Mode == EnemyMode.Patrol || playerView == null)
             return false;
 
-        return Vector2.Distance(enemy.Position, playerView.transform.position) <= EnemyAttackRangeFor(enemy);
+        float range = EnemyAttackRangeFor(enemy);
+        if (enemy.Archetype == EnemyArchetype.Boss)
+            range *= BossBroadcastRangeMultiplier;
+        return Vector2.Distance(enemy.Position, playerView.transform.position) <= range;
     }
 
     private void StartEnemyAttack(Enemy enemy)
@@ -1845,12 +1931,83 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2 direction = (Vector2)playerView.transform.position - enemy.Position;
         enemy.AttackDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector2.down;
         enemy.LookDirection = enemy.AttackDirection;
+        enemy.BossAttackKind = ChooseBossAttackKind(enemy);
         enemy.AttackWindupTimer = EnemyAttackWindupFor(enemy);
         enemy.AttackStrikeTimer = 0f;
         enemy.AttackRecoveryTimer = 0f;
         enemy.AttackApplied = false;
         enemy.KnockbackVelocity = Vector2.zero;
         UpdateEnemyTelegraph(enemy, false);
+    }
+
+    private BossAttackKind ChooseBossAttackKind(Enemy enemy)
+    {
+        if (enemy.Archetype != EnemyArchetype.Boss || enemy.SpecialAttackCooldown > 0f)
+            return BossAttackKind.Slam;
+
+        float distance = playerView == null ? 0f : Vector2.Distance(enemy.Position, playerView.transform.position);
+        enemy.SpecialAttackCooldown = BossSpecialAttackCooldown;
+        bool close = distance <= EnemyAttackRangeFor(enemy) * 1.05f;
+        BossAttackKind choice = PickBossSpecialAttack(close, enemy.SummonCooldown <= 0f);
+        if (choice == BossAttackKind.Summon && !TryPickBossSummonSpawn(enemy, out _, out _))
+            choice = PickBossSpecialAttack(close, false);
+        return choice;
+    }
+
+    private BossAttackKind PickBossSpecialAttack(bool close, bool allowSummon)
+    {
+        float ring = close ? 0.35f : 0.15f;
+        float mines = close ? 0.30f : 0.30f;
+        float summon = allowSummon ? 0.20f : 0f;
+        float cone = close ? 0.15f : 0.35f;
+        float total = ring + mines + summon + cone;
+        float roll = UnityEngine.Random.value * total;
+        if (roll < ring)
+            return BossAttackKind.StaticRing;
+        roll -= ring;
+        if (roll < mines)
+            return BossAttackKind.StaticMines;
+        roll -= mines;
+        if (roll < summon)
+            return BossAttackKind.Summon;
+        return BossAttackKind.BroadcastCone;
+    }
+
+    private void ApplyEnemyStrike(Enemy enemy)
+    {
+        if (enemy.Archetype == EnemyArchetype.Boss)
+        {
+            ApplyBossStrike(enemy);
+            return;
+        }
+
+        if (PlayerInEnemyAttackZone(enemy))
+            DamagePlayer(EnemyAttackDamageFor(enemy), enemy.Mode == EnemyMode.Hunt ? "Диктор ловит вас в кадре после замаха." : "Диктор бьёт микрофоном после паузы.");
+    }
+
+    private void ApplyBossStrike(Enemy enemy)
+    {
+        bool hit = enemy.BossAttackKind switch
+        {
+            BossAttackKind.BroadcastCone => PlayerInBossBroadcastCone(enemy),
+            BossAttackKind.StaticRing => PlayerInBossStaticRing(enemy),
+            BossAttackKind.StaticMines => false,
+            BossAttackKind.Summon => false,
+            _ => PlayerInEnemyAttackZone(enemy),
+        };
+        if (!hit)
+            return;
+
+        int damage = enemy.BossAttackKind == BossAttackKind.StaticRing
+            ? Mathf.Max(1, EnemyAttackDamageFor(enemy) - 1)
+            : EnemyAttackDamageFor(enemy);
+        string text = enemy.BossAttackKind switch
+        {
+            BossAttackKind.BroadcastCone => "Босс прожигает комнату эфирным лучом. Уклоняться нужно заранее.",
+            BossAttackKind.StaticRing => "Статика расходится кольцом. Рядом с боссом теперь смертельно.",
+            _ => "Босс сбивает вас тяжёлым ударом.",
+        };
+        DamagePlayer(damage, text);
     }
 
     private void CancelEnemyAttack(Enemy enemy)
@@ -1877,6 +2034,31 @@ public sealed partial class PrototypeGame : MonoBehaviour
         return Vector2.Dot(direction, toPlayer.normalized) >= EnemyAttackConeMinDot;
     }
 
+    private bool PlayerInBossBroadcastCone(Enemy enemy)
+    {
+        if (playerView == null)
+            return false;
+
+        Vector2 toPlayer = (Vector2)playerView.transform.position - enemy.Position;
+        float range = EnemyAttackRangeFor(enemy) * BossBroadcastRangeMultiplier;
+        if (toPlayer.magnitude > range)
+            return false;
+        if (toPlayer.sqrMagnitude < 0.001f)
+            return true;
+
+        Vector2 direction = DirectionOrFallback(enemy.AttackDirection, toPlayer);
+        return Vector2.Dot(direction, toPlayer.normalized) >= BossBroadcastConeMinDot;
+    }
+
+    private bool PlayerInBossStaticRing(Enemy enemy)
+    {
+        if (playerView == null)
+            return false;
+
+        float range = EnemyAttackRangeFor(enemy) * BossStaticRingRangeMultiplier;
+        return Vector2.Distance(enemy.Position, playerView.transform.position) <= range;
+    }
+
     private static int EnemyLevel(Enemy enemy)
     {
         return Mathf.Clamp(enemy?.Level ?? EnemyBaseLevel, EnemyMinLevel, EnemyMaxLevel);
@@ -1895,6 +2077,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 1.16f,
             EnemyArchetype.Brute => 0.82f,
             EnemyArchetype.Caller => 0.95f,
+            EnemyArchetype.Boss => 0.982f,
             _ => 1f,
         };
         return Mathf.Clamp((1f + EnemyLevelOffset(enemy) * 0.10f) * archetype, 0.70f, 1.68f);
@@ -1908,6 +2091,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 0.88f,
             EnemyArchetype.Brute => 1.24f,
             EnemyArchetype.Caller => 1.08f,
+            EnemyArchetype.Boss => enemy.BossAttackKind switch
+            {
+                BossAttackKind.BroadcastCone => 1.66f,
+                BossAttackKind.StaticRing => 1.58f,
+                BossAttackKind.StaticMines => 1.54f,
+                BossAttackKind.Summon => 9.00f,
+                _ => 1.11f,
+            },
             _ => 1f,
         };
         return EnemyAttackWindup * archetype / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.08f, 0.70f, 1.60f);
@@ -1921,6 +2112,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 0.88f,
             EnemyArchetype.Brute => 1.18f,
             EnemyArchetype.Caller => 1.05f,
+            EnemyArchetype.Boss => 0.75f,
             _ => 1f,
         };
         return EnemyAttackRecovery * archetype / Mathf.Clamp(1f + EnemyLevelOffset(enemy) * 0.15f, 0.60f, 1.90f);
@@ -1931,12 +2123,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
         int damage = 1 + Mathf.FloorToInt((EnemyLevel(enemy) - 1) / 4f);
         if (enemy != null && enemy.Archetype == EnemyArchetype.Brute)
             damage += 1;
+        else if (enemy != null && enemy.Archetype == EnemyArchetype.Boss)
+            damage += 2;
         return damage;
     }
 
     private static float EnemyAttackRangeFor(Enemy enemy)
     {
-        return enemy != null && enemy.Archetype == EnemyArchetype.Brute ? EnemyAttackRange * 1.12f : EnemyAttackRange;
+        if (enemy == null)
+            return EnemyAttackRange;
+
+        return enemy.Archetype switch
+        {
+            EnemyArchetype.Brute => EnemyAttackRange * 1.12f,
+            EnemyArchetype.Boss => EnemyAttackRange * 1.42f,
+            _ => EnemyAttackRange,
+        };
     }
 
     private static float EnemyBaseMoveSpeed(Enemy enemy)
@@ -1955,9 +2157,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemyRenderer == null)
             return;
 
-        enemyRenderer.sprite = SpriteForEnemyMode(enemy.Mode);
+        enemyRenderer.sprite = SpriteForEnemyMode(enemy);
+        enemyRenderer.flipX = EnemySpriteFlipX(enemy);
         Color color = EnemyColor(enemy);
-        if (RemoteJamActive())
+        if (EnemyBlockedByRemote(enemy))
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1.00f), 0.62f);
 
         if (enemy.HitFlashTimer > 0f)
@@ -1967,12 +2170,29 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         enemyRenderer.color = color;
-        float archetypeScale = enemy.Archetype == EnemyArchetype.Brute ? 1.14f : enemy.Archetype == EnemyArchetype.Hunter ? 0.96f : 1f;
+        float archetypeScale = enemy.Archetype switch
+        {
+            EnemyArchetype.Boss => 1.72f,
+            EnemyArchetype.Brute => 1.14f,
+            EnemyArchetype.Hunter => 0.96f,
+            _ => 1f,
+        };
         float punch = enemy.HitFlashTimer > 0f ? Mathf.Lerp(1.0f, 1.18f, enemy.HitFlashTimer / EnemyHitFlashDuration) : 1f;
         if (enemy.AttackWindupTimer > 0f)
             punch += Mathf.PingPong(Time.time * 10f, 0.05f);
         enemy.View.transform.localScale = new Vector3(punch * archetypeScale, punch * archetypeScale, 1f);
         ConfigureEnemyLight(enemy);
+    }
+
+    private static bool EnemySpriteFlipX(Enemy enemy)
+    {
+        if (enemy == null || enemy.Archetype != EnemyArchetype.Boss)
+            return false;
+
+        Vector2 direction = enemy.AttackWindupTimer > 0f || enemy.AttackStrikeTimer > 0f
+            ? enemy.AttackDirection
+            : enemy.LookDirection;
+        return direction.x < -0.12f;
     }
 
     private void UpdateEnemyTelegraph(Enemy enemy, bool striking)
@@ -1982,10 +2202,17 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         Vector2 direction = enemy.AttackDirection.sqrMagnitude > 0.001f ? enemy.AttackDirection.normalized : Vector2.down;
         float range = EnemyAttackRangeFor(enemy);
+        if (enemy.Archetype == EnemyArchetype.Boss)
+            range *= enemy.BossAttackKind == BossAttackKind.BroadcastCone ? BossBroadcastRangeMultiplier : enemy.BossAttackKind == BossAttackKind.StaticRing ? BossStaticRingRangeMultiplier : 1f;
         enemy.TelegraphView.SetActive(true);
-        enemy.TelegraphView.transform.position = enemy.Position + direction * (range * 0.48f);
-        enemy.TelegraphView.transform.localScale = new Vector3(enemy.Archetype == EnemyArchetype.Brute ? 0.78f : 0.62f, range * 0.92f, 1f);
-        enemy.TelegraphView.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
+        bool bossRing = enemy.Archetype == EnemyArchetype.Boss && enemy.BossAttackKind == BossAttackKind.StaticRing;
+        bool bossSummon = enemy.Archetype == EnemyArchetype.Boss && enemy.BossAttackKind == BossAttackKind.Summon;
+        enemy.TelegraphView.transform.position = bossRing || bossSummon ? enemy.Position : enemy.Position + direction * (range * 0.48f);
+        float telegraphWidth = enemy.Archetype == EnemyArchetype.Boss
+            ? enemy.BossAttackKind == BossAttackKind.BroadcastCone ? 1.55f : enemy.BossAttackKind == BossAttackKind.StaticRing ? range * 1.55f : bossSummon ? 1.25f : 0.95f
+            : enemy.Archetype == EnemyArchetype.Brute ? 0.78f : 0.62f;
+        enemy.TelegraphView.transform.localScale = bossRing || bossSummon ? new Vector3(telegraphWidth, telegraphWidth, 1f) : new Vector3(telegraphWidth, range * 0.92f, 1f);
+        enemy.TelegraphView.transform.localRotation = bossRing || bossSummon ? Quaternion.identity : Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
 
         SpriteRenderer renderer = enemy.TelegraphView.GetComponent<SpriteRenderer>();
         if (renderer == null)
@@ -1993,9 +2220,16 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         float windup = EnemyAttackWindupFor(enemy);
         float windupRatio = enemy.AttackWindupTimer > 0f ? 1f - enemy.AttackWindupTimer / windup : 1f;
+        renderer.sprite = bossSummon && bossSummonSprite != null ? bossSummonSprite : bossRing && bossTelegraphSprite != null ? bossTelegraphSprite : EnsureEffectSprite();
+        Color warning = enemy.Archetype == EnemyArchetype.Boss
+            ? new Color(1f, 0.12f, 0.12f, 0.34f)
+            : new Color(1f, 0.80f, 0.20f, 0.22f);
+        Color danger = enemy.Archetype == EnemyArchetype.Boss
+            ? new Color(1f, 0.08f, 0.06f, 0.68f)
+            : new Color(1f, 0.28f, 0.14f, 0.46f);
         renderer.color = striking
-            ? new Color(1f, 0.18f, 0.12f, 0.58f)
-            : Color.Lerp(new Color(1f, 0.80f, 0.20f, 0.22f), new Color(1f, 0.28f, 0.14f, 0.46f), windupRatio);
+            ? new Color(1f, 0.18f, 0.12f, enemy.Archetype == EnemyArchetype.Boss ? 0.72f : 0.58f)
+            : Color.Lerp(warning, danger, windupRatio);
     }
 
     private GameObject CreateTelegraphView(Enemy enemy)
@@ -2062,6 +2296,340 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
     }
 
+    private void SpawnBossAttackPulse(Enemy enemy)
+    {
+        switch (enemy.BossAttackKind)
+        {
+            case BossAttackKind.BroadcastCone:
+                SpawnBossBroadcastCone(enemy);
+                return;
+            case BossAttackKind.StaticRing:
+                SpawnBossStaticRing(enemy);
+                return;
+            case BossAttackKind.StaticMines:
+                SpawnBossStaticMines(enemy);
+                return;
+            case BossAttackKind.Summon:
+                TrySpawnBossMinion(enemy);
+                return;
+            default:
+                SpawnBossSlamPulse(enemy);
+                return;
+        }
+    }
+
+    private void SpawnBossSlamPulse(Enemy enemy)
+    {
+        Vector2 direction = DirectionOrFallback(enemy.AttackDirection, Vector2.down);
+        CombatEffect effect = CreateCombatEffect(
+            "Boss Slam Shockwave",
+            enemy.Position + direction * 0.92f,
+            Vector3.one * 0.92f,
+            new Color(1f, 0.30f, 0.24f, 0.70f),
+            0.26f,
+            26,
+            bossDashSprite != null ? bossDashSprite : bossShockwaveSprite != null ? bossShockwaveSprite : bossTelegraphSprite);
+        effect.EndScale = Vector3.one * 1.75f;
+        effect.Velocity = direction * 1.25f;
+        effect.View.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg);
+        SpawnBossFlash(enemy.Position + direction * 0.45f, 2.8f, 3.0f);
+    }
+
+    private void SpawnBossBroadcastCone(Enemy enemy)
+    {
+        Vector2 direction = DirectionOrFallback(enemy.AttackDirection, Vector2.down);
+        CombatEffect effect = CreateCombatEffect(
+            "Boss Broadcast Cone",
+            enemy.Position + direction * 1.7f,
+            new Vector3(1.25f, 3.8f, 1f),
+            new Color(1f, 0.18f, 0.12f, 0.58f),
+            0.34f,
+            26,
+            bossShockwaveSprite != null ? bossShockwaveSprite : EnsureEffectSprite());
+        effect.EndScale = new Vector3(2.25f, 5.4f, 1f);
+        effect.Velocity = direction * 1.9f;
+        effect.View.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg - 90f);
+        SpawnBossFlash(enemy.Position + direction * 1.1f, 3.9f, 5.6f);
+        SpawnHitBurst(enemy.Position + direction * 1.35f, false);
+    }
+
+    private void SpawnBossStaticRing(Enemy enemy)
+    {
+        CombatEffect effect = CreateCombatEffect(
+            "Boss Static Ring",
+            enemy.Position,
+            Vector3.one * 1.1f,
+            new Color(1f, 0.12f, 0.08f, 0.72f),
+            0.38f,
+            26,
+            bossTelegraphSprite != null ? bossTelegraphSprite : bossShockwaveSprite);
+        effect.EndScale = Vector3.one * (EnemyAttackRangeFor(enemy) * BossStaticRingRangeMultiplier * 1.9f);
+        effect.RotationSpeed = 220f;
+        SpawnBossFlash(enemy.Position, 3.4f, 4.4f);
+        SpawnHitBurst(enemy.Position, false);
+    }
+
+    private void SpawnBossStaticMines(Enemy enemy)
+    {
+        var cells = new List<Vector2Int>();
+        Vector2Int playerCell = PlayerCell();
+        AddBossMineCell(cells, playerCell);
+        Vector2 aim = DirectionOrFallback(moveInput.sqrMagnitude > 0.01f ? moveInput : lastAim, Vector2.down);
+        AddBossMineCell(cells, playerCell + Cardinal(aim));
+
+        Vector2 towardPlayer = DirectionOrFallback((Vector2)(playerCell - WorldToCell(enemy.Position)), Vector2.down);
+        Vector2 side = new Vector2(-towardPlayer.y, towardPlayer.x);
+        AddBossMineCell(cells, playerCell + Cardinal(side));
+        AddBossMineCell(cells, playerCell + Cardinal(-side));
+
+        foreach (Vector2Int cell in cells)
+            SpawnBossMineAt(cell);
+    }
+
+    private void AddBossMineCell(List<Vector2Int> cells, Vector2Int cell)
+    {
+        if (!BossMineCellPassable(cell) || cells.Contains(cell))
+            return;
+
+        cells.Add(cell);
+    }
+
+    private bool BossMineCellPassable(Vector2Int cell)
+    {
+        return Inside(cell) && !IsSolidCell(cell) && StoneAt(cell) == null;
+    }
+
+    private void SpawnBossMineAt(Vector2Int cell)
+    {
+        CombatEffect effect = CreateCombatEffect(
+            "Boss Static Mine",
+            ToWorld(cell),
+            Vector3.one * 0.74f,
+            new Color(1f, 0.18f, 0.10f, 0.58f),
+            BossMineDamageDelay + 0.34f,
+            26,
+            bossTelegraphSprite != null ? bossTelegraphSprite : bossShockwaveSprite);
+        effect.EndScale = Vector3.one * 1.22f;
+        effect.RotationSpeed = 150f;
+        effect.DamageDelay = BossMineDamageDelay;
+        effect.DamageRadius = BossMineRadius;
+        effect.DamageAmount = 1;
+        effect.DamageMessage = "Статическая мина босса вспыхивает под ногами.";
+    }
+
+    private bool TrySpawnBossMinion(Enemy boss)
+    {
+        if (!TryPickBossSummonSpawn(boss, out Vector2Int spawnCell, out bool farSpawn))
+            return false;
+
+        EnemyArchetype archetype = PickBossMinionArchetype();
+        int hp = UnityEngine.Random.Range(2, 4);
+        int level = Mathf.Clamp(EnemyLevel(boss) + UnityEngine.Random.Range(-1, 2), EnemyMinLevel, EnemyMaxLevel);
+        string id = $"boss_minion_{spawnCell.x}_{spawnCell.y}_{enemies.Count}";
+        Enemy minion = AddEnemy(id, boss.Group, boss.AlertGroup, BranchChoice.None, archetype, level, hp, 0f, 0f, spawnCell, spawnCell);
+        if (Application.isPlaying || playerView != null)
+            CreateEnemyView(minion, enemies.Count - 1);
+
+        Vector2Int playerCell = PlayerCell();
+        Vector2Int bossCell = WorldToCell(boss.Position);
+        if (farSpawn)
+        {
+            minion.Patrol.Clear();
+            minion.Patrol.Add(spawnCell);
+            minion.Patrol.Add(bossCell);
+            minion.Patrol.Add(playerCell);
+            minion.PatrolIndex = 1;
+            minion.Mode = EnemyMode.Patrol;
+            minion.LastSeen = playerCell;
+        }
+        else if (CanEnemyReachCell(minion, playerCell))
+        {
+            minion.Mode = EnemyMode.Hunt;
+            minion.LastSeen = playerCell;
+        }
+        else
+        {
+            minion.Mode = EnemyMode.Investigate;
+            minion.LastSeen = bossCell;
+        }
+        if (minion.Mode == EnemyMode.Patrol)
+        {
+            minion.SearchTimer = 0f;
+            minion.SearchPoints.Clear();
+        }
+        else
+        {
+            minion.SearchTimer = EnemySearchDurationFor(minion);
+            BuildEnemySearchPoints(minion, minion.LastSeen);
+        }
+        boss.SummonCooldown = BossSummonCooldown;
+        SpawnBossSummonEffect(boss.Position, ToWorld(spawnCell));
+        SpawnHitBurst(ToWorld(spawnCell), false);
+        SpawnBossFlash(boss.Position, 2.6f, 3.2f);
+        return true;
+    }
+
+    private void SpawnBossSummonEffect(Vector2 bossPosition, Vector2 spawnPosition)
+    {
+        Sprite sprite = bossSummonSprite != null ? bossSummonSprite : bossTelegraphSprite;
+        CombatEffect channel = CreateCombatEffect(
+            "Boss Summon Channel",
+            bossPosition,
+            Vector3.one * 1.05f,
+            new Color(1f, 0.20f, 0.12f, 0.74f),
+            0.52f,
+            27,
+            sprite);
+        channel.EndScale = Vector3.one * 1.82f;
+        channel.RotationSpeed = -180f;
+
+        CombatEffect arrival = CreateCombatEffect(
+            "Boss Summon Arrival",
+            spawnPosition,
+            Vector3.one * 0.86f,
+            new Color(1f, 0.32f, 0.16f, 0.70f),
+            0.42f,
+            27,
+            sprite);
+        arrival.EndScale = Vector3.one * 1.36f;
+        arrival.RotationSpeed = 240f;
+    }
+
+    private EnemyArchetype PickBossMinionArchetype()
+    {
+        float roll = UnityEngine.Random.value;
+        if (roll < 0.45f)
+            return EnemyArchetype.Patrol;
+        if (roll < 0.75f)
+            return EnemyArchetype.Hunter;
+        if (roll < 0.90f)
+            return EnemyArchetype.Brute;
+        return EnemyArchetype.Caller;
+    }
+
+    private bool TryPickBossSummonSpawn(Enemy boss, out Vector2Int spawnCell, out bool farSpawn)
+    {
+        bool preferFar = UnityEngine.Random.value < 0.68f;
+        if (preferFar && TryPickFarBossSummonSpawn(boss, out spawnCell))
+        {
+            farSpawn = true;
+            return true;
+        }
+        if (TryPickNearBossSummonSpawn(boss, out spawnCell))
+        {
+            farSpawn = false;
+            return true;
+        }
+        if (!preferFar && TryPickFarBossSummonSpawn(boss, out spawnCell))
+        {
+            farSpawn = true;
+            return true;
+        }
+
+        spawnCell = WorldToCell(boss.Position);
+        farSpawn = false;
+        return false;
+    }
+
+    private bool TryPickNearBossSummonSpawn(Enemy boss, out Vector2Int spawnCell)
+    {
+        Vector2Int bossCell = WorldToCell(boss.Position);
+        Vector2Int[] candidates =
+        {
+            bossCell + Vector2Int.up,
+            bossCell + Vector2Int.right,
+            bossCell + Vector2Int.down,
+            bossCell + Vector2Int.left,
+            bossCell + new Vector2Int(1, 1),
+            bossCell + new Vector2Int(-1, 1),
+            bossCell + new Vector2Int(1, -1),
+            bossCell + new Vector2Int(-1, -1),
+        };
+        Shuffle(candidates);
+        foreach (Vector2Int candidate in candidates)
+        {
+            if (BossSummonCellPassable(candidate, boss))
+            {
+                spawnCell = candidate;
+                return true;
+            }
+        }
+
+        spawnCell = bossCell;
+        return false;
+    }
+
+    private bool TryPickFarBossSummonSpawn(Enemy boss, out Vector2Int spawnCell)
+    {
+        Vector2Int playerCell = PlayerCell();
+        Vector2Int bossCell = WorldToCell(boss.Position);
+        for (int attempt = 0; attempt < 48; attempt++)
+        {
+            Vector2Int candidate = new Vector2Int(UnityEngine.Random.Range(1, Width - 1), UnityEngine.Random.Range(1, Height - 1));
+            if (Manhattan(candidate, playerCell) < 8 || Manhattan(candidate, bossCell) < 3)
+                continue;
+            if (!BossSummonCellPassable(candidate, boss))
+                continue;
+
+            spawnCell = candidate;
+            return true;
+        }
+
+        spawnCell = bossCell;
+        return false;
+    }
+
+    private bool BossSummonCellPassable(Vector2Int cell, Enemy boss)
+    {
+        if (!Inside(cell) || IsSolidCell(cell) || StoneAt(cell) != null || EnemyAt(cell) != null || cell == PlayerCell())
+            return false;
+
+        Vector2Int bossCell = WorldToCell(boss.Position);
+        return TryFindNextPathCell(cell, PlayerCell(), out _) || TryFindNextPathCell(cell, bossCell, out _);
+    }
+
+    private static void Shuffle(Vector2Int[] values)
+    {
+        for (int i = values.Length - 1; i > 0; i--)
+        {
+            int j = UnityEngine.Random.Range(0, i + 1);
+            (values[i], values[j]) = (values[j], values[i]);
+        }
+    }
+
+    private void SpawnBossFlash(Vector2 position, float intensity, float radius)
+    {
+        GameObject view = new GameObject("Boss Attack Flash");
+        view.transform.SetParent(EnsureCombatVfxRoot());
+        view.transform.position = position;
+
+        var effect = new CombatEffect
+        {
+            View = view,
+            StartScale = Vector3.one,
+            EndScale = Vector3.one,
+            Duration = 0.22f,
+        };
+        effect.Light = Urp2DLighting.AddPointLight(view, new Color(1f, 0.28f, 0.18f), intensity, radius, 0.40f);
+        effect.LightStartIntensity = effect.Light.intensity;
+        Urp2DLighting.ConfigurePointLightShadows(effect.Light, 0.18f, 0.35f, 0.58f);
+        combatEffects.Add(effect);
+    }
+
+    private void SpawnBossDeathEffect(Vector2 position)
+    {
+        CombatEffect effect = CreateCombatEffect(
+            "Boss Collapse",
+            position,
+            Vector3.one * 1.85f,
+            new Color(1f, 0.74f, 0.66f, 0.86f),
+            2.2f,
+            27,
+            bossDeathSprite);
+        effect.EndScale = Vector3.one * 2.18f;
+        SpawnEnemyDeathFlash(position);
+    }
+
     private void SpawnCameraFlash(Vector2 position, Vector2 direction)
     {
         direction = DirectionOrFallback(direction, Vector2.up);
@@ -2101,7 +2669,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         combatEffects.Add(effect);
     }
 
-    private CombatEffect CreateCombatEffect(string name, Vector2 position, Vector3 scale, Color color, float duration, int sortingOrder)
+    private CombatEffect CreateCombatEffect(string name, Vector2 position, Vector3 scale, Color color, float duration, int sortingOrder, Sprite sprite = null)
     {
         GameObject view = new GameObject(name);
         view.transform.SetParent(EnsureCombatVfxRoot());
@@ -2109,7 +2677,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         view.transform.localScale = scale;
 
         SpriteRenderer renderer = view.AddComponent<SpriteRenderer>();
-        renderer.sprite = EnsureEffectSprite();
+        renderer.sprite = sprite != null ? sprite : EnsureEffectSprite();
         renderer.color = color;
         renderer.sortingOrder = sortingOrder;
 
@@ -2139,6 +2707,13 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
             effect.Age += dt;
             float ratio = effect.Duration <= 0f ? 1f : Mathf.Clamp01(effect.Age / effect.Duration);
+            if (!effect.DamageApplied && effect.DamageAmount > 0 && effect.Age >= effect.DamageDelay)
+            {
+                effect.DamageApplied = true;
+                if (playerView != null && Vector2.Distance(effect.View.transform.position, playerView.transform.position) <= effect.DamageRadius)
+                    DamagePlayer(effect.DamageAmount, string.IsNullOrEmpty(effect.DamageMessage) ? "Статика босса пробивает экран." : effect.DamageMessage);
+                SpawnBossFlash(effect.View.transform.position, 2.2f, 2.1f);
+            }
             effect.View.transform.position += (Vector3)(effect.Velocity * dt);
             effect.View.transform.localScale = Vector3.Lerp(effect.StartScale, effect.EndScale, ratio);
             if (Mathf.Abs(effect.RotationSpeed) > 0.01f)
@@ -2212,14 +2787,34 @@ public sealed partial class PrototypeGame : MonoBehaviour
         return remoteJamTimer > 0f;
     }
 
+    private bool RemoteBossChaseActive()
+    {
+        if (!RemoteJamActive())
+            return false;
+
+        foreach (Enemy enemy in enemies)
+        {
+            if (enemy.Archetype == EnemyArchetype.Boss && enemy.Mode == EnemyMode.Hunt)
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool EnemyBlockedByRemote(Enemy enemy)
+    {
+        return RemoteJamActive() && (enemy == null || enemy.Archetype != EnemyArchetype.Boss);
+    }
+
     private void UpdateEnemyState(Enemy enemy, float dt)
     {
         Vector2Int enemyCell = WorldToCell(enemy.Position);
-        if (CanSeePlayer(enemy))
+        Vector2Int playerCell = PlayerCell();
+        if (CanSeePlayer(enemy) && CanEnemyReachCell(enemy, playerCell))
         {
             bool newlyAlerted = enemy.Mode != EnemyMode.Hunt;
             enemy.Mode = EnemyMode.Hunt;
-            enemy.LastSeen = PlayerCell();
+            enemy.LastSeen = playerCell;
             enemy.LostSightTimer = 0f;
             enemy.SearchTimer = EnemySearchDurationFor(enemy);
             BuildEnemySearchPoints(enemy, enemy.LastSeen);
@@ -2230,6 +2825,12 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         if (enemy.Mode == EnemyMode.Hunt)
         {
+            if (!CanEnemyReachCell(enemy, playerCell))
+            {
+                ResetEnemyAggro(enemy);
+                return;
+            }
+
             enemy.LostSightTimer += dt;
             float playerDistance = playerView != null ? Vector2.Distance(enemy.Position, playerView.transform.position) : float.PositiveInfinity;
             if (playerDistance > EnemyAggroResetDistance && enemy.LostSightTimer >= EnemyAggroResetDelay)
@@ -2271,6 +2872,16 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
     }
 
+    private void ResetEnemyAggro(Enemy enemy)
+    {
+        enemy.Mode = EnemyMode.Patrol;
+        enemy.LostSightTimer = 0f;
+        enemy.SearchTimer = 0f;
+        enemy.SearchPoints.Clear();
+        enemy.SearchIndex = 0;
+        CancelEnemyAttack(enemy);
+    }
+
     private Vector2 ChooseEnemyTarget(Enemy enemy)
     {
         if (enemy.Mode == EnemyMode.Hunt)
@@ -2299,6 +2910,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private bool EnemyCanHearNoise(Enemy enemy, Vector2Int enemyCell, Vector2Int noiseCell, int power)
     {
+        if (CountSightBlockersBetween(enemyCell, noiseCell) >= 3)
+            return false;
+        if (!CanEnemyReachCell(enemy, noiseCell))
+            return false;
+
         float hearing = enemy.HearingOverride > 0f ? enemy.HearingOverride : EnemyHearingScale(enemy);
         float effectivePower = power * hearing;
         return Manhattan(enemyCell, noiseCell) <= Mathf.CeilToInt(effectivePower);
@@ -2312,6 +2928,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 1.28f,
             EnemyArchetype.Caller => 1.18f,
             EnemyArchetype.Brute => 0.88f,
+            EnemyArchetype.Boss => 1.22f,
             _ => 1f,
         };
     }
@@ -2327,6 +2944,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 1.18f,
             EnemyArchetype.Caller => 1.08f,
             EnemyArchetype.Brute => 0.92f,
+            EnemyArchetype.Boss => 1.24f,
             _ => 1f,
         };
     }
@@ -2339,6 +2957,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             EnemyArchetype.Hunter => 1.35f,
             EnemyArchetype.Caller => 1.20f,
             EnemyArchetype.Brute => 0.90f,
+            EnemyArchetype.Boss => 1.50f,
             _ => 1f,
         };
         return Mathf.Clamp(EnemyBaseSearchDuration * archetype + EnemyLevelOffset(enemy) * 0.12f, 1.8f, 6.0f);
@@ -2405,6 +3024,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             bool nearby = Vector2.Distance(enemy.Position, source.Position) <= radius;
             if (!sameGroup && !nearby)
                 continue;
+            if (!CanEnemyReachCell(enemy, alertCell))
+                continue;
 
             if (enemy.Mode != EnemyMode.Hunt)
                 enemy.Mode = callerPulse && sameGroup && enemy.Archetype == EnemyArchetype.Hunter ? EnemyMode.Hunt : EnemyMode.Investigate;
@@ -2422,6 +3043,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             if (enemy == null || enemy.View == null)
                 continue;
             if (Vector2.Distance(enemy.Position, position) > radius)
+                continue;
+            if (!CanEnemyReachCell(enemy, alertCell))
                 continue;
 
             enemy.Mode = enemy.Archetype == EnemyArchetype.Hunter ? EnemyMode.Hunt : EnemyMode.Investigate;
@@ -2490,7 +3113,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (TryFindNextPathCell(from, to, out Vector2Int nextCell))
             return ApplyEnemySeparation(enemy, ToWorld(nextCell));
 
-        return ApplyEnemySeparation(enemy, directTarget);
+        return ApplyEnemySeparation(enemy, enemy.Position);
     }
 
     private Vector2 ApplyEnemySeparation(Enemy self, Vector2 target)
@@ -2540,7 +3163,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private bool TryFindNextPathCell(Vector2Int start, Vector2Int goal, out Vector2Int nextCell)
     {
+        if (start == goal)
+        {
+            nextCell = start;
+            return true;
+        }
+
         return pathfinder.TryFindNextPathCell(start, goal, EnemyPathPassable, out nextCell);
+    }
+
+    private bool CanEnemyReachCell(Enemy enemy, Vector2Int target)
+    {
+        if (enemy == null || !Inside(target))
+            return false;
+
+        Vector2Int start = WorldToCell(enemy.Position);
+        return TryFindNextPathCell(start, target, out _);
     }
 
     private bool HasStraightWalkLine(Vector2Int from, Vector2Int to)
@@ -2575,8 +3213,27 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2Int cell = WorldToCell(position);
         if (!CanEnemyEnterCell(cell, self))
             return false;
+        if (self != null && self.Archetype == EnemyArchetype.Boss && !BossFootprintPassable(position, self))
+            return false;
 
         return true;
+    }
+
+    private bool BossFootprintPassable(Vector2 position, Enemy self)
+    {
+        return BossFootprintSamplePassable(position, self, BossCollisionRadius, 0f) &&
+               BossFootprintSamplePassable(position, self, -BossCollisionRadius, 0f) &&
+               BossFootprintSamplePassable(position, self, 0f, BossCollisionRadius) &&
+               BossFootprintSamplePassable(position, self, 0f, -BossCollisionRadius) &&
+               BossFootprintSamplePassable(position, self, BossCollisionRadius, BossCollisionRadius) &&
+               BossFootprintSamplePassable(position, self, -BossCollisionRadius, BossCollisionRadius) &&
+               BossFootprintSamplePassable(position, self, BossCollisionRadius, -BossCollisionRadius) &&
+               BossFootprintSamplePassable(position, self, -BossCollisionRadius, -BossCollisionRadius);
+    }
+
+    private bool BossFootprintSamplePassable(Vector2 position, Enemy self, float x, float y)
+    {
+        return CanEnemyEnterCell(WorldToCell(position + new Vector2(x, y)), self);
     }
 
     private bool CanEnemyEnterCell(Vector2Int cell, Enemy self)
@@ -2632,6 +3289,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private bool HasSightLine(Vector2Int from, Vector2Int to)
     {
+        return CountSightBlockersBetween(from, to) == 0;
+    }
+
+    private int CountSightBlockersBetween(Vector2Int from, Vector2Int to)
+    {
         int x0 = from.x;
         int y0 = from.y;
         int x1 = to.x;
@@ -2641,6 +3303,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         int sx = x0 < x1 ? 1 : -1;
         int sy = y0 < y1 ? 1 : -1;
         int error = dx - dy;
+        int blockers = 0;
 
         while (x0 != x1 || y0 != y1)
         {
@@ -2658,10 +3321,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
             Vector2Int current = new Vector2Int(x0, y0);
             if (current != to && BlocksSight(current))
-                return false;
+                blockers++;
         }
 
-        return true;
+        return blockers;
     }
 
     private bool BlocksSight(Vector2Int cell)
@@ -3018,6 +3681,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             hp += 2;
         else if (archetype == EnemyArchetype.Caller)
             hp = Mathf.Max(1, hp - 1);
+        else if (archetype == EnemyArchetype.Boss)
+            hp = Mathf.Max(hp, 14);
 
         AddEnemy(id, data.group, data.alertGroup, ParseBranch(data.branch), archetype, level, hp, data.hearing, data.vision, start, patrol.ToArray());
     }
@@ -3107,6 +3772,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 return EnemyArchetype.Brute;
             case "caller":
                 return EnemyArchetype.Caller;
+            case "boss":
+                return EnemyArchetype.Boss;
             default:
                 return EnemyArchetype.Patrol;
         }

@@ -543,7 +543,13 @@ public sealed partial class PrototypeGame
             intensity *= 1.12f;
         else if (enemy.Archetype == EnemyArchetype.Caller)
             beamColor = Color.Lerp(beamColor, new Color(0.78f, 0.46f, 1f, beamColor.a), 0.55f);
-        if (RemoteJamActive())
+        else if (enemy.Archetype == EnemyArchetype.Boss)
+        {
+            radius *= 1.24f;
+            intensity *= hunting ? 1.22f : 1.10f;
+            beamColor = Color.Lerp(beamColor, new Color(1f, 0.14f, 0.18f, beamColor.a), 0.45f);
+        }
+        if (EnemyBlockedByRemote(enemy))
         {
             color = Color.Lerp(color, new Color(0.48f, 0.92f, 1f), 0.72f);
             intensity *= 0.36f;
@@ -782,23 +788,58 @@ public sealed partial class PrototypeGame
             EnemyArchetype.Hunter => new Color(0.70f, 0.92f, 1.00f),
             EnemyArchetype.Brute => new Color(1.00f, 0.34f, 0.26f),
             EnemyArchetype.Caller => new Color(0.88f, 0.58f, 1.00f),
+            EnemyArchetype.Boss => new Color(1.00f, 0.26f, 0.22f),
             _ => Color.white,
         };
     }
 
     private static float EnemyArchetypeTintWeight(EnemyArchetype archetype)
     {
-        return archetype == EnemyArchetype.Patrol ? 0f : 0.26f;
+        return archetype == EnemyArchetype.Patrol ? 0f : archetype == EnemyArchetype.Boss ? 0.18f : 0.26f;
     }
 
-    private Sprite SpriteForEnemyMode(EnemyMode mode)
+    private Sprite SpriteForEnemyMode(Enemy enemy)
     {
-        return mode switch
+        if (enemy != null && enemy.Archetype == EnemyArchetype.Boss)
+        {
+            if (enemy.BossInterruptPoseTimer > 0f && bossInterruptSprite != null)
+                return bossInterruptSprite;
+            if (enemy.AttackWindupTimer > 0f || enemy.AttackStrikeTimer > 0f)
+            {
+                if (enemy.BossAttackKind == BossAttackKind.Summon && bossSummonSprite != null)
+                    return bossSummonSprite;
+                if (enemy.BossAttackKind == BossAttackKind.Slam && bossDashSprite != null)
+                    return bossDashSprite;
+                return bossAttackSprite != null ? bossAttackSprite : enemyHuntSprite;
+            }
+            if (enemy.HitFlashTimer > 0f)
+                return bossHurtSprite != null ? bossHurtSprite : enemyHuntSprite;
+
+            return enemy.Mode switch
+            {
+                EnemyMode.Hunt => bossAlertSprite != null ? bossAlertSprite : BossPatrolSprite(),
+                EnemyMode.Investigate => bossAlertSprite != null ? bossAlertSprite : enemyInvestigateSprite,
+                _ => BossPatrolSprite(),
+            };
+        }
+
+        return (enemy?.Mode ?? EnemyMode.Patrol) switch
         {
             EnemyMode.Hunt => enemyHuntSprite,
             EnemyMode.Investigate => enemyInvestigateSprite,
             _ => enemySprite,
         };
+    }
+
+    private Sprite BossPatrolSprite()
+    {
+        if (bossWalkSprite == null)
+            return bossIdleSprite != null ? bossIdleSprite : enemySprite;
+
+        Sprite idle = bossIdleSprite != null ? bossIdleSprite : bossWalkSprite;
+        return Mathf.FloorToInt(Time.time * 3.5f) % 2 == 0
+            ? idle
+            : bossWalkSprite;
     }
 
     private void UpdatePlayerSprite()

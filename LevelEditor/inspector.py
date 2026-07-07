@@ -9,13 +9,13 @@ import pygame
 
 
 BRANCHES = ("none", "puzzle", "combat")
-ENEMY_ARCHETYPES = ("patrol", "hunter", "brute", "caller")
+ENEMY_ARCHETYPES = ("patrol", "hunter", "brute", "caller", "boss")
 FRAMES = ("vertical", "horizontal")
 BOOLS = ("true", "false")
 LIGHT_TYPES = ("point", "cone")
 EVENT_TRIGGERS = ("levelStart", "enterRegion", "statsChanged", "enemyKilled", "enemyGroupCleared")
 STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
-STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating")
+STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating", "playerHp", "nearestBossHp")
 ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
 ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "storyImage", "heal", "plate", "stone", "rubble")

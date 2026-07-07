@@ -16,6 +16,8 @@ public sealed partial class PrototypeGame
             enemySprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 0, "anchor_patrol_down");
             enemyInvestigateSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 2, "anchor_investigate_down");
             enemyHuntSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 3, "anchor_hunt_down");
+            if (BossAtlas != null)
+                TryApplyBossAtlas();
             return true;
         }
         catch (Exception ex)
@@ -98,6 +100,30 @@ public sealed partial class PrototypeGame
         playerAttackSprites[index] = CreateFixedAtlasSprite(CharacterAtlas, row, attackCol, $"player_{direction}_attack");
     }
 
+    private bool TryApplyBossAtlas()
+    {
+        try
+        {
+            bossIdleSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 0, 0, "boss_idle", true);
+            bossWalkSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 0, 1, "boss_walk", true);
+            bossAlertSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 1, 2, "boss_alert", true);
+            bossAttackSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 2, 1, "boss_attack", true);
+            bossHurtSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 2, 3, "boss_hurt", true);
+            bossDeathSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 3, 1, "boss_death", true);
+            bossShockwaveSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 3, 2, "boss_shockwave", true);
+            bossTelegraphSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 3, 3, "boss_telegraph", true);
+            bossSummonSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 1, 3, "boss_summon", true);
+            bossDashSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 2, 2, "boss_dash", true);
+            bossInterruptSprite = CreateGridAtlasSprite(BossAtlas, 4, 4, 3, 0, "boss_interrupt", true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Boss atlas could not be sliced, keeping fallback boss sprites: {ex.Message}");
+            return false;
+        }
+    }
+
     private void CopyPlayerSprites(FacingDirection target, FacingDirection source)
     {
         int targetIndex = (int)target;
@@ -118,6 +144,21 @@ public sealed partial class PrototypeGame
 
         int cellWidth = atlas.width / FixedAtlasColumns;
         int cellHeight = atlas.height / FixedAtlasRows;
+        int sourceX = column * cellWidth;
+        int sourceY = atlas.height - (row + 1) * cellHeight;
+        return CreateSpriteFromAtlasPixels(atlas, sourceX, sourceY, cellWidth, cellHeight, spriteName, cellWidth, removeCellBackground);
+    }
+
+    private Sprite CreateGridAtlasSprite(Texture2D atlas, int rows, int columns, int row, int column, string spriteName, bool removeCellBackground = false)
+    {
+        ThrowIfPlayingBake("CreateGridAtlasSprite");
+        if (atlas == null)
+            throw new InvalidOperationException("Atlas texture is not assigned.");
+        if (row < 0 || row >= rows || column < 0 || column >= columns)
+            throw new InvalidOperationException($"Atlas cell {column},{row} is outside {columns}x{rows} grid.");
+
+        int cellWidth = atlas.width / columns;
+        int cellHeight = atlas.height / rows;
         int sourceX = column * cellWidth;
         int sourceY = atlas.height - (row + 1) * cellHeight;
         return CreateSpriteFromAtlasPixels(atlas, sourceX, sourceY, cellWidth, cellHeight, spriteName, cellWidth, removeCellBackground);
@@ -286,6 +327,8 @@ public sealed partial class PrototypeGame
             TryApplyEnvironmentAtlas();
         if (CharacterAtlas != null)
             TryApplyCharacterAtlas();
+        else if (BossAtlas != null)
+            TryApplyBossAtlas();
     }
 
     private void CreateFallbackSprites()
@@ -326,6 +369,17 @@ public sealed partial class PrototypeGame
         enemySprite = CreateSprite(new Color(0.34f, 0.12f, 0.16f), new Color(0.12f, 0.06f, 0.08f), new Color(0.95f, 0.24f, 0.30f), SpriteMark.Enemy);
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
+        bossIdleSprite = enemySprite;
+        bossWalkSprite = enemySprite;
+        bossAlertSprite = enemyInvestigateSprite;
+        bossAttackSprite = enemyHuntSprite;
+        bossHurtSprite = enemyHuntSprite;
+        bossDeathSprite = enemySprite;
+        bossShockwaveSprite = enemyHuntSprite;
+        bossTelegraphSprite = enemyHuntSprite;
+        bossSummonSprite = enemyHuntSprite;
+        bossDashSprite = enemyHuntSprite;
+        bossInterruptSprite = enemyHuntSprite;
         enemyBeamSprite = CreateEnemyBeamSprite();
     }
 
