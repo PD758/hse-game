@@ -72,6 +72,8 @@ public sealed partial class PrototypeGame
 
         for (int i = 0; i < enemies.Count; i++)
             CreateEnemyView(enemies[i], i);
+
+        RefreshGameplayCameraRig();
     }
 
     private void CreateEnemyView(Enemy enemy, int index)
@@ -171,6 +173,7 @@ public sealed partial class PrototypeGame
             for (int i = 0; i < enemies.Count; i++)
                 CreateEnemyView(enemies[i], i);
             CreateLevelVisualViews();
+            RefreshGameplayCameraRig();
             return true;
         }
 
@@ -203,6 +206,7 @@ public sealed partial class PrototypeGame
         }
 
         CreateLevelVisualViews();
+        RefreshGameplayCameraRig();
         return true;
     }
 

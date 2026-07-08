@@ -31,6 +31,9 @@ public sealed partial class PrototypeGame
         DestroySceneObject("Channel Light");
         DestroySceneObject("Player Light");
         DestroySceneObject("Post Processing");
+        DestroySceneObject("Gameplay Virtual Camera");
+        DestroySceneObject("Gameplay Camera Bounds");
+        DestroySceneObject("Void Parallax");
 
         foreach (Light2D light in GetComponents<Light2D>())
             DestroyImmediate(light);

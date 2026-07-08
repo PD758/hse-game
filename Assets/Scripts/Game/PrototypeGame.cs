@@ -23,6 +23,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float PlayerDeceleration = 18f;
     private const float RatingCritical = 15f;
     private const float GameplayCameraSize = 4.8f;
+    private static readonly Color GameplayCameraBackground = new Color(0.070f, 0.076f, 0.086f);
     private const float PlayerAttackRange = 1.75f;
     private const float PlayerAttackConeMinDot = 0.08f;
     private const float PlayerAttackCooldown = 0.42f;
@@ -349,37 +350,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         return PlayerSpeed * (RemoteBossChaseActive() ? RemoteBossChasePlayerSpeedMultiplier : 1f);
     }
-
-    private void LateUpdate()
-    {
-        Camera camera = Camera.main;
-        if (camera == null || playerView == null)
-            return;
-
-        Vector3 target = playerView.transform.position;
-        target.z = -10f;
-        float halfHeight = camera.orthographicSize;
-        float halfWidth = halfHeight * camera.aspect;
-        target.x = ClampCameraAxis(target.x, halfWidth - 0.5f, (Width - 1) * CellSize - halfWidth + 0.5f);
-        target.y = ClampCameraAxis(target.y, halfHeight - 0.5f, (Height - 1) * CellSize - halfHeight + 0.5f);
-        camera.transform.position = Vector3.Lerp(camera.transform.position, target, 0.12f);
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     private Texture2D GetRuntimeAtlasCell(Texture2D atlas, int rows, int columns, int row, int column, string name, bool removeCellBackground)
     {
@@ -3791,96 +3761,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 return EnemyArchetype.Patrol;
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#if UNITY_EDITOR
-
-
-
-
-
-
-
-
-
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     private Vector2Int PlayerCell()
     {

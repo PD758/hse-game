@@ -103,7 +103,7 @@ public sealed partial class PrototypeGame
         camera.orthographic = true;
         camera.orthographicSize = GameplayCameraSize;
         camera.transform.position = new Vector3(8f, 10f, -10f);
-        camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
+        camera.backgroundColor = GameplayCameraBackground;
         camera.allowMSAA = true;
 
         UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
@@ -111,5 +111,6 @@ public sealed partial class PrototypeGame
             cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
         cameraData.renderPostProcessing = true;
         cameraData.dithering = true;
+        EnsureGameplayCameraRig();
     }
 }
