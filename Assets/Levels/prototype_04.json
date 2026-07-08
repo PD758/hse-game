@@ -6,8 +6,8 @@
     "height": 21
   },
   "playerStart": {
-    "x": 1,
-    "y": 1
+    "x": 3,
+    "y": 2
   },
   "exits": [
     {
@@ -22,21 +22,15 @@
   "tiles": [
     {
       "tile": "floor",
-      "y": 1,
-      "x": 1,
-      "length": 3
-    },
-    {
-      "tile": "floor",
       "y": 2,
-      "x": 1,
-      "length": 4
+      "x": 3,
+      "length": 2
     },
     {
       "tile": "floor",
       "y": 3,
-      "x": 1,
-      "length": 6
+      "x": 2,
+      "length": 5
     },
     {
       "tile": "floor",
@@ -173,12 +167,6 @@
     {
       "tile": "floor",
       "y": 13,
-      "x": 4,
-      "length": 1
-    },
-    {
-      "tile": "floor",
-      "y": 13,
       "x": 9,
       "length": 5
     },
@@ -197,32 +185,14 @@
     {
       "tile": "floor",
       "y": 14,
-      "x": 4,
-      "length": 1
-    },
-    {
-      "tile": "floor",
-      "y": 14,
       "x": 9,
       "length": 20
     },
     {
       "tile": "floor",
       "y": 15,
-      "x": 4,
-      "length": 1
-    },
-    {
-      "tile": "floor",
-      "y": 15,
       "x": 9,
       "length": 23
-    },
-    {
-      "tile": "floor",
-      "y": 16,
-      "x": 4,
-      "length": 1
     },
     {
       "tile": "floor",
@@ -465,8 +435,8 @@
     },
     {
       "type": "remote",
-      "x": 10,
-      "y": 9,
+      "x": 7,
+      "y": 11,
       "variant": -1
     },
     {
@@ -480,27 +450,69 @@
       "requiresPlates": [],
       "requiresStories": [],
       "requiresEnemies": [
-        "enemy_22_14"
+        "enemy_boss_1"
       ],
       "requiresStats": []
+    },
+    {
+      "type": "heal",
+      "x": 25,
+      "y": 14,
+      "variant": -1
+    },
+    {
+      "type": "trap",
+      "x": 3,
+      "y": 6,
+      "variant": -1,
+      "direction": {
+        "x": 0.9637,
+        "y": 0.267
+      }
+    },
+    {
+      "type": "trap",
+      "x": 9,
+      "y": 15,
+      "variant": -1,
+      "direction": {
+        "x": 0.9824,
+        "y": -0.1867
+      }
     }
   ],
   "enemies": [
     {
-      "id": "enemy_22_14",
+      "id": "enemy_boss_1",
       "type": "boss",
       "branch": "none",
-      "level": 6,
-      "hp": 30,
-      "x": 22,
-      "y": 14,
+      "level": 5,
+      "hp": 45,
+      "x": 23,
+      "y": 16,
       "patrol": [
         [
-          22,
+          23,
+          16
+        ],
+        [
+          25,
+          17
+        ],
+        [
+          27,
           14
+        ],
+        [
+          23,
+          12
+        ],
+        [
+          22,
+          15
         ]
       ],
-      "vision": 10
+      "vision": 7
     }
   ],
   "decorations": [],
@@ -563,22 +575,22 @@
         {
           "x": 16,
           "y": 13,
-          "length": 1
+          "length": 2
         },
         {
           "x": 16,
           "y": 14,
-          "length": 1
+          "length": 2
         },
         {
           "x": 16,
           "y": 15,
-          "length": 1
+          "length": 2
         },
         {
           "x": 16,
           "y": 16,
-          "length": 1
+          "length": 2
         },
         {
           "x": 16,
@@ -586,10 +598,6 @@
           "length": 1
         }
       ]
-    },
-    {
-      "id": "region_2",
-      "runs": []
     }
   ]
 }

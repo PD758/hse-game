@@ -2175,7 +2175,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (enemy != null && enemy.Archetype == EnemyArchetype.Brute)
             damage += 1;
         else if (enemy != null && enemy.Archetype == EnemyArchetype.Boss)
-            damage += 2;
+            damage += 1;
         return damage;
     }
 
