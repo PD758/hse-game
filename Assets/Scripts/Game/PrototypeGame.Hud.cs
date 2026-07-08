@@ -234,14 +234,14 @@ public sealed partial class PrototypeGame
         float padY = 12f * ui;
         var titleStyle = new GUIStyle(noteStyle)
         {
-            fontSize = Mathf.RoundToInt(12f * ui),
+            fontSize = Mathf.RoundToInt(20f * ui),
             alignment = TextAnchor.UpperLeft,
             normal = { textColor = new Color(0.64f, 0.94f, 1f) },
         };
         PixelGui.Apply(titleStyle);
 
-        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + 8f * ui, rect.width - padX * 2f, 18f * ui), string.IsNullOrEmpty(noteMessageSpeaker) ? "Вы" : noteMessageSpeaker, titleStyle);
-        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + padY + 20f * ui, rect.width - padX * 2f, rect.height - padY * 2f - 20f * ui), VisibleNoteText(), noteStyle);
+        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + 8f * ui, rect.width - padX * 2f, 28f * ui), string.IsNullOrEmpty(noteMessageSpeaker) ? "Вы" : noteMessageSpeaker, titleStyle);
+        DrawLabelWithShadow(new Rect(rect.x + padX, rect.y + padY + 32f * ui, rect.width - padX * 2f, rect.height - padY * 2f - 32f * ui), VisibleNoteText(), noteStyle);
     }
 
     private void DrawStoryNoteOverlay(float screenWidth, float screenHeight, GUIStyle noteStyle, GUIStyle hintStyle)
@@ -353,7 +353,7 @@ public sealed partial class PrototypeGame
         DrawFilledRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0f, 0f, 0f, 0.62f));
         float ui = HudScale;
         float panelWidth = Mathf.Min(420f * ui, screenWidth - 32f * ui);
-        float panelHeight = (showPauseBindings && !gameOver ? 330f : gameOver ? 250f : 352f) * ui;
+        float panelHeight = (showPauseBindings && !gameOver ? 330f : gameOver ? 250f : 420f) * ui;
         Rect panel = PixelRect(new Rect((screenWidth - panelWidth) * 0.5f, (screenHeight - panelHeight) * 0.5f, panelWidth, panelHeight));
         DrawHudPanel(panel, new Color(0.014f, 0.020f, 0.028f, 0.97f), gameOver ? new Color(1f, 0.22f, 0.28f, 0.82f) : new Color(0.72f, 0.92f, 1f, 0.80f), true);
 
@@ -411,10 +411,33 @@ public sealed partial class PrototypeGame
             y += buttonHeight + 12f * ui;
             DrawPauseLightingToggle(PixelRect(new Rect(buttonX, y, buttonWidth, 42f * ui)), textStyle, buttonStyle, ui);
             y += 42f * ui + 12f * ui;
+            DrawPauseMusicVolume(PixelRect(new Rect(buttonX, y, buttonWidth, 52f * ui)), textStyle, ui);
+            y += 52f * ui + 12f * ui;
         }
 
         if (GUI.Button(PixelRect(new Rect(buttonX, y, buttonWidth, buttonHeight)), "Выйти в главное меню", buttonStyle))
             ReturnToMainMenu();
+    }
+
+    private void DrawPauseMusicVolume(Rect rect, GUIStyle textStyle, float ui)
+    {
+        DrawPanelBacking(rect, new Color(0.012f, 0.018f, 0.024f, 0.82f), new Color(0.34f, 0.50f, 0.56f, 0.42f));
+
+        var labelStyle = new GUIStyle(textStyle)
+        {
+            alignment = TextAnchor.MiddleLeft,
+            fontSize = Mathf.RoundToInt(12f * ui),
+            normal = { textColor = new Color(0.86f, 0.92f, 0.94f) },
+        };
+        PixelGui.Apply(labelStyle);
+
+        Rect labelRect = new Rect(rect.x + 12f * ui, rect.y + 5f * ui, rect.width - 24f * ui, 18f * ui);
+        Rect sliderRect = new Rect(rect.x + 12f * ui, rect.y + 27f * ui, rect.width - 24f * ui, 18f * ui);
+        DrawLabelWithShadow(labelRect, $"Музыка: {Mathf.RoundToInt(GameMusic.Volume * 100f)}%", labelStyle);
+
+        float nextVolume = GUI.HorizontalSlider(sliderRect, GameMusic.Volume, 0f, 1f);
+        if (!Mathf.Approximately(nextVolume, GameMusic.Volume))
+            GameMusic.Volume = nextVolume;
     }
 
     private void DrawPauseLightingToggle(Rect rect, GUIStyle textStyle, GUIStyle buttonStyle, float ui)

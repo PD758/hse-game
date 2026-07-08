@@ -105,11 +105,31 @@ public sealed partial class PrototypeGame
         camera.transform.position = new Vector3(8f, 10f, -10f);
         camera.backgroundColor = new Color(0.070f, 0.076f, 0.086f);
         camera.allowMSAA = true;
+        EnsureSingleAudioListener(camera);
 
         UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
         if (cameraData == null)
             cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
         cameraData.renderPostProcessing = true;
         cameraData.dithering = true;
+    }
+
+    private static void EnsureSingleAudioListener(Camera camera)
+    {
+        if (camera == null)
+            return;
+
+        AudioListener listener = camera.GetComponent<AudioListener>();
+        if (listener == null)
+            listener = camera.gameObject.AddComponent<AudioListener>();
+        listener.enabled = true;
+
+        foreach (AudioListener other in FindObjectsByType<AudioListener>(FindObjectsInactive.Include))
+        {
+            if (other == null || other == listener || other.gameObject.scene != camera.gameObject.scene)
+                continue;
+
+            other.enabled = false;
+        }
     }
 }

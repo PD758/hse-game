@@ -1,0 +1,595 @@
+{
+  "version": 1,
+  "id": "prototype_04",
+  "size": {
+    "width": 39,
+    "height": 21
+  },
+  "playerStart": {
+    "x": 1,
+    "y": 1
+  },
+  "exits": [
+    {
+      "id": "exit_31_15",
+      "x": 31,
+      "y": 15,
+      "branch": "none",
+      "requiresGate": "gate_29_15",
+      "targetLevel": ""
+    }
+  ],
+  "tiles": [
+    {
+      "tile": "floor",
+      "y": 1,
+      "x": 1,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 2,
+      "x": 1,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 3,
+      "x": 1,
+      "length": 6
+    },
+    {
+      "tile": "floor",
+      "y": 4,
+      "x": 2,
+      "length": 16
+    },
+    {
+      "tile": "floor",
+      "y": 5,
+      "x": 2,
+      "length": 6
+    },
+    {
+      "tile": "floor",
+      "y": 6,
+      "x": 3,
+      "length": 18
+    },
+    {
+      "tile": "floor",
+      "y": 7,
+      "x": 1,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 4,
+      "length": 7
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 17,
+      "length": 5
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 4,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 16,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 6,
+      "length": 11
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 6,
+      "length": 6
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 19,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 8,
+      "length": 5
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 16,
+      "length": 13
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 9,
+      "length": 5
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 16,
+      "length": 13
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 1,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 9,
+      "length": 20
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 9,
+      "length": 23
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 4,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 9,
+      "length": 5
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 16,
+      "length": 13
+    },
+    {
+      "tile": "floor",
+      "y": 17,
+      "x": 16,
+      "length": 12
+    },
+    {
+      "tile": "floor",
+      "y": 18,
+      "x": 18,
+      "length": 8
+    }
+  ],
+  "walls": [],
+  "objects": [
+    {
+      "type": "gate",
+      "x": 2,
+      "y": 7,
+      "variant": -1,
+      "id": "gate_2_7",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 8,
+      "y": 4,
+      "variant": -1,
+      "id": "gate_8_4",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 4,
+      "y": 10,
+      "variant": -1,
+      "id": "gate_4_10",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 12,
+      "y": 10,
+      "variant": -1,
+      "id": "gate_12_10",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 9,
+      "y": 6,
+      "variant": -1,
+      "id": "gate_9_6",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 14,
+      "y": 15,
+      "variant": -1,
+      "id": "gate_14_15",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [
+        "start"
+      ],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 14,
+      "y": 14,
+      "variant": -1,
+      "id": "gate_14_14",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [
+        "start"
+      ],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "trap",
+      "x": 20,
+      "y": 11,
+      "variant": -1,
+      "direction": {
+        "x": 0.4429,
+        "y": 0.8966
+      }
+    },
+    {
+      "type": "trap",
+      "x": 17,
+      "y": 13,
+      "variant": -1,
+      "direction": {
+        "x": 0.8154,
+        "y": 0.5789
+      }
+    },
+    {
+      "type": "trap",
+      "x": 20,
+      "y": 17,
+      "variant": -1,
+      "direction": {
+        "x": 0.0,
+        "y": -1.0
+      }
+    },
+    {
+      "type": "trap",
+      "x": 26,
+      "y": 16,
+      "variant": -1,
+      "direction": {
+        "x": -0.8872,
+        "y": -0.4614
+      }
+    },
+    {
+      "type": "trap",
+      "x": 27,
+      "y": 13,
+      "variant": -1,
+      "direction": {
+        "x": -0.8858,
+        "y": 0.464
+      }
+    },
+    {
+      "type": "trap",
+      "x": 24,
+      "y": 11,
+      "variant": -1,
+      "direction": {
+        "x": -0.2649,
+        "y": 0.9643
+      }
+    },
+    {
+      "type": "plate",
+      "x": 11,
+      "y": 16,
+      "variant": -1,
+      "group": "start"
+    },
+    {
+      "type": "plate",
+      "x": 10,
+      "y": 16,
+      "variant": -1,
+      "group": "start"
+    },
+    {
+      "type": "plate",
+      "x": 12,
+      "y": 16,
+      "variant": -1,
+      "group": "start"
+    },
+    {
+      "type": "stone",
+      "x": 10,
+      "y": 15,
+      "variant": -1
+    },
+    {
+      "type": "stone",
+      "x": 11,
+      "y": 15,
+      "variant": -1
+    },
+    {
+      "type": "stone",
+      "x": 12,
+      "y": 15,
+      "variant": -1
+    },
+    {
+      "type": "heal",
+      "x": 3,
+      "y": 4,
+      "variant": -1
+    },
+    {
+      "type": "heal",
+      "x": 7,
+      "y": 6,
+      "variant": -1
+    },
+    {
+      "type": "heal",
+      "x": 8,
+      "y": 12,
+      "variant": -1
+    },
+    {
+      "type": "remote",
+      "x": 10,
+      "y": 9,
+      "variant": -1
+    },
+    {
+      "type": "gate",
+      "x": 29,
+      "y": 15,
+      "variant": -1,
+      "id": "gate_29_15",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [
+        "enemy_22_14"
+      ],
+      "requiresStats": []
+    }
+  ],
+  "enemies": [
+    {
+      "id": "enemy_22_14",
+      "type": "boss",
+      "branch": "none",
+      "level": 6,
+      "hp": 30,
+      "x": 22,
+      "y": 14,
+      "patrol": [
+        [
+          22,
+          14
+        ]
+      ],
+      "vision": 10
+    }
+  ],
+  "decorations": [],
+  "lights": [],
+  "events": [
+    {
+      "id": "event_1",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "region_1",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "fallStone",
+          "x": 15,
+          "y": 14
+        },
+        {
+          "type": "fallStone",
+          "x": 15,
+          "y": 15
+        }
+      ]
+    },
+    {
+      "id": "event_2",
+      "enabled": true,
+      "once": true,
+      "trigger": "enterRegion",
+      "region": "region_1",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Ооо нет.."
+        }
+      ]
+    }
+  ],
+  "logic": {
+    "gates": [],
+    "branchTriggers": [],
+    "branchBlocks": [],
+    "exitRules": []
+  },
+  "regions": [
+    {
+      "id": "region_1",
+      "runs": [
+        {
+          "x": 16,
+          "y": 12,
+          "length": 1
+        },
+        {
+          "x": 16,
+          "y": 13,
+          "length": 1
+        },
+        {
+          "x": 16,
+          "y": 14,
+          "length": 1
+        },
+        {
+          "x": 16,
+          "y": 15,
+          "length": 1
+        },
+        {
+          "x": 16,
+          "y": 16,
+          "length": 1
+        },
+        {
+          "x": 16,
+          "y": 17,
+          "length": 1
+        }
+      ]
+    },
+    {
+      "id": "region_2",
+      "runs": []
+    }
+  ]
+}
