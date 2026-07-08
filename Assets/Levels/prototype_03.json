@@ -9,8 +9,413 @@
     "x": 36,
     "y": 18
   },
-  "exits": [],
+  "exits": [
+    {
+      "id": "exit_23_10",
+      "x": 23,
+      "y": 10,
+      "branch": "none",
+      "requiresGate": "",
+      "targetLevel": ""
+    }
+  ],
   "tiles": [
+    {
+      "tile": "floor",
+      "y": 1,
+      "x": 28,
+      "length": 10
+    },
+    {
+      "tile": "floor",
+      "y": 2,
+      "x": 3,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 2,
+      "x": 14,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 2,
+      "x": 23,
+      "length": 15
+    },
+    {
+      "tile": "floor",
+      "y": 3,
+      "x": 3,
+      "length": 27
+    },
+    {
+      "tile": "floor",
+      "y": 3,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 4,
+      "x": 5,
+      "length": 10
+    },
+    {
+      "tile": "floor",
+      "y": 4,
+      "x": 17,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 4,
+      "x": 27,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 4,
+      "x": 34,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 5,
+      "x": 11,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 5,
+      "x": 28,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 5,
+      "x": 34,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 6,
+      "x": 11,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 6,
+      "x": 29,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 6,
+      "x": 34,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 7,
+      "x": 11,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 7,
+      "x": 15,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 7,
+      "x": 29,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 7,
+      "x": 34,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 11,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 14,
+      "length": 9
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 30,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 8,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 4,
+      "length": 6
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 11,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 14,
+      "length": 11
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 30,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 9,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 2,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 11,
+      "length": 15
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 30,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 10,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 2,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 9,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 11,
+      "length": 15
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 30,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 11,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 2,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 11,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 14,
+      "length": 10
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 29,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 12,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 3,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 6,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 11,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 15,
+      "length": 8
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 29,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 13,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 3,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 6,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 11,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 16,
+      "length": 4
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 28,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 14,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 3,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 6,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 11,
+      "length": 1
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 27,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 15,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 4,
+      "length": 5
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 11,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 27,
+      "length": 3
+    },
+    {
+      "tile": "floor",
+      "y": 16,
+      "x": 35,
+      "length": 2
+    },
+    {
+      "tile": "floor",
+      "y": 17,
+      "x": 6,
+      "length": 13
+    },
+    {
+      "tile": "floor",
+      "y": 17,
+      "x": 26,
+      "length": 3
+    },
     {
       "tile": "floor",
       "y": 17,
@@ -20,8 +425,8 @@
     {
       "tile": "floor",
       "y": 18,
-      "x": 35,
-      "length": 3
+      "x": 18,
+      "length": 20
     },
     {
       "tile": "floor",
@@ -31,8 +436,95 @@
     }
   ],
   "walls": [],
-  "objects": [],
-  "enemies": [],
+  "objects": [
+    {
+      "type": "gate",
+      "x": 13,
+      "y": 10,
+      "variant": -1,
+      "id": "gate_13_11",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [
+        "the_end"
+      ],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 13,
+      "y": 11,
+      "variant": -1,
+      "id": "gate_13_11",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [
+        "the_end"
+      ],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 11,
+      "y": 5,
+      "variant": -1,
+      "id": "gate_11_5",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "gate",
+      "x": 11,
+      "y": 14,
+      "variant": -1,
+      "id": "gate_11_14",
+      "group": "start",
+      "frame": "vertical",
+      "requiresPlates": [],
+      "requiresStories": [],
+      "requiresEnemies": [],
+      "requiresStats": []
+    },
+    {
+      "type": "plate",
+      "x": 12,
+      "y": 8,
+      "variant": -1,
+      "group": "the_end"
+    },
+    {
+      "type": "plate",
+      "x": 12,
+      "y": 13,
+      "variant": -1,
+      "group": "the_end"
+    }
+  ],
+  "enemies": [
+    {
+      "id": "enemy_19_10",
+      "type": "patrol",
+      "branch": "none",
+      "level": 3,
+      "hp": 2,
+      "x": 19,
+      "y": 10,
+      "patrol": [
+        [
+          19,
+          10
+        ]
+      ]
+    }
+  ],
   "decorations": [],
   "lights": [],
   "events": [],
