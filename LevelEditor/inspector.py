@@ -792,11 +792,11 @@ def draw_action_editor(
     actions = event.setdefault("actions", [])
     y = draw_text(screen, font, f"actions: {len(actions)}", x, y, (188, 196, 204))
     y = draw_button_row(screen, font, state, [("add_monologue", "+ monologue"), ("add_action", "+ action")], x, y, width, scale)
-    y = draw_button_row(screen, font, state, [("add_region_fallstones", "+ stones in region")], x, y, width, scale)
+    y = draw_button_row(screen, font, state, [("add_region_fallstones", "+ rubble in region")], x, y, width, scale)
     if event.get("trigger") == "enterRegion" and event.get("region"):
         y = draw_text(screen, font, f"region source: {event.get('region')}", x, y, (132, 174, 188))
     elif actions:
-        y = draw_text(screen, font, "Select event region to bulk-add stones", x, y, (132, 140, 148))
+        y = draw_text(screen, font, "Select event region to bulk-add rubble", x, y, (132, 140, 148))
 
     for index, action in enumerate(actions[:8]):
         y = draw_action_row(screen, font, state, selected_cell, index, action, x, y, width, scale)

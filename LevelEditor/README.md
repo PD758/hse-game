@@ -60,7 +60,8 @@ The right panel shows editable properties for the current selection.
 - Light: `type` (`point`/`cone`), `color` as `#RRGGBB`, `intensity`, `radius`, cone angles/rotation
 - Region: `id`, cell count, clear/delete controls
 - Event actions are edited as rows. Supported action types: `fallStone`, `spawnEnemy`, `setTile`, `spawnObject`, `removeObject`, `playEffect`.
-- For `enterRegion` events, `+ stones in region` adds one `fallStone` action for each cell in the selected region.
+- `fallStone` creates static rubble in gameplay.
+- For `enterRegion` events, `+ rubble in region` adds one `fallStone` action for each cell in the selected region.
 - Player start / objects / exits / enemies: use Cursor drag to move
 - Textures / lights: use Cursor drag to move freely; hold `Shift` while dragging or placing to snap to cell centers
 

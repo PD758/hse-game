@@ -1634,7 +1634,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 }
                 return false;
             case "fallStone":
-                SpawnEventStone(new Vector2Int(action.x, action.y), true);
+                SpawnEventRubble(new Vector2Int(action.x, action.y), action.variant, true);
                 return true;
             case "setTile":
                 SetEventTile(new Vector2Int(action.x, action.y), action.tile, action.variant);
@@ -1703,6 +1703,24 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (falling)
             SpawnHitBurst(ToWorld(cell), false);
         CreateStoneView(stone);
+    }
+
+    private void SpawnEventRubble(Vector2Int cell, int variant, bool falling)
+    {
+        if (!Inside(cell))
+            return;
+
+        if (StoneAt(cell) is Stone stone)
+        {
+            DestroyRuntimeObject(stone.View);
+            stones.Remove(stone);
+        }
+
+        tiles[cell.x, cell.y] = Tile.Rubble;
+        tileVariants[cell.x, cell.y] = variant;
+        if (falling)
+            SpawnHitBurst(ToWorld(cell), false);
+        RedrawTile(cell);
     }
 
     private void SetEventTile(Vector2Int cell, string tileName, int variant)
