@@ -119,7 +119,10 @@ public sealed class IntroCutscene : MonoBehaviour
         }
 
         if ((keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame)) || Time.time - startedAt >= Duration)
+        {
+            GameMusic.Play();
             SceneManager.LoadScene("Prototype");
+        }
 
         AnimateScene();
     }
@@ -289,11 +292,11 @@ public sealed class IntroCutscene : MonoBehaviour
         var hintStyle = new GUIStyle(GUI.skin.label)
         {
             alignment = TextAnchor.MiddleCenter,
-            fontSize = screenWidth < 760f ? 11 : 13,
+            fontSize = screenWidth < 760f ? 18 : 22,
             normal = { textColor = new Color(0.55f, 0.58f, 0.64f, 0.82f) },
         };
         PixelGui.Apply(hintStyle);
-        GUI.Label(new Rect(12f, screenHeight - 36f, screenWidth - 24f, 24f), "Space/Enter: дальше | Esc: меню", hintStyle);
+        GUI.Label(new Rect(12f, screenHeight - 48f, screenWidth - 24f, 36f), "Space/Enter: дальше | Esc: меню", hintStyle);
 
         if (slideExitFadeActive)
         {
@@ -1156,11 +1159,31 @@ public sealed class IntroCutscene : MonoBehaviour
         camera.orthographic = true;
         camera.orthographicSize = 5.4f;
         camera.transform.position = new Vector3(0f, 0f, -10f);
+        EnsureSingleAudioListener(camera);
 
         UniversalAdditionalCameraData cameraData = camera.GetComponent<UniversalAdditionalCameraData>();
         if (cameraData == null)
             cameraData = camera.gameObject.AddComponent<UniversalAdditionalCameraData>();
         cameraData.renderPostProcessing = true;
         cameraData.dithering = true;
+    }
+
+    private static void EnsureSingleAudioListener(Camera camera)
+    {
+        if (camera == null)
+            return;
+
+        AudioListener listener = camera.GetComponent<AudioListener>();
+        if (listener == null)
+            listener = camera.gameObject.AddComponent<AudioListener>();
+        listener.enabled = true;
+
+        foreach (AudioListener other in FindObjectsByType<AudioListener>(FindObjectsInactive.Include))
+        {
+            if (other == null || other == listener || other.gameObject.scene != camera.gameObject.scene)
+                continue;
+
+            other.enabled = false;
+        }
     }
 }

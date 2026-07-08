@@ -15,8 +15,8 @@
       "x": 23,
       "y": 10,
       "branch": "none",
-      "requiresGate": "",
-      "targetLevel": ""
+      "requiresGate": "gate_13_11",
+      "targetLevel": "prototype_04"
     }
   ],
   "tiles": [
@@ -101,8 +101,8 @@
     {
       "tile": "floor",
       "y": 6,
-      "x": 11,
-      "length": 1
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -119,8 +119,8 @@
     {
       "tile": "floor",
       "y": 7,
-      "x": 11,
-      "length": 1
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -143,8 +143,8 @@
     {
       "tile": "floor",
       "y": 8,
-      "x": 11,
-      "length": 2
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -168,13 +168,13 @@
       "tile": "floor",
       "y": 9,
       "x": 4,
-      "length": 6
+      "length": 5
     },
     {
       "tile": "floor",
       "y": 9,
-      "x": 11,
-      "length": 2
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -198,13 +198,13 @@
       "tile": "floor",
       "y": 10,
       "x": 2,
-      "length": 8
+      "length": 7
     },
     {
       "tile": "floor",
       "y": 10,
-      "x": 11,
-      "length": 15
+      "x": 10,
+      "length": 16
     },
     {
       "tile": "floor",
@@ -227,14 +227,14 @@
     {
       "tile": "floor",
       "y": 11,
-      "x": 9,
+      "x": 8,
       "length": 1
     },
     {
       "tile": "floor",
       "y": 11,
-      "x": 11,
-      "length": 15
+      "x": 10,
+      "length": 16
     },
     {
       "tile": "floor",
@@ -252,13 +252,13 @@
       "tile": "floor",
       "y": 12,
       "x": 2,
-      "length": 8
+      "length": 7
     },
     {
       "tile": "floor",
       "y": 12,
-      "x": 11,
-      "length": 2
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -288,13 +288,13 @@
       "tile": "floor",
       "y": 13,
       "x": 6,
-      "length": 4
+      "length": 3
     },
     {
       "tile": "floor",
       "y": 13,
-      "x": 11,
-      "length": 2
+      "x": 10,
+      "length": 3
     },
     {
       "tile": "floor",
@@ -384,13 +384,7 @@
       "tile": "floor",
       "y": 16,
       "x": 4,
-      "length": 5
-    },
-    {
-      "tile": "floor",
-      "y": 16,
-      "x": 11,
-      "length": 2
+      "length": 9
     },
     {
       "tile": "floor",
@@ -443,7 +437,7 @@
       "y": 10,
       "variant": -1,
       "id": "gate_13_11",
-      "group": "start",
+      "group": "end",
       "frame": "vertical",
       "requiresPlates": [
         "the_end"
@@ -458,7 +452,7 @@
       "y": 11,
       "variant": -1,
       "id": "gate_13_11",
-      "group": "start",
+      "group": "end",
       "frame": "vertical",
       "requiresPlates": [
         "the_end"
@@ -476,8 +470,13 @@
       "group": "start",
       "frame": "vertical",
       "requiresPlates": [],
-      "requiresStories": [],
-      "requiresEnemies": [],
+      "requiresStories": [
+        "story_3_2",
+        "story_37_1"
+      ],
+      "requiresEnemies": [
+        "enemy_22_3"
+      ],
       "requiresStats": []
     },
     {
@@ -489,8 +488,14 @@
       "group": "start",
       "frame": "vertical",
       "requiresPlates": [],
-      "requiresStories": [],
-      "requiresEnemies": [],
+      "requiresStories": [
+        "story_6_10"
+      ],
+      "requiresEnemies": [
+        "enemy_7_15",
+        "enemy_6_14",
+        "enemy_4_10"
+      ],
       "requiresStats": []
     },
     {
@@ -506,20 +511,249 @@
       "y": 13,
       "variant": -1,
       "group": "the_end"
+    },
+    {
+      "type": "stone",
+      "x": 4,
+      "y": 3,
+      "variant": -1
+    },
+    {
+      "type": "stone",
+      "x": 8,
+      "y": 10,
+      "variant": -1
+    },
+    {
+      "type": "trap",
+      "x": 8,
+      "y": 12,
+      "variant": -1,
+      "direction": {
+        "x": -0.812,
+        "y": 0.5836
+      }
+    },
+    {
+      "type": "story",
+      "x": 21,
+      "y": 9,
+      "variant": -1,
+      "id": "story_21_9",
+      "text": "смирись.\n"
+    },
+    {
+      "type": "story",
+      "x": 6,
+      "y": 10,
+      "variant": -1,
+      "id": "story_6_10",
+      "text": "Твой сон будет бесконечным."
+    },
+    {
+      "type": "story",
+      "x": 3,
+      "y": 2,
+      "variant": -1,
+      "id": "story_3_2",
+      "text": "Ты не выберешься."
+    },
+    {
+      "type": "story",
+      "x": 34,
+      "y": 2,
+      "variant": -1,
+      "id": "story_37_1",
+      "text": "Ты умрёшь.\n"
+    },
+    {
+      "type": "trap",
+      "x": 15,
+      "y": 7,
+      "variant": -1,
+      "direction": {
+        "x": 0.8468,
+        "y": 0.5319
+      }
+    },
+    {
+      "type": "trap",
+      "x": 17,
+      "y": 12,
+      "variant": -1,
+      "direction": {
+        "x": 0.6635,
+        "y": -0.7482
+      }
+    },
+    {
+      "type": "trap",
+      "x": 21,
+      "y": 12,
+      "variant": -1,
+      "direction": {
+        "x": -0.6557,
+        "y": -0.755
+      }
+    },
+    {
+      "type": "trap",
+      "x": 20,
+      "y": 7,
+      "variant": -1,
+      "direction": {
+        "x": -0.3648,
+        "y": 0.9311
+      }
     }
   ],
   "enemies": [
     {
-      "id": "enemy_19_10",
-      "type": "patrol",
+      "id": "enemy_last",
+      "type": "hunter",
       "branch": "none",
-      "level": 3,
-      "hp": 2,
+      "level": 1,
+      "hp": 1,
       "x": 19,
       "y": 10,
       "patrol": [
         [
           19,
+          10
+        ]
+      ]
+    },
+    {
+      "id": "enemy_36_11",
+      "type": "brute",
+      "branch": "none",
+      "level": 3,
+      "hp": 2,
+      "x": 36,
+      "y": 11,
+      "patrol": [
+        [
+          36,
+          11
+        ]
+      ]
+    },
+    {
+      "id": "enemy_28_17",
+      "type": "hunter",
+      "branch": "none",
+      "level": 3,
+      "hp": 2,
+      "x": 28,
+      "y": 17,
+      "patrol": [
+        [
+          28,
+          17
+        ]
+      ]
+    },
+    {
+      "id": "enemy_25_18",
+      "type": "brute",
+      "branch": "none",
+      "level": 5,
+      "hp": 7,
+      "x": 25,
+      "y": 18,
+      "patrol": [
+        [
+          25,
+          18
+        ]
+      ]
+    },
+    {
+      "id": "enemy_22_3",
+      "type": "brute",
+      "branch": "none",
+      "level": 4,
+      "hp": 8,
+      "x": 22,
+      "y": 3,
+      "patrol": [
+        [
+          22,
+          3
+        ]
+      ]
+    },
+    {
+      "id": "enemy_29_5",
+      "type": "patrol",
+      "branch": "none",
+      "level": 3,
+      "hp": 2,
+      "x": 29,
+      "y": 5,
+      "patrol": [
+        [
+          29,
+          5
+        ]
+      ]
+    },
+    {
+      "id": "enemy_35_4",
+      "type": "patrol",
+      "branch": "none",
+      "level": 1,
+      "hp": 8,
+      "x": 35,
+      "y": 4,
+      "patrol": [
+        [
+          35,
+          4
+        ]
+      ]
+    },
+    {
+      "id": "enemy_6_14",
+      "type": "patrol",
+      "branch": "none",
+      "level": 3,
+      "hp": 4,
+      "x": 6,
+      "y": 14,
+      "patrol": [
+        [
+          6,
+          14
+        ]
+      ]
+    },
+    {
+      "id": "enemy_7_15",
+      "type": "hunter",
+      "branch": "none",
+      "level": 6,
+      "hp": 2,
+      "x": 7,
+      "y": 15,
+      "patrol": [
+        [
+          7,
+          15
+        ]
+      ]
+    },
+    {
+      "id": "enemy_4_10",
+      "type": "patrol",
+      "branch": "none",
+      "level": 4,
+      "hp": 2,
+      "x": 4,
+      "y": 10,
+      "patrol": [
+        [
+          4,
           10
         ]
       ]
@@ -534,5 +768,71 @@
     "branchBlocks": [],
     "exitRules": []
   },
-  "regions": []
+  "regions": [
+    {
+      "id": "region_1",
+      "runs": [
+        {
+          "x": 11,
+          "y": 6,
+          "length": 1
+        },
+        {
+          "x": 11,
+          "y": 7,
+          "length": 1
+        },
+        {
+          "x": 11,
+          "y": 8,
+          "length": 1
+        },
+        {
+          "x": 11,
+          "y": 9,
+          "length": 2
+        },
+        {
+          "x": 11,
+          "y": 10,
+          "length": 2
+        },
+        {
+          "x": 11,
+          "y": 11,
+          "length": 2
+        },
+        {
+          "x": 11,
+          "y": 12,
+          "length": 2
+        },
+        {
+          "x": 11,
+          "y": 13,
+          "length": 1
+        }
+      ]
+    },
+    {
+      "id": "region_2",
+      "runs": [
+        {
+          "x": 35,
+          "y": 15,
+          "length": 2
+        },
+        {
+          "x": 35,
+          "y": 16,
+          "length": 2
+        },
+        {
+          "x": 32,
+          "y": 18,
+          "length": 3
+        }
+      ]
+    }
+  ]
 }

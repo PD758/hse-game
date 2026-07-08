@@ -21,12 +21,10 @@ public sealed class MainMenu : MonoBehaviour
     private GUIStyle smallButtonStyle;
     private GUIStyle modeTitleStyle;
     private GUIStyle modeMetaStyle;
-    private GUIStyle statusStyle;
     [SerializeField] private Texture2D panelTexture;
     [SerializeField] private Texture2D backgroundTexture;
     private Texture2D whiteTexture;
     private MenuMode selectedMode = MenuMode.Story;
-    private string footerMessage = "Выберите режим и нажмите «Играть».";
 
     private void Awake()
     {
@@ -61,11 +59,13 @@ public sealed class MainMenu : MonoBehaviour
         if (selectedMode == MenuMode.Endless)
         {
             EndlessRunState.StartRun();
+            GameMusic.Play();
             SceneManager.LoadScene("Prototype");
             return;
         }
 
         EndlessRunState.StartStory();
+        GameMusic.Stop();
         SceneManager.LoadScene("Intro");
     }
 
@@ -122,13 +122,6 @@ public sealed class MainMenu : MonoBehaviour
         modeMetaStyle.fontSize = screenWidth < 760 ? 10 : 12;
         modeMetaStyle.normal.textColor = new Color(0.56f, 0.78f, 0.86f);
         PixelGui.Apply(modeMetaStyle);
-
-        statusStyle ??= new GUIStyle(GUI.skin.label);
-        statusStyle.fontSize = screenWidth < 760 ? 11 : 13;
-        statusStyle.alignment = TextAnchor.MiddleCenter;
-        statusStyle.wordWrap = true;
-        statusStyle.normal.textColor = new Color(0.74f, 0.82f, 0.86f);
-        PixelGui.Apply(statusStyle);
 
     }
 
@@ -193,9 +186,8 @@ public sealed class MainMenu : MonoBehaviour
 
         Rect headerRect = new Rect(panel.x + 28f, panel.y + 24f, panel.width - 56f, compact ? 118f : 128f);
         GUI.Label(new Rect(headerRect.x, headerRect.y, headerRect.width, 56f), "Adether.", titleStyle);
-        GUI.Label(new Rect(headerRect.x, headerRect.y + (compact ? 50f : 64f), headerRect.width, 48f), "Выберите режим игры:", subtitleStyle);
 
-        float cardsTop = headerRect.yMax + (compact ? 10f : 18f);
+        float cardsTop = headerRect.y + (compact ? 74f : 88f);
         float controlsTop = panel.yMax - (compact ? 132f : 120f);
         float cardsHeight = controlsTop - cardsTop - 18f;
         Rect storyRect;
@@ -223,10 +215,6 @@ public sealed class MainMenu : MonoBehaviour
         if (GUI.Button(playRect, "Играть", buttonStyle))
             StartGame();
 
-        Rect selectedRect = compact
-            ? new Rect(panel.x + 28f, playRect.y - 32f, panel.width - 56f, 24f)
-            : new Rect(panel.x + 28f, playRect.y + 2f, panel.width - playRect.width - 76f, 48f);
-        GUI.Label(selectedRect, footerMessage, statusStyle);
     }
 
     private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description)
@@ -237,12 +225,7 @@ public sealed class MainMenu : MonoBehaviour
         DrawPanel(rect, fill, border);
 
         if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
-        {
             selectedMode = mode;
-            footerMessage = mode == MenuMode.Story
-                ? "Сюжетный режим: запуск через вступительную катсцену."
-                : "Бесконечный режим: случайные уровни с пятью комнатами и растущей сложностью.";
-        }
 
         GUI.Label(new Rect(rect.x + 18f, rect.y + 22f, rect.width - 36f, 34f), title, modeTitleStyle);
         GUI.Label(new Rect(rect.x + 18f, rect.y + 58f, rect.width - 36f, 24f), meta, labelStyle);
@@ -305,6 +288,26 @@ public sealed class MainMenu : MonoBehaviour
         camera.clearFlags = CameraClearFlags.SolidColor;
         camera.backgroundColor = new Color(0.05f, 0.06f, 0.07f);
         camera.allowMSAA = true;
+        EnsureSingleAudioListener(camera);
+    }
+
+    private static void EnsureSingleAudioListener(Camera camera)
+    {
+        if (camera == null)
+            return;
+
+        AudioListener listener = camera.GetComponent<AudioListener>();
+        if (listener == null)
+            listener = camera.gameObject.AddComponent<AudioListener>();
+        listener.enabled = true;
+
+        foreach (AudioListener other in UnityEngine.Object.FindObjectsByType<AudioListener>(FindObjectsInactive.Include))
+        {
+            if (other == null || other == listener || other.gameObject.scene != camera.gameObject.scene)
+                continue;
+
+            other.enabled = false;
+        }
     }
 
 #if UNITY_EDITOR
