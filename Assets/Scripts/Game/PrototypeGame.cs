@@ -257,6 +257,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         EnsureGameplayLighting();
         UpdatePostProcessing();
         RedrawAll();
+        ResetRoomFog();
         CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
     }
@@ -329,6 +330,11 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         if (Pressed(keyboard?.spaceKey) || Pressed(mouse?.leftButton))
             TryAttack();
+    }
+
+    private void LateUpdate()
+    {
+        UpdateRoomFog(Time.deltaTime);
     }
 
     private void FixedUpdate()
@@ -525,6 +531,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        ResetRoomFog();
         EvaluateEvents("levelStart", null, null);
         SpawnHitBurst(ToWorld(playerStart), false);
         message = "Канал перемотан к началу текущего уровня.";
@@ -593,6 +600,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        ResetRoomFog();
         CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
     }
@@ -1275,6 +1283,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         UpdatePostProcessing();
         RedrawAll();
         RebuildTileColliders();
+        ResetRoomFog();
         CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
         message = $"Канал переключён: {currentLevelId}.";
@@ -1369,6 +1378,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void UpdatePuzzle()
     {
+        MarkRoomFogDirty();
         RedrawGateGroups();
         RedrawExits();
     }
@@ -1511,6 +1521,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void RefreshStatGates()
     {
+        MarkRoomFogDirty();
         RedrawGateGroups();
         RedrawExits();
         EvaluateEvents("statsChanged", null, null);
@@ -1599,6 +1610,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         if (rebuildColliders)
             RebuildTileColliders();
+        if (rebuildColliders)
+            MarkRoomFogDirty();
         RedrawGateGroups();
         RedrawExits();
     }

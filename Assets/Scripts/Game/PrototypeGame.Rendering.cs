@@ -39,6 +39,7 @@ public sealed partial class PrototypeGame
             }
         }
 
+        CreateRoomFogViews(tileRoot.transform);
         CreateEntityViews();
         CreateLevelVisualViews();
         RebuildTileColliders();
@@ -142,6 +143,7 @@ public sealed partial class PrototypeGame
                     return false;
             }
         }
+        BindRoomFogViews(tileRoot);
 
         playerView = FindSceneObjectIncludingInactive("Player");
         if (playerView == null)

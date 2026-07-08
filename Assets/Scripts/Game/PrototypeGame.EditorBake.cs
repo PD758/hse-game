@@ -27,6 +27,7 @@ public sealed partial class PrototypeGame
     private void ClearBakedSceneObjects()
     {
         DestroySceneObject("Tiles");
+        DestroySceneObject(RoomFogRootName);
         DestroySceneObject("Player");
         DestroySceneObject("Channel Light");
         DestroySceneObject("Player Light");
