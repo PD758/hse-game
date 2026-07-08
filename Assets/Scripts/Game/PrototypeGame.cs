@@ -87,6 +87,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     public Texture2D CharacterAtlas;
     public Texture2D BossAtlas;
+    public Texture2D EnemyAtlas;
     public Texture2D EnvironmentAtlas;
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
@@ -148,6 +149,18 @@ public sealed partial class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite enemySprite;
     [SerializeField] private Sprite enemyInvestigateSprite;
     [SerializeField] private Sprite enemyHuntSprite;
+    [SerializeField] private Sprite hunterSprite;
+    [SerializeField] private Sprite hunterWalkSprite;
+    [SerializeField] private Sprite hunterInvestigateSprite;
+    [SerializeField] private Sprite hunterHuntSprite;
+    [SerializeField] private Sprite bruteSprite;
+    [SerializeField] private Sprite bruteWalkSprite;
+    [SerializeField] private Sprite bruteInvestigateSprite;
+    [SerializeField] private Sprite bruteHuntSprite;
+    [SerializeField] private Sprite callerSprite;
+    [SerializeField] private Sprite callerWalkSprite;
+    [SerializeField] private Sprite callerInvestigateSprite;
+    [SerializeField] private Sprite callerHuntSprite;
     [SerializeField] private Sprite bossIdleSprite;
     [SerializeField] private Sprite bossWalkSprite;
     [SerializeField] private Sprite bossAlertSprite;

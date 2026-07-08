@@ -16,6 +16,8 @@ public sealed partial class PrototypeGame
             enemySprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 0, "anchor_patrol_down");
             enemyInvestigateSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 2, "anchor_investigate_down");
             enemyHuntSprite = CreateFixedAtlasSprite(CharacterAtlas, 4, 3, "anchor_hunt_down");
+            if (EnemyAtlas != null)
+                TryApplyEnemyAtlas();
             if (BossAtlas != null)
                 TryApplyBossAtlas();
             return true;
@@ -121,6 +123,53 @@ public sealed partial class PrototypeGame
         {
             Debug.LogWarning($"Boss atlas could not be sliced, keeping fallback boss sprites: {ex.Message}");
             return false;
+        }
+    }
+
+    private bool TryApplyEnemyAtlas()
+    {
+        try
+        {
+            SetArchetypeEnemySprites(EnemyArchetype.Brute, 0);
+            SetArchetypeEnemySprites(EnemyArchetype.Hunter, 1);
+            SetArchetypeEnemySprites(EnemyArchetype.Caller, 2);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"Enemy atlas could not be sliced, keeping fallback enemy sprites: {ex.Message}");
+            return false;
+        }
+    }
+
+    private void SetArchetypeEnemySprites(EnemyArchetype archetype, int row)
+    {
+        string prefix = archetype.ToString().ToLowerInvariant();
+        Sprite idle = CreateGridAtlasSprite(EnemyAtlas, 8, 8, row, 0, $"{prefix}_patrol", true);
+        Sprite walk = CreateGridAtlasSprite(EnemyAtlas, 8, 8, row, 1, $"{prefix}_walk", true);
+        Sprite investigate = CreateGridAtlasSprite(EnemyAtlas, 8, 8, row, 2, $"{prefix}_investigate", true);
+        Sprite hunt = CreateGridAtlasSprite(EnemyAtlas, 8, 8, row, 3, $"{prefix}_hunt", true);
+
+        switch (archetype)
+        {
+            case EnemyArchetype.Hunter:
+                hunterSprite = idle;
+                hunterWalkSprite = walk;
+                hunterInvestigateSprite = investigate;
+                hunterHuntSprite = hunt;
+                break;
+            case EnemyArchetype.Brute:
+                bruteSprite = idle;
+                bruteWalkSprite = walk;
+                bruteInvestigateSprite = investigate;
+                bruteHuntSprite = hunt;
+                break;
+            case EnemyArchetype.Caller:
+                callerSprite = idle;
+                callerWalkSprite = walk;
+                callerInvestigateSprite = investigate;
+                callerHuntSprite = hunt;
+                break;
         }
     }
 
@@ -369,6 +418,18 @@ public sealed partial class PrototypeGame
         enemySprite = CreateSprite(new Color(0.34f, 0.12f, 0.16f), new Color(0.12f, 0.06f, 0.08f), new Color(0.95f, 0.24f, 0.30f), SpriteMark.Enemy);
         enemyInvestigateSprite = enemySprite;
         enemyHuntSprite = enemySprite;
+        hunterSprite = enemySprite;
+        hunterWalkSprite = enemySprite;
+        hunterInvestigateSprite = enemyInvestigateSprite;
+        hunterHuntSprite = enemyHuntSprite;
+        bruteSprite = enemySprite;
+        bruteWalkSprite = enemySprite;
+        bruteInvestigateSprite = enemyInvestigateSprite;
+        bruteHuntSprite = enemyHuntSprite;
+        callerSprite = enemySprite;
+        callerWalkSprite = enemySprite;
+        callerInvestigateSprite = enemyInvestigateSprite;
+        callerHuntSprite = enemyHuntSprite;
         bossIdleSprite = enemySprite;
         bossWalkSprite = enemySprite;
         bossAlertSprite = enemyInvestigateSprite;

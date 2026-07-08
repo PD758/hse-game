@@ -79,7 +79,7 @@ public sealed partial class PrototypeGame
         enemy.View = new GameObject($"Enemy {index}");
         enemy.View.transform.position = enemy.Position;
         var renderer = enemy.View.AddComponent<SpriteRenderer>();
-        renderer.sprite = enemySprite;
+        renderer.sprite = SpriteForEnemyMode(enemy);
         SetLitMaterial(renderer);
         renderer.sortingOrder = 15;
         enemy.Light = EnsureEnemyLight(enemy.View);
@@ -619,6 +619,18 @@ public sealed partial class PrototypeGame
                enemySprite != null &&
                enemyInvestigateSprite != null &&
                enemyHuntSprite != null &&
+               hunterSprite != null &&
+               hunterWalkSprite != null &&
+               hunterInvestigateSprite != null &&
+               hunterHuntSprite != null &&
+               bruteSprite != null &&
+               bruteWalkSprite != null &&
+               bruteInvestigateSprite != null &&
+               bruteHuntSprite != null &&
+               callerSprite != null &&
+               callerWalkSprite != null &&
+               callerInvestigateSprite != null &&
+               callerHuntSprite != null &&
                enemyBeamSprite != null &&
                hudTexture != null &&
                whiteTexture != null &&
@@ -823,12 +835,50 @@ public sealed partial class PrototypeGame
             };
         }
 
+        if (enemy != null)
+        {
+            Sprite archetypeSprite = SpriteForEnemyArchetype(enemy);
+            if (archetypeSprite != null)
+                return archetypeSprite;
+        }
+
         return (enemy?.Mode ?? EnemyMode.Patrol) switch
         {
             EnemyMode.Hunt => enemyHuntSprite,
             EnemyMode.Investigate => enemyInvestigateSprite,
             _ => enemySprite,
         };
+    }
+
+    private Sprite SpriteForEnemyArchetype(Enemy enemy)
+    {
+        return enemy.Archetype switch
+        {
+            EnemyArchetype.Hunter => SpriteForEnemyArchetypeMode(enemy, hunterSprite, hunterWalkSprite, hunterInvestigateSprite, hunterHuntSprite),
+            EnemyArchetype.Brute => SpriteForEnemyArchetypeMode(enemy, bruteSprite, bruteWalkSprite, bruteInvestigateSprite, bruteHuntSprite),
+            EnemyArchetype.Caller => SpriteForEnemyArchetypeMode(enemy, callerSprite, callerWalkSprite, callerInvestigateSprite, callerHuntSprite),
+            _ => null,
+        };
+    }
+
+    private Sprite SpriteForEnemyArchetypeMode(Enemy enemy, Sprite idle, Sprite walk, Sprite investigate, Sprite hunt)
+    {
+        return enemy.Mode switch
+        {
+            EnemyMode.Hunt => hunt != null ? hunt : enemyHuntSprite,
+            EnemyMode.Investigate => investigate != null ? investigate : enemyInvestigateSprite,
+            _ => EnemyPatrolWalkFrame(enemy, idle, walk),
+        };
+    }
+
+    private Sprite EnemyPatrolWalkFrame(Enemy enemy, Sprite idle, Sprite walk)
+    {
+        if (walk == null || enemy.Patrol.Count <= 1)
+            return idle != null ? idle : enemySprite;
+
+        return Mathf.FloorToInt(Time.time * 3.5f) % 2 == 0
+            ? idle != null ? idle : enemySprite
+            : walk;
     }
 
     private Sprite BossPatrolSprite()

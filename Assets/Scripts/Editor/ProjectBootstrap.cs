@@ -208,6 +208,7 @@ public static class ProjectBootstrap
     {
         game.CharacterAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/characters_1024.jpg");
         game.BossAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/boss_512.jpg");
+        game.EnemyAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/enemies_1024.png");
         game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
         game.WallAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
         game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
@@ -263,6 +264,7 @@ public static class ProjectBootstrap
     {
         ConfigureReadableSmoothTexture("Assets/Atlases/characters_1024.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/boss_512.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/enemies_1024.png");
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_2_1024.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_v2.png");
         ConfigureReadableSmoothTexture("Assets/Atlases/hud_1024.jpg");
