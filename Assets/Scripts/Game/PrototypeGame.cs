@@ -943,16 +943,21 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private bool TryFindStonePushDestination(Stone stone, Vector2Int playerCell, Vector2Int pushDirection, out Vector2Int destination)
     {
         Vector2Int left = new Vector2Int(-pushDirection.y, pushDirection.x);
+        Vector2Int firstSide = UnityEngine.Random.value < 0.5f ? left : -left;
+        Vector2Int secondSide = -firstSide;
         Vector2Int[] candidates =
         {
             stone.Cell + pushDirection,
             playerCell - pushDirection,
-            stone.Cell + left,
-            stone.Cell - left,
+            stone.Cell + firstSide,
+            stone.Cell + secondSide,
         };
 
         foreach (Vector2Int candidate in candidates)
         {
+            if (candidate == playerCell - pushDirection && !SafeStoneBackThrowCell(candidate, pushDirection, playerCell))
+                continue;
+
             if (CanStoneEnter(candidate, playerCell))
             {
                 destination = candidate;
@@ -962,6 +967,24 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
         destination = stone.Cell;
         return false;
+    }
+
+    private bool SafeStoneBackThrowCell(Vector2Int candidate, Vector2Int pushDirection, Vector2Int playerCell)
+    {
+        if (!CanStoneEnter(candidate, playerCell))
+            return false;
+
+        int freeCells = 0;
+        for (int offset = 1; offset <= 4; offset++)
+        {
+            Vector2Int cell = playerCell - pushDirection * offset;
+            if (!CanStoneEnter(cell, playerCell))
+                break;
+
+            freeCells++;
+        }
+
+        return freeCells >= 4;
     }
 
     private void TryAttack()
