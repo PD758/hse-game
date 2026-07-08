@@ -68,20 +68,48 @@ public sealed partial class PrototypeGame
 
         float ratingDanger = 1f - Mathf.Clamp01(viewerRating / 100f);
         float criticalPressure = viewerRating <= RatingCritical ? Mathf.InverseLerp(RatingCritical, 0f, viewerRating) : 0f;
+        float damagePulse = Mathf.Clamp01(damageSignalPulseTimer / DamageSignalPulseDuration) * damageSignalPulseStrength;
         float vignetteIntensity = Mathf.Lerp(0.16f, 0.48f, ratingDanger) + criticalPressure * 0.08f;
 
-        postProcessVignette.intensity.Override(Mathf.Clamp01(vignetteIntensity * GameLightingSettings.GameplayVignetteMultiplier));
-        postProcessVignette.smoothness.Override(Mathf.Lerp(0.48f, 0.76f, ratingDanger));
+        postProcessVignette.intensity.Override(Mathf.Clamp01((vignetteIntensity + damagePulse * 0.055f) * GameLightingSettings.GameplayVignetteMultiplier));
+        postProcessVignette.smoothness.Override(Mathf.Lerp(0.48f, 0.76f, ratingDanger) + damagePulse * 0.035f);
 
         if (postProcessColor != null)
         {
-            postProcessColor.postExposure.Override(Mathf.Lerp(-0.02f, -0.10f, ratingDanger) + GameLightingSettings.GameplayExposureOffset);
-            postProcessColor.contrast.Override(Mathf.Lerp(12f, 24f, ratingDanger));
-            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -14f, ratingDanger));
+            postProcessColor.postExposure.Override(Mathf.Lerp(-0.02f, -0.10f, ratingDanger) + GameLightingSettings.GameplayExposureOffset - damagePulse * 0.035f);
+            postProcessColor.contrast.Override(Mathf.Lerp(12f, 24f, ratingDanger) + damagePulse * 4f);
+            postProcessColor.saturation.Override(Mathf.Lerp(-4f, -14f, ratingDanger) - damagePulse * 4f);
         }
 
         if (postProcessChromaticAberration != null)
-            postProcessChromaticAberration.intensity.Override(Mathf.Lerp(0.035f, 0.12f, criticalPressure));
+            postProcessChromaticAberration.intensity.Override(Mathf.Clamp01(Mathf.Lerp(0.035f, 0.12f, criticalPressure) + damagePulse * 0.075f));
+
+        if (postProcessLensDistortion != null)
+            postProcessLensDistortion.intensity.Override(Mathf.Lerp(-0.030f, -0.048f, criticalPressure) - damagePulse * 0.030f);
+    }
+
+    private void TriggerScreenSignalPulse(int damage)
+    {
+        damageSignalPulseTimer = DamageSignalPulseDuration + Mathf.Clamp(damage - 1, 0, 3) * 0.06f;
+        damageSignalPulseStrength = Mathf.Clamp01(0.58f + Mathf.Clamp(damage - 1, 0, 3) * 0.14f);
+        UpdatePostProcessing();
+    }
+
+    private void UpdateScreenSignalEffects(float dt)
+    {
+        if (damageSignalPulseTimer > 0f)
+        {
+            damageSignalPulseTimer = Mathf.Max(0f, damageSignalPulseTimer - dt);
+            if (damageSignalPulseTimer <= 0f)
+                damageSignalPulseStrength = 0f;
+            UpdatePostProcessing();
+        }
+
+        if (Time.unscaledTime >= nextSignalNoiseRefresh)
+        {
+            nextSignalNoiseRefresh = Time.unscaledTime + SignalNoiseRefreshInterval;
+            RefreshSignalNoiseTexture();
+        }
     }
 
     private void SetupCamera()

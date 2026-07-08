@@ -54,6 +54,8 @@ public sealed partial class PrototypeGame
         if (NoteOverlayActive())
         {
             DrawStoryNoteOverlay(screenWidth, screenHeight, noteStyle, hintStyle);
+            DrawScreenSignalOverlay(screenWidth, screenHeight);
+            DrawGlassCrackOverlay(screenWidth, screenHeight);
             GUI.matrix = previousMatrix;
             return;
         }
@@ -74,6 +76,8 @@ public sealed partial class PrototypeGame
         else if (paused)
             DrawPauseOverlay(screenWidth, screenHeight);
 
+        DrawScreenSignalOverlay(screenWidth, screenHeight);
+        DrawGlassCrackOverlay(screenWidth, screenHeight);
         GUI.matrix = previousMatrix;
     }
 
@@ -570,6 +574,152 @@ public sealed partial class PrototypeGame
         GUI.color = color;
         GUI.DrawTexture(PixelRect(rect), whiteTexture);
         GUI.color = previous;
+    }
+
+    private void DrawScreenSignalOverlay(float screenWidth, float screenHeight)
+    {
+        float intensity = ScreenSignalIntensity();
+        if (intensity <= 0.004f)
+            return;
+
+        EnsureSignalOverlayTexture();
+        if (signalNoiseTexture == null)
+            return;
+
+        Color previous = GUI.color;
+        float pulse = Mathf.Clamp01(damageSignalPulseTimer / DamageSignalPulseDuration) * damageSignalPulseStrength;
+        float time = Time.unscaledTime;
+
+        GUI.color = new Color(0.72f, 0.92f, 1f, intensity * 0.22f);
+        Rect noiseUv = new Rect(time * 0.23f, time * 0.11f, screenWidth / 96f, screenHeight / 96f);
+        GUI.DrawTextureWithTexCoords(new Rect(0f, 0f, screenWidth, screenHeight), signalNoiseTexture, noiseUv, true);
+
+        float lineGap = Mathf.Max(2f, 4f * HudScale);
+        float lineAlpha = intensity * 0.075f;
+        for (float y = Mathf.Repeat(time * 36f, lineGap); y < screenHeight; y += lineGap)
+            DrawFilledRect(new Rect(0f, y, screenWidth, 1f), new Color(0.55f, 0.82f, 1f, lineAlpha));
+
+        float roll = Mathf.PerlinNoise(time * 0.75f, 0.41f);
+        if (pulse > 0.01f || roll > 0.68f)
+        {
+            int bars = pulse > 0.01f ? 3 : 1;
+            for (int i = 0; i < bars; i++)
+            {
+                float seed = time * (1.8f + i * 0.47f) + i * 13.17f;
+                float y = Mathf.Repeat(Mathf.PerlinNoise(seed, 0.23f) * screenHeight + time * 42f, screenHeight);
+                float height = Mathf.Lerp(2f, 9f, Mathf.PerlinNoise(0.71f, seed)) * HudScale;
+                float xOffset = (Mathf.PerlinNoise(seed, 0.91f) - 0.5f) * 18f * HudScale * Mathf.Max(intensity, pulse);
+                DrawFilledRect(new Rect(xOffset, y, screenWidth, height), new Color(0.82f, 0.96f, 1f, intensity * 0.11f + pulse * 0.055f));
+                DrawFilledRect(new Rect(-xOffset * 0.6f, y + height, screenWidth, 1f), new Color(1f, 0.16f, 0.12f, pulse * 0.050f));
+            }
+        }
+
+        if (pulse > 0.01f)
+            DrawFilledRect(new Rect(0f, 0f, screenWidth, screenHeight), new Color(0.75f, 0.92f, 1f, pulse * 0.026f));
+
+        GUI.color = previous;
+    }
+
+    private float ScreenSignalIntensity()
+    {
+        float ratingDanger = 1f - Mathf.Clamp01(viewerRating / 100f);
+        float criticalPressure = viewerRating <= RatingCritical ? Mathf.InverseLerp(RatingCritical, 0f, viewerRating) : 0f;
+        float pulse = Mathf.Clamp01(damageSignalPulseTimer / DamageSignalPulseDuration) * damageSignalPulseStrength;
+        float gameOver = gameEnded && !runCompleted ? 0.16f : 0f;
+        return Mathf.Clamp01(0.030f + ratingDanger * 0.055f + criticalPressure * 0.075f + pulse * 0.30f + gameOver);
+    }
+
+    private void EnsureSignalOverlayTexture()
+    {
+        if (signalNoiseTexture != null)
+            return;
+
+        signalNoiseTexture = new Texture2D(64, 64, TextureFormat.RGBA32, false)
+        {
+            name = "Runtime Signal Noise",
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Repeat,
+            hideFlags = HideFlags.HideAndDontSave,
+        };
+        RefreshSignalNoiseTexture();
+    }
+
+    private void RefreshSignalNoiseTexture()
+    {
+        EnsureSignalOverlayTexture();
+        if (signalNoiseTexture == null)
+            return;
+
+        var pixels = new Color32[64 * 64];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            int value = signalNoiseRandom.Next(160, 256);
+            int alpha = signalNoiseRandom.Next(0, 84);
+            pixels[i] = new Color32((byte)value, (byte)value, (byte)value, (byte)alpha);
+        }
+
+        signalNoiseTexture.SetPixels32(pixels);
+        signalNoiseTexture.Apply(false, false);
+    }
+
+    private void DrawGlassCrackOverlay(float screenWidth, float screenHeight)
+    {
+        EnsureGlassCrackTextures();
+        if (glassCrackTextures == null || glassCrackTextures.Length == 0)
+            return;
+
+        int frame = GlassCrackFrame();
+        if (frame < 0 || frame >= glassCrackTextures.Length)
+            return;
+
+        Texture2D texture = glassCrackTextures[frame];
+        if (texture == null)
+            return;
+
+        float alpha = GlassCrackAlpha(frame);
+        if (alpha <= 0.01f)
+            return;
+
+        Color previous = GUI.color;
+        GUI.color = new Color(1f, 1f, 1f, alpha);
+        GUI.DrawTexture(new Rect(0f, 0f, screenWidth, screenHeight), texture, ScaleMode.ScaleAndCrop, true);
+        GUI.color = previous;
+    }
+
+    private void EnsureGlassCrackTextures()
+    {
+        if (glassCrackTextures != null)
+            return;
+
+        glassCrackTextures = new Texture2D[4];
+        for (int i = 0; i < glassCrackTextures.Length; i++)
+            glassCrackTextures[i] = Resources.Load<Texture2D>($"UI/glass_crack_{i}");
+    }
+
+    private int GlassCrackFrame()
+    {
+        if (playerHp >= 5)
+            return -1;
+        if (playerHp == 4)
+            return 0;
+        if (playerHp == 3)
+            return 1;
+        if (playerHp == 2)
+            return 2;
+        return 3;
+    }
+
+    private float GlassCrackAlpha(int frame)
+    {
+        float pulse = Mathf.Clamp01(damageSignalPulseTimer / DamageSignalPulseDuration) * damageSignalPulseStrength;
+        float baseAlpha = frame switch
+        {
+            0 => 0.24f,
+            1 => 0.48f,
+            2 => 0.66f,
+            _ => 0.84f,
+        };
+        return Mathf.Clamp01(baseAlpha + pulse * 0.12f);
     }
 
     private void DrawLabelWithShadow(Rect rect, string text, GUIStyle style)

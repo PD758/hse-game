@@ -85,6 +85,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float HudScale = 1.5f;
     private const int HeartAtlasRow = 5;
     private const int HeartAtlasColumn = 5;
+    private const float DamageSignalPulseDuration = 0.38f;
+    private const float SignalNoiseRefreshInterval = 0.055f;
 
     public Texture2D CharacterAtlas;
     public Texture2D BossAtlas;
@@ -124,6 +126,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private readonly Dictionary<Vector2Int, Vector2> cameraDirectionsByCell = new Dictionary<Vector2Int, Vector2>();
     private readonly Dictionary<Texture2D, Rect> visibleTextureBounds = new Dictionary<Texture2D, Rect>();
     private readonly Dictionary<string, Texture2D> runtimeAtlasCells = new Dictionary<string, Texture2D>();
+    private readonly System.Random signalNoiseRandom = new System.Random(2179);
 
     [SerializeField] private Sprite floorSprite;
     [SerializeField] private Sprite wallSprite;
@@ -226,9 +229,14 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private string noteMessageSpeaker;
     private Texture2D noteImageTexture;
     private Texture2D notePaperTexture;
+    private Texture2D signalNoiseTexture;
+    private Texture2D[] glassCrackTextures;
     private float noteMessageTimer;
     private float noteMessageAge;
     private float noteGameplayBlockTimer;
+    private float damageSignalPulseTimer;
+    private float damageSignalPulseStrength;
+    private float nextSignalNoiseRefresh;
     private bool noteBlocksGameplay;
     private int restartPlayerHp = 6;
     private float restartViewerRating = 100f;
@@ -266,6 +274,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         Keyboard keyboard = Keyboard.current;
         Mouse mouse = Mouse.current;
+        UpdateScreenSignalEffects(Time.deltaTime);
 
         if (Pressed(keyboard?.escapeKey) && !gameEnded)
         {
@@ -334,6 +343,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void LateUpdate()
     {
+        UpdateCameraShake(Time.deltaTime);
         UpdateRoomFog(Time.deltaTime);
     }
 
@@ -1163,6 +1173,10 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
 
         playerHp -= amount;
+        Vector2 playerPosition = playerView != null ? (Vector2)playerView.transform.position : ToWorld(playerStart);
+        TriggerCameraShake(amount);
+        TriggerScreenSignalPulse(amount);
+        SpawnPlayerDamageBurst(playerPosition, amount, playerHp <= 0);
         message = playerHp <= 0 ? "Game Over: эфир оставил только шум." : text;
         RefreshStatGates();
         if (playerHp <= 0)
@@ -2330,6 +2344,32 @@ public sealed partial class PrototypeGame : MonoBehaviour
             effect.Velocity = direction * speed;
             effect.EndScale = effect.StartScale * UnityEngine.Random.Range(0.25f, 0.55f);
             effect.RotationSpeed = UnityEngine.Random.Range(-260f, 260f);
+        }
+    }
+
+    private void SpawnPlayerDamageBurst(Vector2 position, int damage, bool fatal)
+    {
+        int count = Mathf.Clamp(9 + damage * 4 + (fatal ? 7 : 0), 9, 24);
+        Color primary = fatal ? new Color(0.95f, 0.98f, 1f, 0.88f) : new Color(1f, 0.30f, 0.24f, 0.78f);
+        Color secondary = new Color(0.64f, 0.88f, 1f, fatal ? 0.72f : 0.52f);
+        for (int i = 0; i < count; i++)
+        {
+            float angle = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
+            Vector2 direction = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            float speed = UnityEngine.Random.Range(fatal ? 2.2f : 1.4f, fatal ? 4.3f : 3.0f);
+            float size = UnityEngine.Random.Range(fatal ? 0.08f : 0.055f, fatal ? 0.20f : 0.145f);
+            float duration = UnityEngine.Random.Range(fatal ? 0.34f : 0.20f, fatal ? 0.62f : 0.42f);
+            Color color = Color.Lerp(primary, secondary, UnityEngine.Random.value * 0.55f);
+            CombatEffect effect = CreateCombatEffect(
+                fatal ? "Player Signal Collapse" : "Player Damage Spark",
+                position + direction * UnityEngine.Random.Range(0.03f, 0.24f),
+                Vector3.one * size,
+                color,
+                duration,
+                28);
+            effect.Velocity = direction * speed + UnityEngine.Random.insideUnitCircle * 0.35f;
+            effect.EndScale = effect.StartScale * UnityEngine.Random.Range(0.15f, 0.48f);
+            effect.RotationSpeed = UnityEngine.Random.Range(-360f, 360f);
         }
     }
 
