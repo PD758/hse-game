@@ -166,7 +166,7 @@ public sealed partial class PrototypeGame
         playerView.transform.position = ToWorld(playerStart);
         playerBody.linearVelocity = Vector2.zero;
 
-        if (EndlessRunState.Enabled)
+        if (EndlessRunState.Enabled || StoryStartLevelOverrideActive())
         {
             DestroySceneObjectsWithPrefix("Enemy ");
             DestroySceneObjectsWithPrefix("Signal Blocker ");

@@ -1,5 +1,7 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -23,8 +25,10 @@ public sealed class MainMenu : MonoBehaviour
     private GUIStyle modeMetaStyle;
     [SerializeField] private Texture2D panelTexture;
     [SerializeField] private Texture2D backgroundTexture;
+    public TextAsset[] LevelAssets = Array.Empty<TextAsset>();
     private Texture2D whiteTexture;
     private MenuMode selectedMode = MenuMode.Story;
+    private int levelShortcutDigit = -1;
 
     private void Awake()
     {
@@ -35,6 +39,26 @@ public sealed class MainMenu : MonoBehaviour
             Debug.LogError("Main menu scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
             enabled = false;
         }
+    }
+
+    private void Update()
+    {
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard == null)
+            return;
+
+        if (!keyboard.lKey.isPressed)
+        {
+            levelShortcutDigit = -1;
+            return;
+        }
+
+        int digit = PressedDigit(keyboard);
+        if (digit >= 0)
+            levelShortcutDigit = digit;
+
+        if ((keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame) && levelShortcutDigit >= 0)
+            TryStartStoryAtLevel($"prototype_0{levelShortcutDigit}");
     }
 
     private void OnGUI()
@@ -67,6 +91,46 @@ public sealed class MainMenu : MonoBehaviour
         EndlessRunState.StartStory();
         GameMusic.Stop();
         SceneManager.LoadScene("Intro");
+    }
+
+    private void TryStartStoryAtLevel(string levelId)
+    {
+        string normalized = LevelAssetResolver.NormalizeLevelId(levelId);
+        if (LevelAssetResolver.Resolve(normalized, null, LevelAssets, null) == null)
+        {
+            Debug.Log($"Level shortcut ignored: '{normalized}' was not found.");
+            return;
+        }
+
+        EndlessRunState.StartStory(normalized);
+        GameMusic.Play();
+        SceneManager.LoadScene("Prototype");
+    }
+
+    private static int PressedDigit(Keyboard keyboard)
+    {
+        if (keyboard.digit0Key.wasPressedThisFrame || keyboard.numpad0Key.wasPressedThisFrame)
+            return 0;
+        if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame)
+            return 1;
+        if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame)
+            return 2;
+        if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame)
+            return 3;
+        if (keyboard.digit4Key.wasPressedThisFrame || keyboard.numpad4Key.wasPressedThisFrame)
+            return 4;
+        if (keyboard.digit5Key.wasPressedThisFrame || keyboard.numpad5Key.wasPressedThisFrame)
+            return 5;
+        if (keyboard.digit6Key.wasPressedThisFrame || keyboard.numpad6Key.wasPressedThisFrame)
+            return 6;
+        if (keyboard.digit7Key.wasPressedThisFrame || keyboard.numpad7Key.wasPressedThisFrame)
+            return 7;
+        if (keyboard.digit8Key.wasPressedThisFrame || keyboard.numpad8Key.wasPressedThisFrame)
+            return 8;
+        if (keyboard.digit9Key.wasPressedThisFrame || keyboard.numpad9Key.wasPressedThisFrame)
+            return 9;
+
+        return -1;
     }
 
     private void EnsureStyles(float screenWidth)

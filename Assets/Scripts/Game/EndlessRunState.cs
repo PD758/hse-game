@@ -5,6 +5,7 @@ public static class EndlessRunState
     public static bool Enabled { get; private set; }
     public static int Level { get; private set; } = 1;
     public static int RunSeed { get; private set; } = 1;
+    public static string StoryStartLevelId { get; private set; } = string.Empty;
 
     public static string CurrentLevelId => $"endless_{Level:000}";
 
@@ -13,14 +14,21 @@ public static class EndlessRunState
         Enabled = true;
         Level = 1;
         RunSeed = Environment.TickCount & 0x7fffffff;
+        StoryStartLevelId = string.Empty;
         NarrativeRunState.Reset();
     }
 
     public static void StartStory()
     {
+        StartStory(string.Empty);
+    }
+
+    public static void StartStory(string startLevelId)
+    {
         Enabled = false;
         Level = 1;
         RunSeed = 1;
+        StoryStartLevelId = LevelAssetResolver.NormalizeLevelId(startLevelId);
         NarrativeRunState.Reset();
     }
 

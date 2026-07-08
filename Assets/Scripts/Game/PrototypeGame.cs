@@ -243,7 +243,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         EnsurePostProcessing();
         currentLevelId = EndlessRunState.Enabled
             ? EndlessRunState.CurrentLevelId
-            : LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+            : StoryStartLevelId();
         BuildLevel();
         EnsureRuntimeFallbackSprites();
 
@@ -580,7 +580,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         currentVelocity = Vector2.zero;
         currentLevelId = EndlessRunState.Enabled
             ? EndlessRunState.CurrentLevelId
-            : LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+            : StoryStartLevelId();
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
         camerasBroken = 0;
@@ -3475,6 +3475,20 @@ public sealed partial class PrototypeGame : MonoBehaviour
             enabled = false;
             return null;
         }
+    }
+
+    private string StoryStartLevelId()
+    {
+        string overrideLevel = LevelAssetResolver.NormalizeLevelId(EndlessRunState.StoryStartLevelId);
+        if (!string.IsNullOrEmpty(overrideLevel))
+            return overrideLevel;
+
+        return LevelAssetResolver.NormalizeLevelId(string.IsNullOrEmpty(StartingLevelId) ? LevelAsset?.name : StartingLevelId);
+    }
+
+    private bool StoryStartLevelOverrideActive()
+    {
+        return !EndlessRunState.Enabled && !string.IsNullOrEmpty(LevelAssetResolver.NormalizeLevelId(EndlessRunState.StoryStartLevelId));
     }
 
     private TextAsset ResolveLevelAsset(string levelId)

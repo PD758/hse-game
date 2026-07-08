@@ -106,7 +106,13 @@ public static class ProjectBootstrap
     [MenuItem("Rogue/Bootstrap Main Menu Scene")]
     public static void CreateMainMenuScene()
     {
-        EnsureSceneExists(MainMenuScenePath, RebuildMainMenuScene);
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(MainMenuScenePath) == null)
+        {
+            RebuildMainMenuScene();
+            return;
+        }
+
+        RefreshMainMenuScene();
     }
 
     [MenuItem("Rogue/Force Rebuild/Main Menu Scene")]
@@ -123,9 +129,31 @@ public static class ProjectBootstrap
 
         var gameObject = new GameObject("Main Menu");
         MainMenu menu = gameObject.AddComponent<MainMenu>();
+        ConfigureMainMenu(menu);
         menu.BakeSceneForEditor();
 
         EditorSceneManager.SaveScene(scene, MainMenuScenePath);
+    }
+
+    private static void RefreshMainMenuScene()
+    {
+        Scene scene = EditorSceneManager.OpenScene(MainMenuScenePath, OpenSceneMode.Single);
+        MainMenu menu = UnityEngine.Object.FindAnyObjectByType<MainMenu>(FindObjectsInactive.Include);
+        if (menu == null)
+        {
+            RebuildMainMenuScene();
+            return;
+        }
+
+        ConfigureMainMenu(menu);
+        menu.BakeSceneForEditor();
+        EditorSceneManager.SaveScene(scene, MainMenuScenePath);
+    }
+
+    private static void ConfigureMainMenu(MainMenu menu)
+    {
+        menu.LevelAssets = LoadLevelAssets();
+        EditorUtility.SetDirty(menu);
     }
 
     [MenuItem("Rogue/Bootstrap Intro Scene")]
