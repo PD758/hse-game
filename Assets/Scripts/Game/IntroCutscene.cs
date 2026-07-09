@@ -12,8 +12,17 @@ using UnityEditor;
 
 public sealed class IntroCutscene : MonoBehaviour
 {
+    private enum CutsceneMode
+    {
+        Intro,
+        Outro,
+    }
+
     private const float Duration = 10.5f;
     private const float IntroSlideExitFadeDuration = 2.15f;
+    private const float OutroFinalZoomDuration = 12.5f;
+    private const float OutroFinalFullImageTime = 0.58f;
+    private const float OutroFinalEndScale = 0.16f;
     private const float SceneRevealFadeDuration = 1.25f;
     private const int IntroAtlasColumns = 4;
     private const int IntroAtlasRows = 8;
@@ -24,7 +33,9 @@ public sealed class IntroCutscene : MonoBehaviour
     private static readonly Vector3 TvBeamPosition = TvBodyPosition + new Vector3(0f, -1.66f, 0f);
     private static readonly Vector3 ViewerPosition = new Vector3(0f, -1.82f, 0f);
     private const string IntroTextResourcePath = "Texts/intro_cutscene_ru";
+    private const string OutroTextResourcePath = "Texts/outro_cutscene_ru";
     private const string IntroSlideResourcePrefix = "Cutscenes/intro_";
+    private const string OutroSlideResourcePrefix = "Cutscenes/outro_";
     private static readonly string[] DefaultThoughtLines =
     {
         "template",
@@ -52,6 +63,7 @@ public sealed class IntroCutscene : MonoBehaviour
     private Vignette postProcessVignette;
     private ColorAdjustments postProcessColor;
     private readonly List<IntroSlide> introSlides = new List<IntroSlide>();
+    private CutsceneMode cutsceneMode;
     private float startedAt;
     private float slideStartedAt;
     private float slideExitFadeStartedAt;
@@ -72,8 +84,12 @@ public sealed class IntroCutscene : MonoBehaviour
         Application.targetFrameRate = 60;
         SetupCamera();
         EnsurePostProcessing();
-        NarrativeRunState.Reset();
-        LoadCutsceneText();
+        cutsceneMode = EndlessRunState.ConsumeStoryOutroRequest() ? CutsceneMode.Outro : CutsceneMode.Intro;
+        if (cutsceneMode == CutsceneMode.Intro)
+        {
+            NarrativeRunState.Reset();
+            LoadCutsceneText();
+        }
         if (!BindSceneReferences())
         {
             Debug.LogError("Intro scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
@@ -83,7 +99,14 @@ public sealed class IntroCutscene : MonoBehaviour
 
         EnsureOptionalIntroLayers();
         EnsureLighting();
-        LoadIntroSlides();
+        LoadSlides();
+        if (cutsceneMode == CutsceneMode.Outro && introSlides.Count == 0)
+        {
+            EndlessRunState.CompleteStoryAfterOutro();
+            SceneManager.LoadScene("Prototype");
+            enabled = false;
+            return;
+        }
         storySlidesActive = introSlides.Count > 0;
         slideStartedAt = Time.time;
         startedAt = storySlidesActive ? float.PositiveInfinity : Time.time;
@@ -94,6 +117,8 @@ public sealed class IntroCutscene : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
         {
+            if (cutsceneMode == CutsceneMode.Outro)
+                EndlessRunState.CancelStoryOutro();
             SceneManager.LoadScene("MainMenu");
             return;
         }
@@ -108,6 +133,8 @@ public sealed class IntroCutscene : MonoBehaviour
             }
 
             bool advance = keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame);
+            if (IsOutroFinalSlide() && Time.time - slideStartedAt < introSlides[currentSlideIndex].Duration)
+                advance = false;
             if (advance || Time.time - slideStartedAt >= introSlides[currentSlideIndex].Duration)
             {
                 if (currentSlideIndex >= introSlides.Count - 1)
@@ -138,7 +165,7 @@ public sealed class IntroCutscene : MonoBehaviour
 
         if (storySlidesActive)
         {
-            DrawIntroSlide(screenWidth, screenHeight);
+            DrawCutsceneSlide(screenWidth, screenHeight);
             GUI.matrix = previousMatrix;
             return;
         }
@@ -184,18 +211,20 @@ public sealed class IntroCutscene : MonoBehaviour
         GUI.matrix = previousMatrix;
     }
 
-    private void LoadIntroSlides()
+    private void LoadSlides()
     {
         introSlides.Clear();
+        string[] outroTexts = cutsceneMode == CutsceneMode.Outro ? LoadOutroSlideTexts() : Array.Empty<string>();
+        string prefix = cutsceneMode == CutsceneMode.Outro ? OutroSlideResourcePrefix : IntroSlideResourcePrefix;
         for (int i = 1; i < 100; i++)
         {
-            string key = $"{IntroSlideResourcePrefix}{i}";
+            string key = $"{prefix}{i}";
             TextAsset textAsset = Resources.Load<TextAsset>(key);
             Texture2D image = Resources.Load<Texture2D>(key);
             if (textAsset == null && image == null)
                 break;
 
-            string text = textAsset == null ? string.Empty : textAsset.text.Trim('\r', '\n');
+            string text = SlideTextForIndex(i - 1, outroTexts, textAsset);
             introSlides.Add(new IntroSlide
             {
                 Image = image,
@@ -203,6 +232,43 @@ public sealed class IntroCutscene : MonoBehaviour
                 Duration = SlideDurationFor(text),
             });
         }
+
+        if (cutsceneMode == CutsceneMode.Outro)
+        {
+            for (int i = 0; i < introSlides.Count; i++)
+                introSlides[i].Duration = i == introSlides.Count - 1 ? OutroFinalZoomDuration : Mathf.Max(3.1f, introSlides[i].Duration);
+        }
+    }
+
+    private static string SlideTextForIndex(int index, string[] outroTexts, TextAsset fallbackTextAsset)
+    {
+        if (outroTexts.Length > index)
+            return outroTexts[index];
+
+        return fallbackTextAsset == null ? string.Empty : fallbackTextAsset.text.Trim('\r', '\n');
+    }
+
+    private static string[] LoadOutroSlideTexts()
+    {
+        TextAsset text = Resources.Load<TextAsset>(OutroTextResourcePath);
+        if (text == null || string.IsNullOrWhiteSpace(text.text))
+            return Array.Empty<string>();
+
+        string normalized = text.text.Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+        if (normalized.Length == 0)
+            return Array.Empty<string>();
+
+        string[] blocks = normalized.Split(new[] { "\n\n" }, StringSplitOptions.None);
+        var result = new List<string>();
+        foreach (string block in blocks)
+        {
+            string trimmed = block.Trim('\n', '\r', ' ', '\t');
+            if (trimmed.Length == 0)
+                continue;
+            result.Add(trimmed);
+        }
+
+        return result.ToArray();
     }
 
     private void AdvanceIntroSlide()
@@ -225,6 +291,13 @@ public sealed class IntroCutscene : MonoBehaviour
 
     private void FinishIntroSlides()
     {
+        if (cutsceneMode == CutsceneMode.Outro)
+        {
+            EndlessRunState.CompleteStoryAfterOutro();
+            SceneManager.LoadScene("Prototype");
+            return;
+        }
+
         storySlidesActive = false;
         slideExitFadeActive = false;
         startedAt = Time.time;
@@ -245,6 +318,131 @@ public sealed class IntroCutscene : MonoBehaviour
 
         int wordCount = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
         return 1.6f + text.Length * 0.018f + wordCount * 0.12f;
+    }
+
+    private void DrawCutsceneSlide(float screenWidth, float screenHeight)
+    {
+        if (cutsceneMode == CutsceneMode.Outro && IsOutroFinalSlide())
+            DrawOutroSlide(screenWidth, screenHeight);
+        else
+            DrawIntroSlide(screenWidth, screenHeight);
+    }
+
+    private void DrawOutroSlide(float screenWidth, float screenHeight)
+    {
+        IntroSlide slide = introSlides[Mathf.Clamp(currentSlideIndex, 0, introSlides.Count - 1)];
+        Rect fullScreen = new Rect(0f, 0f, screenWidth, screenHeight);
+        GUI.color = Color.black;
+        GUI.DrawTexture(fullScreen, Texture2D.whiteTexture);
+        GUI.color = Color.white;
+
+        if (slide.Image != null)
+        {
+            if (IsOutroFinalSlide())
+                DrawOutroFinalZoom(slide.Image, fullScreen);
+            else
+                GUI.DrawTexture(fullScreen, slide.Image, ScaleMode.ScaleAndCrop, true);
+        }
+
+        var hintStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = screenWidth < 760f ? 18 : 22,
+            normal = { textColor = new Color(0.55f, 0.58f, 0.64f, 0.72f) },
+        };
+        PixelGui.Apply(hintStyle);
+        string hint = IsOutroFinalSlide() ? "Esc: меню" : "Space/Enter: дальше | Esc: меню";
+        GUI.Label(new Rect(12f, screenHeight - 48f, screenWidth - 24f, 36f), hint, hintStyle);
+
+        if (slideExitFadeActive)
+        {
+            float alpha = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((Time.time - slideExitFadeStartedAt) / IntroSlideExitFadeDuration));
+            GUI.color = new Color(0f, 0f, 0f, alpha);
+            GUI.DrawTexture(fullScreen, Texture2D.whiteTexture);
+            GUI.color = Color.white;
+        }
+    }
+
+    private void DrawOutroFinalZoom(Texture2D image, Rect fullScreen)
+    {
+        float screenAspect = fullScreen.width / Mathf.Max(1f, fullScreen.height);
+        Rect start = OutroFinalStartSourceRect(image, screenAspect);
+        Rect end = CoverSourceRect(image, screenAspect);
+        float t = Mathf.Clamp01((Time.time - slideStartedAt) / OutroFinalZoomDuration);
+        float sourceT = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / OutroFinalFullImageTime));
+        float pullbackT = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - OutroFinalFullImageTime) / (1f - OutroFinalFullImageTime)));
+        Rect source = LerpRect(start, end, sourceT);
+        Rect destination = InsetAroundCenter(fullScreen, Mathf.Lerp(1f, OutroFinalEndScale, pullbackT));
+        GUI.DrawTextureWithTexCoords(destination, image, TextureCoordsFromTopRect(image, source), true);
+    }
+
+    private bool IsOutroFinalSlide()
+    {
+        return cutsceneMode == CutsceneMode.Outro &&
+               introSlides.Count > 0 &&
+               currentSlideIndex == introSlides.Count - 1;
+    }
+
+    private static Rect OutroFinalStartSourceRect(Texture2D texture, float targetAspect)
+    {
+        float sourceHeight = texture.height * 0.44f;
+        float sourceWidth = sourceHeight * targetAspect;
+        if (sourceWidth > texture.width * 0.58f)
+        {
+            sourceWidth = texture.width * 0.58f;
+            sourceHeight = sourceWidth / Mathf.Max(0.01f, targetAspect);
+        }
+
+        float centerX = texture.width * 0.50f;
+        float centerY = texture.height * 0.45f;
+        return ClampSourceRect(new Rect(centerX - sourceWidth * 0.5f, centerY - sourceHeight * 0.5f, sourceWidth, sourceHeight), texture);
+    }
+
+    private static Rect CoverSourceRect(Texture2D texture, float targetAspect)
+    {
+        float textureAspect = texture.width / Mathf.Max(1f, (float)texture.height);
+        if (textureAspect > targetAspect)
+        {
+            float width = texture.height * targetAspect;
+            return new Rect((texture.width - width) * 0.5f, 0f, width, texture.height);
+        }
+
+        float height = texture.width / Mathf.Max(0.01f, targetAspect);
+        return new Rect(0f, (texture.height - height) * 0.5f, texture.width, height);
+    }
+
+    private static Rect ClampSourceRect(Rect rect, Texture2D texture)
+    {
+        float width = Mathf.Min(rect.width, texture.width);
+        float height = Mathf.Min(rect.height, texture.height);
+        float x = Mathf.Clamp(rect.x, 0f, texture.width - width);
+        float y = Mathf.Clamp(rect.y, 0f, texture.height - height);
+        return new Rect(x, y, width, height);
+    }
+
+    private static Rect LerpRect(Rect from, Rect to, float t)
+    {
+        return new Rect(
+            Mathf.Lerp(from.x, to.x, t),
+            Mathf.Lerp(from.y, to.y, t),
+            Mathf.Lerp(from.width, to.width, t),
+            Mathf.Lerp(from.height, to.height, t));
+    }
+
+    private static Rect InsetAroundCenter(Rect rect, float scale)
+    {
+        float width = rect.width * Mathf.Clamp01(scale);
+        float height = rect.height * Mathf.Clamp01(scale);
+        return new Rect(rect.x + (rect.width - width) * 0.5f, rect.y + (rect.height - height) * 0.5f, width, height);
+    }
+
+    private static Rect TextureCoordsFromTopRect(Texture2D texture, Rect topRect)
+    {
+        return new Rect(
+            topRect.x / texture.width,
+            1f - (topRect.y + topRect.height) / texture.height,
+            topRect.width / texture.width,
+            topRect.height / texture.height);
     }
 
     private void DrawIntroSlide(float screenWidth, float screenHeight)

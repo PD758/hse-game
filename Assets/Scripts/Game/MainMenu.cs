@@ -29,11 +29,14 @@ public sealed class MainMenu : MonoBehaviour
     private Texture2D whiteTexture;
     private MenuMode selectedMode = MenuMode.Story;
     private int levelShortcutDigit = -1;
+    private string menuMessage = string.Empty;
 
     private void Awake()
     {
         Application.targetFrameRate = 60;
         SetupCamera();
+        if (!EndlessRunState.StoryCompleted)
+            selectedMode = MenuMode.Story;
         if (Application.isPlaying && (panelTexture == null || backgroundTexture == null))
         {
             Debug.LogError("Main menu scene is not baked. Run Rogue > Bootstrap All Scenes before entering Play Mode.");
@@ -82,6 +85,13 @@ public sealed class MainMenu : MonoBehaviour
     {
         if (selectedMode == MenuMode.Endless)
         {
+            if (!EndlessRunState.StoryCompleted)
+            {
+                selectedMode = MenuMode.Story;
+                menuMessage = "Бесконечный режим откроется после первого прохождения.";
+                return;
+            }
+
             EndlessRunState.StartRun();
             GameMusic.Play();
             SceneManager.LoadScene("Prototype");
@@ -270,7 +280,16 @@ public sealed class MainMenu : MonoBehaviour
         }
 
         DrawModeCard(storyRect, MenuMode.Story, "Сюжетный", "3 уровня", "Прохождение истории главного героя.");
-        DrawModeCard(endlessRect, MenuMode.Endless, "Бесконечный", "5 комнат на уровень", "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов.");
+        bool endlessUnlocked = EndlessRunState.StoryCompleted;
+        DrawModeCard(
+            endlessRect,
+            MenuMode.Endless,
+            "Бесконечный",
+            endlessUnlocked ? "5 комнат на уровень" : "Заблокирован",
+            endlessUnlocked
+                ? "Случайные комнаты, обязательная зачистка перед выходом и бесконечный рост силы врагов."
+                : "Откроется после первого прохождения истории.",
+            !endlessUnlocked);
 
         Rect playRect = new Rect(panel.x + 28f, panel.yMax - 104f, Mathf.Min(270f, panel.width - 56f), 50f);
         if (!compact)
@@ -279,17 +298,36 @@ public sealed class MainMenu : MonoBehaviour
         if (GUI.Button(playRect, "Играть", buttonStyle))
             StartGame();
 
+        if (!string.IsNullOrEmpty(menuMessage))
+        {
+            Rect messageRect = new Rect(panel.x + 28f, panel.yMax - 48f, panel.width - 56f, 24f);
+            GUI.Label(messageRect, menuMessage, hintStyle);
+        }
+
     }
 
-    private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description)
+    private void DrawModeCard(Rect rect, MenuMode mode, string title, string meta, string description, bool locked = false)
     {
-        bool selected = selectedMode == mode;
+        bool selected = selectedMode == mode && !locked;
         Color fill = selected ? new Color(0.045f, 0.083f, 0.096f, 0.96f) : new Color(0.018f, 0.024f, 0.032f, 0.86f);
         Color border = selected ? new Color(0.56f, 0.86f, 0.92f, 0.78f) : new Color(0.34f, 0.45f, 0.50f, 0.42f);
+        if (locked)
+        {
+            fill = new Color(0.014f, 0.018f, 0.024f, 0.82f);
+            border = new Color(0.30f, 0.34f, 0.38f, 0.48f);
+        }
         DrawPanel(rect, fill, border);
 
         if (GUI.Button(rect, GUIContent.none, GUIStyle.none))
-            selectedMode = mode;
+        {
+            if (locked)
+                menuMessage = "Бесконечный режим откроется после первого прохождения.";
+            else
+            {
+                selectedMode = mode;
+                menuMessage = string.Empty;
+            }
+        }
 
         GUI.Label(new Rect(rect.x + 18f, rect.y + 22f, rect.width - 36f, 34f), title, modeTitleStyle);
         GUI.Label(new Rect(rect.x + 18f, rect.y + 58f, rect.width - 36f, 24f), meta, labelStyle);

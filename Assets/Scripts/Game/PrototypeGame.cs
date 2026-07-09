@@ -268,6 +268,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         ResetRoomFog();
         CaptureLevelRestartState();
         EvaluateEvents("levelStart", null, null);
+        if (EndlessRunState.ConsumeCompletionOverlay())
+            ShowStoryCompletionAfterOutro();
     }
 
     private void Update()
@@ -1288,8 +1290,27 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return;
         }
 
+        StartStoryOutro();
+    }
+
+    private void StartStoryOutro()
+    {
+        currentVelocity = Vector2.zero;
+        if (playerBody != null)
+            playerBody.linearVelocity = Vector2.zero;
+
+        EndlessRunState.RequestStoryOutro();
+        GameMusic.Stop();
+        SceneManager.LoadScene("Intro");
+    }
+
+    private void ShowStoryCompletionAfterOutro()
+    {
         gameEnded = true;
         runCompleted = true;
+        paused = false;
+        showPauseBindings = false;
+        ClearNoteMessage();
         currentVelocity = Vector2.zero;
         if (playerBody != null)
             playerBody.linearVelocity = Vector2.zero;
