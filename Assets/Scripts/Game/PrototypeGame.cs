@@ -855,12 +855,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 UpdatePuzzle();
                 return;
             }
-
-            if (tile == Tile.Heal)
-            {
-                TryConsumeHeal(next);
-                return;
-            }
         }
 
         message = "Здесь нечего переключить.";
@@ -898,11 +892,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
                         ? "storyImage"
                         : "story";
                     if (!ShouldShowInteractionHint(storyType))
-                        continue;
-                    worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
-                    return true;
-                case Tile.Heal:
-                    if (playerHp >= 6 || !ShouldShowInteractionHint("heal"))
                         continue;
                     worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
                     return true;
@@ -1288,7 +1277,6 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return false;
         }
 
-        MarkInteractionHintSeen("heal");
         playerHp = Mathf.Min(6, playerHp + 2);
         tiles[cell.x, cell.y] = Tile.Floor;
         tileVariants[cell.x, cell.y] = -1;
@@ -2196,6 +2184,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         Vector2 direction = (Vector2)playerView.transform.position - enemy.Position;
         enemy.AttackDirection = direction.sqrMagnitude > 0.001f ? direction.normalized : Vector2.down;
         enemy.LookDirection = enemy.AttackDirection;
+        if (enemy.Archetype == EnemyArchetype.Boss)
+            enemy.BossInterruptPoseTimer = 0f;
         enemy.BossAttackKind = ChooseBossAttackKind(enemy);
         enemy.AttackWindupTimer = EnemyAttackWindupFor(enemy);
         enemy.AttackStrikeTimer = 0f;
@@ -2203,6 +2193,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         enemy.AttackApplied = false;
         enemy.KnockbackVelocity = Vector2.zero;
         UpdateEnemyTelegraph(enemy, false);
+        UpdateEnemyVisual(enemy);
     }
 
     private BossAttackKind ChooseBossAttackKind(Enemy enemy)

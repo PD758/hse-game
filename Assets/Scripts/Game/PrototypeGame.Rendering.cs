@@ -104,7 +104,8 @@ public sealed partial class PrototypeGame
         renderer.sortingOrder = 12;
         var collider = view.AddComponent<BoxCollider2D>();
         collider.size = new Vector2(0.95f, 0.95f);
-        Urp2DLighting.AddShadowCaster(view);
+        ShadowCaster2D caster = Urp2DLighting.AddShadowCaster(view);
+        Urp2DLighting.ConfigureIsometricBoxShadowShape(caster);
         stone.View = view;
     }
 
@@ -242,7 +243,8 @@ public sealed partial class PrototypeGame
 
             stone.View.transform.position = ToWorld(stone.Cell);
             stone.View.transform.localScale = new Vector3(0.86f, 0.86f, 1f);
-            Urp2DLighting.AddShadowCaster(stone.View);
+            ShadowCaster2D caster = Urp2DLighting.AddShadowCaster(stone.View);
+            Urp2DLighting.ConfigureIsometricBoxShadowShape(caster);
             stone.View.SetActive(true);
         }
 
@@ -368,6 +370,7 @@ public sealed partial class PrototypeGame
 
             ShadowCaster2D caster = stone.View.GetComponent<ShadowCaster2D>() ?? Urp2DLighting.AddShadowCaster(stone.View);
             Urp2DLighting.ConfigureShadowCaster(caster, true);
+            Urp2DLighting.ConfigureIsometricBoxShadowShape(caster);
         }
 
         RedrawAll();
@@ -899,8 +902,6 @@ public sealed partial class PrototypeGame
     {
         if (enemy != null && enemy.Archetype == EnemyArchetype.Boss)
         {
-            if (enemy.BossInterruptPoseTimer > 0f && bossInterruptSprite != null)
-                return bossInterruptSprite;
             if (enemy.AttackWindupTimer > 0f || enemy.AttackStrikeTimer > 0f)
             {
                 if (enemy.BossAttackKind == BossAttackKind.Summon && bossSummonSprite != null)
@@ -909,6 +910,8 @@ public sealed partial class PrototypeGame
                     return bossDashSprite;
                 return bossAttackSprite != null ? bossAttackSprite : enemyHuntSprite;
             }
+            if (enemy.BossInterruptPoseTimer > 0f && bossInterruptSprite != null)
+                return bossInterruptSprite;
             if (enemy.HitFlashTimer > 0f)
                 return bossHurtSprite != null ? bossHurtSprite : enemyHuntSprite;
 

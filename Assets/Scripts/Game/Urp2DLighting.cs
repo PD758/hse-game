@@ -139,6 +139,30 @@ public static class Urp2DLighting
         }
     }
 
+    public static void ConfigureIsometricBoxShadowShape(ShadowCaster2D caster)
+    {
+        if (caster == null || ShadowShapePathField == null || ShadowShapePathHashField == null)
+            return;
+
+        var shape = new[]
+        {
+            new Vector3(0f, 0.30f, 0f),
+            new Vector3(0.29f, 0.13f, 0f),
+            new Vector3(0.29f, -0.20f, 0f),
+            new Vector3(0f, -0.34f, 0f),
+            new Vector3(-0.29f, -0.20f, 0f),
+            new Vector3(-0.29f, 0.13f, 0f),
+        };
+
+        ShadowShapePathField.SetValue(caster, shape);
+        ShadowShapePathHashField.SetValue(caster, unchecked((int)2166136261 ^ 0x49534F ^ shape.Length));
+        if (caster.enabled)
+        {
+            caster.enabled = false;
+            caster.enabled = GameLightingSettings.ShadowsEnabled;
+        }
+    }
+
     private static Material CreateMaterial(string shaderName, string materialName)
     {
         Shader shader = Shader.Find(shaderName);
