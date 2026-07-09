@@ -231,8 +231,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3c76714e7384e139bb699bdf45d6194, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainMenu
-  panelTexture: {fileID: 2800000, guid: ae19c5002ee3f7d22b71ca9c910b8f39, type: 3}
-  backgroundTexture: {fileID: 2800000, guid: 76e93fdacf5637dc4b932a7c1cfa2a10, type: 3}
+  panelTexture: {fileID: 2800000, guid: 36a8fbc7614f48239d838c762b791b1e, type: 3}
+  backgroundTexture: {fileID: 2800000, guid: 17caaddfc236ba5453624d56b008a2c4, type: 3}
   LevelAssets:
   - {fileID: 4900000, guid: 52ed8d71b0d7e434b89d92a909a89926, type: 3}
   - {fileID: 4900000, guid: 71ac9399a30bedf4fa70ebff9471a468, type: 3}

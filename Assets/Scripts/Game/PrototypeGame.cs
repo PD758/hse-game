@@ -94,6 +94,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     public Texture2D EnvironmentAtlas;
     public Texture2D WallAtlas;
     public Texture2D HudAtlas;
+    public Texture2D HudHintsAtlas;
     public TextAsset LevelAsset;
     public TextAsset[] LevelAssets = Array.Empty<TextAsset>();
     public string StartingLevelId = "prototype_01";
@@ -115,6 +116,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private readonly Dictionary<Vector2Int, LevelObject> storyObjectsByCell = new Dictionary<Vector2Int, LevelObject>();
     private readonly Dictionary<Vector2Int, LevelExit> exitsByCell = new Dictionary<Vector2Int, LevelExit>();
     private readonly HashSet<string> readStoryIds = new HashSet<string>();
+    private readonly HashSet<string> seenInteractionHintTypes = new HashSet<string>();
     private readonly HashSet<string> killedEnemyIds = new HashSet<string>();
     private readonly HashSet<string> activeEnemyGroups = new HashSet<string>();
     private readonly HashSet<string> clearedEnemyGroups = new HashSet<string>();
@@ -231,6 +233,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private Texture2D notePaperTexture;
     private Texture2D signalNoiseTexture;
     private Texture2D[] glassCrackTextures;
+    private Texture2D interactKeyTexture;
+    private Texture2D interactKeyPressedTexture;
+    private Texture2D interactPointerTexture;
     private float noteMessageTimer;
     private float noteMessageAge;
     private float noteGameplayBlockTimer;
@@ -594,6 +599,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             ? EndlessRunState.CurrentLevelId
             : StoryStartLevelId();
         killedEnemyIds.Clear();
+        seenInteractionHintTypes.Clear();
         levelEnemiesKilled = 0;
         camerasBroken = 0;
         camerasTriggered = 0;
@@ -820,6 +826,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             {
                 LevelObject story = storyObjectsByCell.TryGetValue(next, out LevelObject storyData) ? storyData : null;
                 string storyId = string.IsNullOrEmpty(story?.id) ? $"story_{next.x}_{next.y}" : story.id;
+                string storyType = story != null && string.Equals(story.type, "storyImage", StringComparison.OrdinalIgnoreCase) ? "storyImage" : "story";
+                MarkInteractionHintSeen(storyType);
                 readStoryIds.Add(storyId);
                 tiles[next.x, next.y] = Tile.Floor;
                 tileVariants[next.x, next.y] = -1;
@@ -848,6 +856,73 @@ public sealed partial class PrototypeGame : MonoBehaviour
         }
 
         message = "Здесь нечего переключить.";
+    }
+
+    private bool TryGetInteractionHint(out Vector2 worldPosition)
+    {
+        worldPosition = Vector2.zero;
+
+        if (gameEnded || paused || NoteOverlayActive() || GameplayBlockedByNote())
+            return false;
+
+        Vector2Int playerCell = PlayerCell();
+        Vector2Int direction = Cardinal(lastAim);
+        if (direction != Vector2Int.zero)
+        {
+            Stone stone = StoneAt(playerCell + direction);
+            if (stone != null && !stone.Moving && ShouldShowInteractionHint("stone"))
+            {
+                worldPosition = (Vector2)(stone.View != null ? stone.View.transform.position : ToWorld(stone.Cell)) + Vector2.up * 0.72f;
+                return true;
+            }
+        }
+
+        foreach (Vector2Int next in NeighborCells(playerCell))
+        {
+            if (!Inside(next))
+                continue;
+
+            Tile tile = tiles[next.x, next.y];
+            switch (tile)
+            {
+                case Tile.Story:
+                    string storyType = storyObjectsByCell.TryGetValue(next, out LevelObject story) && string.Equals(story.type, "storyImage", StringComparison.OrdinalIgnoreCase)
+                        ? "storyImage"
+                        : "story";
+                    if (!ShouldShowInteractionHint(storyType))
+                        continue;
+                    worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
+                    return true;
+                case Tile.Heal:
+                    if (playerHp >= 6 || !ShouldShowInteractionHint("heal"))
+                        continue;
+                    worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
+                    return true;
+                case Tile.Remote:
+                    if (!ShouldShowInteractionHint("remote"))
+                        continue;
+                    worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
+                    return true;
+                case Tile.Flashlight:
+                    if (!ShouldShowInteractionHint("flashlight"))
+                        continue;
+                    worldPosition = (Vector2)ToWorld(next) + Vector2.up * 0.72f;
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ShouldShowInteractionHint(string type)
+    {
+        return !string.IsNullOrEmpty(type) && !seenInteractionHintTypes.Contains(type);
+    }
+
+    private void MarkInteractionHintSeen(string type)
+    {
+        if (!string.IsNullOrEmpty(type))
+            seenInteractionHintTypes.Add(type);
     }
 
     private void UpdateRemoteTimers(float dt)
@@ -885,6 +960,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void PickupAbility(Vector2Int cell, AbilitySlot ability)
     {
+        MarkInteractionHintSeen(ability == AbilitySlot.Remote ? "remote" : ability == AbilitySlot.Flashlight ? "flashlight" : null);
         AbilitySlot previous = equippedAbility;
         equippedAbility = ability;
         if (ability != AbilitySlot.Remote || previous != AbilitySlot.Remote)
@@ -933,6 +1009,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (stone == null || stone.Moving)
             return false;
 
+        MarkInteractionHintSeen("stone");
         if (!TryFindStonePushDestination(stone, from, direction, out Vector2Int destination))
         {
             message = "Заглушка сигнала упирается в эфир.";
@@ -1203,6 +1280,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
             return false;
         }
 
+        MarkInteractionHintSeen("heal");
         playerHp = Mathf.Min(6, playerHp + 2);
         tiles[cell.x, cell.y] = Tile.Floor;
         tileVariants[cell.x, cell.y] = -1;

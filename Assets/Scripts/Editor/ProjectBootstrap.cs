@@ -159,7 +159,13 @@ public static class ProjectBootstrap
     [MenuItem("Rogue/Bootstrap Intro Scene")]
     public static void CreateIntroScene()
     {
-        EnsureSceneExists(IntroScenePath, RebuildIntroScene);
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(IntroScenePath) == null)
+        {
+            RebuildIntroScene();
+            return;
+        }
+
+        RefreshIntroScene();
     }
 
     [MenuItem("Rogue/Force Rebuild/Intro Scene")]
@@ -176,10 +182,31 @@ public static class ProjectBootstrap
 
         var gameObject = new GameObject("Intro Cutscene");
         IntroCutscene intro = gameObject.AddComponent<IntroCutscene>();
-        intro.IntroAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/intro_wide_1024.jpg");
+        ConfigureIntroCutscene(intro);
         intro.BakeSceneForEditor();
 
         EditorSceneManager.SaveScene(scene, IntroScenePath);
+    }
+
+    private static void RefreshIntroScene()
+    {
+        Scene scene = EditorSceneManager.OpenScene(IntroScenePath, OpenSceneMode.Single);
+        IntroCutscene intro = UnityEngine.Object.FindAnyObjectByType<IntroCutscene>(FindObjectsInactive.Include);
+        if (intro == null)
+        {
+            RebuildIntroScene();
+            return;
+        }
+
+        ConfigureIntroCutscene(intro);
+        intro.BakeSceneForEditor();
+        EditorSceneManager.SaveScene(scene, IntroScenePath);
+    }
+
+    private static void ConfigureIntroCutscene(IntroCutscene intro)
+    {
+        intro.IntroAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/intro_wide_1024.jpg");
+        EditorUtility.SetDirty(intro);
     }
 
     [MenuItem("Rogue/Bootstrap Prototype Scene")]
@@ -240,6 +267,7 @@ public static class ProjectBootstrap
         game.EnvironmentAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_v2.png");
         game.WallAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/environment_2_1024.jpg");
         game.HudAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_1024.jpg");
+        game.HudHintsAtlas = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Atlases/hud_hints_1024.jpg");
         game.LevelAsset = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/Levels/prototype_01.json");
         game.LevelAssets = LoadLevelAssets();
         game.StartingLevelId = "prototype_01";
@@ -296,6 +324,7 @@ public static class ProjectBootstrap
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_2_1024.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/environment_v2.png");
         ConfigureReadableSmoothTexture("Assets/Atlases/hud_1024.jpg");
+        ConfigureReadableSmoothTexture("Assets/Atlases/hud_hints_1024.jpg");
         ConfigureReadableSmoothTexture("Assets/Atlases/intro_wide_1024.jpg");
     }
 

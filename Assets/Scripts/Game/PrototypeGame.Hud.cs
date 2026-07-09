@@ -51,6 +51,8 @@ public sealed partial class PrototypeGame
         Rect hpRect = PixelRect(new Rect(margin, margin, hpWidth, 52f * ui));
         DrawHpHeartPanel(hpRect);
 
+        DrawInteractionHint(screenWidth, screenHeight);
+
         if (NoteOverlayActive())
         {
             DrawStoryNoteOverlay(screenWidth, screenHeight, noteStyle, hintStyle);
@@ -574,6 +576,76 @@ public sealed partial class PrototypeGame
         GUI.color = color;
         GUI.DrawTexture(PixelRect(rect), whiteTexture);
         GUI.color = previous;
+    }
+
+    private void DrawInteractionHint(float screenWidth, float screenHeight)
+    {
+        if (!TryGetInteractionHint(out Vector2 worldPosition))
+            return;
+
+        Camera camera = Camera.main;
+        if (camera == null)
+            return;
+
+        Vector3 screen = camera.WorldToScreenPoint(worldPosition);
+        if (screen.z <= 0f)
+            return;
+
+        float scale = PixelGui.Scale;
+        Vector2 logical = new Vector2(screen.x / scale, (Screen.height - screen.y) / scale);
+        if (logical.x < -80f || logical.x > screenWidth + 80f || logical.y < -80f || logical.y > screenHeight + 80f)
+            return;
+
+        EnsureInteractionHintTextures();
+
+        float ui = HudScale;
+        float bob = Mathf.Sin(Time.unscaledTime * 5.8f) * 3.0f * ui;
+        float keySize = 58f * ui;
+        Rect keyRect = PixelRect(new Rect(logical.x - keySize * 0.5f, logical.y - keySize - 10f * ui + bob, keySize, keySize));
+
+        Color glow = new Color(0.66f, 0.96f, 1f, 0.86f);
+        DrawFilledRect(new Rect(keyRect.x + 3f * ui, keyRect.y + 4f * ui, keyRect.width, keyRect.height), new Color(0f, 0f, 0f, 0.36f));
+
+        Texture2D keyTexture = InteractKeyTextureForFrame();
+        if (keyTexture != null)
+            DrawTexturePreservingAtlasPart(keyRect, keyTexture, new Color(0.92f, 1f, 1f, 0.92f));
+        else
+            DrawHudPanel(keyRect, new Color(0.025f, 0.035f, 0.042f, 0.90f), glow, false);
+
+        if (interactPointerTexture != null)
+        {
+            Rect pointerRect = new Rect(logical.x - 13f * ui, keyRect.yMax - 8f * ui, 26f * ui, 24f * ui);
+            DrawTexturePreservingAtlasPart(pointerRect, interactPointerTexture, new Color(0.78f, 1f, 1f, 0.78f));
+        }
+
+        var keyStyle = new GUIStyle(GUI.skin.label)
+        {
+            alignment = TextAnchor.MiddleCenter,
+            fontSize = Mathf.RoundToInt(28f * ui),
+            normal = { textColor = new Color(0.94f, 1f, 1f, 0.98f) },
+        };
+        PixelGui.Apply(keyStyle);
+
+        DrawLabelWithShadow(keyRect, "E", keyStyle);
+    }
+
+    private void EnsureInteractionHintTextures()
+    {
+        if (interactKeyTexture != null || HudHintsAtlas == null)
+            return;
+
+        interactKeyTexture = GetRuntimeAtlasCell(HudHintsAtlas, 4, 4, 0, 0, "interact_key_hint_up", false);
+        interactKeyPressedTexture = GetRuntimeAtlasCell(HudHintsAtlas, 4, 4, 0, 2, "interact_key_hint_down", false);
+        interactPointerTexture = GetRuntimeAtlasCell(HudHintsAtlas, 4, 4, 1, 1, "interact_pointer_hint", false);
+    }
+
+    private Texture2D InteractKeyTextureForFrame()
+    {
+        if (interactKeyPressedTexture == null)
+            return interactKeyTexture;
+
+        float pulse = Mathf.PingPong(Time.unscaledTime * 1.9f, 1f);
+        return pulse > 0.72f ? interactKeyPressedTexture : interactKeyTexture;
     }
 
     private void DrawScreenSignalOverlay(float screenWidth, float screenHeight)
