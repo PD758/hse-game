@@ -82,6 +82,16 @@ internal sealed class Stone
     public GameObject View;
 }
 
+internal sealed class Checkpoint
+{
+    public string Id;
+    public Vector2Int Cell;
+    public float Radius = 1f;
+    public bool Active;
+    public GameObject View;
+    public SpriteRenderer Renderer;
+}
+
 internal sealed class Enemy
 {
     public string Id;

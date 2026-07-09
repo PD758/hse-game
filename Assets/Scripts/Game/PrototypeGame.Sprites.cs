@@ -61,6 +61,7 @@ public sealed partial class PrototypeGame
             storySprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 4, "story_note", true);
             trapSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 5, "camera_trap", true);
             rubbleSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 4, 6, "rubble", true);
+            checkpointSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 5, 0, "checkpoint", true);
             healSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 5, 4, "heal_cassette", true);
             flashlightSprite = CreateFixedAtlasSprite(EnvironmentAtlas, 7, 3, "flashlight", true);
             TryApplyWallAtlas();

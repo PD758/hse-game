@@ -479,6 +479,14 @@
         "x": 0.9824,
         "y": -0.1867
       }
+    },
+    {
+      "type": "checkpoint",
+      "x": 16,
+      "y": 15,
+      "variant": -1,
+      "id": "checkpoint_16_15",
+      "radius": 1.5
     }
   ],
   "enemies": [
@@ -512,7 +520,7 @@
           15
         ]
       ],
-      "vision": 7
+      "vision": 1
     }
   ],
   "decorations": [],
@@ -553,6 +561,155 @@
         {
           "type": "showMonologue",
           "text": "Ооо нет.."
+        }
+      ]
+    },
+    {
+      "id": "event_spawn_heal_1",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "lt",
+          "playerHp",
+          4
+        ]
+      ],
+      "actions": [
+        {
+          "type": "spawnObject",
+          "x": 22,
+          "y": 18,
+          "objectType": "heal",
+          "level": 3,
+          "hp": 2,
+          "tile": "floor",
+          "variant": -1,
+          "text": "",
+          "id": "heal_gen1_1"
+        }
+      ]
+    },
+    {
+      "id": "event_spawn_heal_2",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "le",
+          "playerHp",
+          1
+        ]
+      ],
+      "actions": [
+        {
+          "type": "spawnObject",
+          "x": 27,
+          "y": 12,
+          "objectType": "heal",
+          "level": 3,
+          "hp": 2,
+          "tile": "floor",
+          "variant": -1,
+          "text": "",
+          "id": "heal_gen2_1"
+        }
+      ]
+    },
+    {
+      "id": "event_spawn_boss_support_1",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "le",
+          "nearestBossHp",
+          30
+        ]
+      ],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Кажется, он зовёт поддержку.."
+        },
+        {
+          "type": "spawnEnemy",
+          "x": 18,
+          "y": 12,
+          "objectType": "caller",
+          "level": 5,
+          "hp": 2,
+          "tile": "floor",
+          "variant": -1,
+          "text": "",
+          "id": "enemy_gen1_1"
+        },
+        {
+          "type": "spawnEnemy",
+          "x": 24,
+          "y": 18,
+          "objectType": "hunter",
+          "level": 4,
+          "hp": 4,
+          "tile": "floor",
+          "variant": -1,
+          "text": "",
+          "id": "enemy_gen1_2"
+        }
+      ]
+    },
+    {
+      "id": "event_spawn_boss_support_2",
+      "enabled": true,
+      "once": true,
+      "trigger": "statsChanged",
+      "region": "",
+      "enemyId": "",
+      "enemyGroup": "",
+      "conditions": [
+        [
+          "le",
+          "nearestBossHp",
+          15
+        ]
+      ],
+      "actions": [
+        {
+          "type": "showMonologue",
+          "text": "Ещё немного..."
+        },
+        {
+          "type": "spawnEnemy",
+          "x": 17,
+          "y": 16,
+          "objectType": "brute",
+          "level": 4,
+          "hp": 9,
+          "id": "enemy_gen2_1"
+        },
+        {
+          "type": "spawnEnemy",
+          "x": 26,
+          "y": 11,
+          "objectType": "brute",
+          "level": 5,
+          "hp": 8,
+          "tile": "floor",
+          "variant": -1,
+          "text": "",
+          "id": "enemy_gen2_2"
         }
       ]
     }

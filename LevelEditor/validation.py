@@ -112,6 +112,9 @@ def validate_level(level: dict, tiles: list[list[str]]) -> list[ValidationIssue]
                 issues.append(ValidationIssue("error", "storyImage has no imagePath", cell, target))
             elif not resource_image_exists(image_path):
                 issues.append(ValidationIssue("warning", f"storyImage image '{image_path}' was not found in Assets/Resources", cell, target))
+        elif obj_type == "checkpoint":
+            if numeric_value(obj.get("radius", 1.0), 1.0) <= 0:
+                issues.append(ValidationIssue("error", "checkpoint radius must be > 0", cell, target))
 
     for index, obj in enumerate(level.get("objects", [])):
         if obj.get("type") != "gate":

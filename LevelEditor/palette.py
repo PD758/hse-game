@@ -13,6 +13,7 @@ TOOLS = [
     {"kind": "object", "value": "remote", "label": "Remote", "key": "8"},
     {"kind": "object", "value": "flashlight", "label": "Flashlight", "key": "f"},
     {"kind": "object", "value": "heal", "label": "Heal", "key": "9"},
+    {"kind": "object", "value": "checkpoint", "label": "Checkpoint", "key": "p"},
     {"kind": "enemy", "value": "patrol", "label": "Enemy", "key": "0"},
     {"kind": "exit", "value": "exit", "label": "Exit", "key": "x"},
     {"kind": "object", "value": "story", "label": "Text Note", "key": "-"},

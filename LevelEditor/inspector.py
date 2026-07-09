@@ -18,7 +18,7 @@ STAT_OPS = ("ge", "gt", "le", "lt", "eq", "ne")
 STAT_NAMES = ("enemiesKilled", "enemiesKilledOnLevel", "camerasBroken", "camerasTriggered", "currentRating", "playerHp", "nearestBossHp")
 ACTION_TYPES = ("showMonologue", "fallStone", "spawnEnemy", "setTile", "spawnObject", "removeObject", "playEffect")
 ACTION_TILES = ("floor", "wall", "rubble")
-ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "storyImage", "heal", "plate", "stone", "rubble")
+ACTION_OBJECTS = ("gate", "remote", "flashlight", "trap", "story", "storyImage", "heal", "checkpoint", "plate", "stone", "rubble")
 
 
 @dataclass
@@ -162,6 +162,9 @@ def draw_inspector(
         elif obj_type == "storyImage":
             y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
             y = draw_text_field(screen, font, state, selected_ref, "imagePath", target.get("imagePath", ""), x + margin, y, width - margin * 2, scale)
+        elif obj_type == "checkpoint":
+            y = draw_text_field(screen, font, state, selected_ref, "id", target.get("id", ""), x + margin, y, width - margin * 2, scale)
+            y = draw_number_adjuster(screen, font, state, "radius", target.get("radius", 1.0), (-1, -0.25, 0.25, 1), x + margin, y, width - margin * 2, scale)
         else:
             y = draw_text(screen, font, "No editable properties", x + margin, y, (132, 140, 148))
     elif kind == "enemy":

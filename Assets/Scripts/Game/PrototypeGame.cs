@@ -38,7 +38,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private const float BossStaticRingRangeMultiplier = 1.58f;
     private const float BossCollisionRadius = 0.48f;
     private const float BossSummonCooldown = 18f;
-    private const float BossSummonInterruptChance = 0.60f;
+    private const float BossSummonInterruptChance = 0.50f;
     private const float BossSummonInterruptStunDuration = 3f;
     private const float BossInterruptedSummonCooldownMultiplier = 0.45f;
     private const float BossMineRadius = 0.58f;
@@ -106,6 +106,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private readonly GameObject[,] tileViews = new GameObject[Width, Height];
     private readonly GridPathfinder pathfinder = new GridPathfinder(Width, Height);
     private readonly List<Stone> stones = new List<Stone>();
+    private readonly List<Checkpoint> checkpoints = new List<Checkpoint>();
     private readonly List<Enemy> enemies = new List<Enemy>();
     private readonly List<CombatEffect> combatEffects = new List<CombatEffect>();
     private readonly List<GameObject> levelVisualObjects = new List<GameObject>();
@@ -146,6 +147,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     [SerializeField] private Sprite flashlightSprite;
     [SerializeField] private Sprite storySprite;
     [SerializeField] private Sprite healSprite;
+    [SerializeField] private Sprite checkpointSprite;
     [SerializeField] private Sprite playerSprite;
     [SerializeField] private Sprite[] playerIdleSprites = new Sprite[4];
     [SerializeField] private Sprite[] playerWalkOneSprites = new Sprite[4];
@@ -208,6 +210,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private Vector2 flashlightAim = Vector2.right;
     private string currentLevelId;
     private Vector2Int playerStart = new Vector2Int(3, 10);
+    private Vector2Int restartPlayerStart = new Vector2Int(3, 10);
+    private Vector2Int activeCheckpointCell = new Vector2Int(int.MinValue, int.MinValue);
+    private string activeCheckpointId;
     private Vector2Int lastEventPlayerCell = new Vector2Int(-1, -1);
     private Vector2Int lastNoiseCell;
     private int lastNoisePower;
@@ -535,6 +540,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         BuildLevel();
         if (!enabled)
             return;
+        ApplyRestartSpawnOverride();
 
         CreateEntityViews();
 
@@ -556,6 +562,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void CaptureLevelRestartState()
     {
+        restartPlayerStart = playerStart;
         restartPlayerHp = playerHp;
         restartViewerRating = viewerRating;
         restartRemoteCooldown = remoteCooldown;
@@ -603,6 +610,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
         levelEnemiesKilled = 0;
         camerasBroken = 0;
         camerasTriggered = 0;
+        ClearCheckpointRestartState();
         message = "Канал требует внимания. Соберите сигнал и выберите, как смотреть дальше.";
 
         BuildLevel();
@@ -1294,6 +1302,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private void UpdateWorldInteractions()
     {
         Vector2Int playerCell = PlayerCell();
+        UpdateCheckpoints();
         Tile tile = tiles[playerCell.x, playerCell.y];
 
         if (tile == Tile.Trap)
@@ -1323,6 +1332,44 @@ public sealed partial class PrototypeGame : MonoBehaviour
             lastEventPlayerCell = playerCell;
             EvaluateEvents("enterRegion", null, null);
         }
+    }
+
+    private void UpdateCheckpoints()
+    {
+        if (checkpoints.Count == 0 || playerView == null)
+            return;
+
+        Vector2 playerPosition = playerView.transform.position;
+        foreach (Checkpoint checkpoint in checkpoints)
+        {
+            if (checkpoint == null || checkpoint.Active)
+                continue;
+
+            float radius = Mathf.Max(0.25f, checkpoint.Radius) * CellSize;
+            if (Vector2.Distance(playerPosition, ToWorld(checkpoint.Cell)) <= radius)
+            {
+                ActivateCheckpoint(checkpoint);
+                return;
+            }
+        }
+    }
+
+    private void ActivateCheckpoint(Checkpoint checkpoint)
+    {
+        if (checkpoint == null)
+            return;
+
+        checkpoint.Active = true;
+        activeCheckpointId = checkpoint.Id;
+        activeCheckpointCell = checkpoint.Cell;
+        restartPlayerStart = checkpoint.Cell;
+        restartPlayerHp = playerHp;
+        restartViewerRating = viewerRating;
+        restartRemoteCooldown = remoteCooldown;
+        restartEquippedAbility = equippedAbility;
+        ApplyCheckpointVisual(checkpoint);
+        SpawnHitBurst(ToWorld(checkpoint.Cell), false);
+        message = "Сигнал закреплён. После срыва эфир вернёт вас сюда.";
     }
 
     private void BlockRectangle(int minX, int minY, int maxX, int maxY)
@@ -1434,12 +1481,47 @@ public sealed partial class PrototypeGame : MonoBehaviour
         ClearNoteMessage();
         killedEnemyIds.Clear();
         levelEnemiesKilled = 0;
+        ClearCheckpointRestartState();
+    }
+
+    private void ApplyRestartSpawnOverride()
+    {
+        if (!CheckpointRestartActive())
+            return;
+
+        playerStart = restartPlayerStart;
+        lastEventPlayerCell = playerStart;
+        foreach (Checkpoint checkpoint in checkpoints)
+            checkpoint.Active = CheckpointMatchesRestart(checkpoint);
+    }
+
+    private bool CheckpointRestartActive()
+    {
+        return !string.IsNullOrEmpty(activeCheckpointId) || activeCheckpointCell.x != int.MinValue;
+    }
+
+    private bool CheckpointMatchesRestart(Checkpoint checkpoint)
+    {
+        if (checkpoint == null)
+            return false;
+        if (!string.IsNullOrEmpty(activeCheckpointId) && string.Equals(checkpoint.Id, activeCheckpointId, StringComparison.Ordinal))
+            return true;
+        return checkpoint.Cell == activeCheckpointCell;
+    }
+
+    private void ClearCheckpointRestartState()
+    {
+        activeCheckpointId = null;
+        activeCheckpointCell = new Vector2Int(int.MinValue, int.MinValue);
     }
 
     private void ClearLevelEntityViews()
     {
         foreach (Stone stone in stones)
             DestroyRuntimeObject(stone.View);
+
+        foreach (Checkpoint checkpoint in checkpoints)
+            DestroyRuntimeObject(checkpoint.View);
 
         foreach (Enemy enemy in enemies)
         {
@@ -1463,6 +1545,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     {
         DestroySceneObjectsWithPrefix("Enemy ");
         DestroySceneObjectsWithPrefix("Signal Blocker ");
+        DestroySceneObjectsWithPrefix("Checkpoint ");
         DestroySceneObjectsWithPrefix(LevelVisualRootName);
         DestroySceneObjectsWithPrefix("Combat VFX");
         DestroySceneObjectsWithPrefix("Attack Swing");
@@ -1846,6 +1929,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (!Inside(cell))
             return;
 
+        RemoveCheckpointAtOrById(cell, null, out _);
+
         if (StoneAt(cell) is Stone stone)
         {
             DestroyRuntimeObject(stone.View);
@@ -1871,6 +1956,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
 
     private void SpawnEventObject(LevelEventAction action)
     {
+        int checkpointCount = checkpoints.Count;
         LevelObject obj = action.obj ?? new LevelObject
         {
             type = string.IsNullOrEmpty(action.objectType) ? action.type : action.objectType,
@@ -1881,6 +1967,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
             variant = action.variant,
         };
         ApplyLevelObject(obj);
+        if (checkpoints.Count > checkpointCount)
+            CreateCheckpointView(checkpoints[checkpoints.Count - 1]);
         RedrawTile(new Vector2Int(obj.x, obj.y));
     }
 
@@ -1902,6 +1990,8 @@ public sealed partial class PrototypeGame : MonoBehaviour
         if (!Inside(cell))
             return;
 
+        RemoveCheckpointAtOrById(cell, action.id, out cell);
+
         if (StoneAt(cell) is Stone stone)
         {
             DestroyRuntimeObject(stone.View);
@@ -1914,6 +2004,31 @@ public sealed partial class PrototypeGame : MonoBehaviour
         tiles[cell.x, cell.y] = Tile.Floor;
         tileVariants[cell.x, cell.y] = -1;
         RedrawTile(cell);
+    }
+
+    private bool RemoveCheckpointAtOrById(Vector2Int fallbackCell, string id, out Vector2Int removedCell)
+    {
+        removedCell = fallbackCell;
+        bool removed = false;
+        for (int i = checkpoints.Count - 1; i >= 0; i--)
+        {
+            Checkpoint checkpoint = checkpoints[i];
+            if (checkpoint == null)
+                continue;
+
+            bool idMatches = !string.IsNullOrEmpty(id) && string.Equals(checkpoint.Id, id, StringComparison.Ordinal);
+            if (!idMatches && checkpoint.Cell != fallbackCell)
+                continue;
+
+            removedCell = checkpoint.Cell;
+            if (CheckpointMatchesRestart(checkpoint))
+                ClearCheckpointRestartState();
+            DestroyRuntimeObject(checkpoint.View);
+            checkpoints.RemoveAt(i);
+            removed = true;
+        }
+
+        return removed;
     }
 
     private void UpdateEnemies(float dt)
@@ -3546,6 +3661,7 @@ public sealed partial class PrototypeGame : MonoBehaviour
     private void BuildLevel()
     {
         stones.Clear();
+        checkpoints.Clear();
         enemies.Clear();
         killedEnemyIds.Clear();
         activeEnemyGroups.Clear();
@@ -3787,6 +3903,9 @@ public sealed partial class PrototypeGame : MonoBehaviour
                 tiles[cell.x, cell.y] = Tile.Flashlight;
                 tileVariants[cell.x, cell.y] = obj.variant;
                 break;
+            case "checkpoint":
+                AddCheckpoint(obj);
+                break;
             case "trap":
                 tiles[cell.x, cell.y] = Tile.Trap;
                 tileVariants[cell.x, cell.y] = obj.variant;
@@ -3920,6 +4039,22 @@ public sealed partial class PrototypeGame : MonoBehaviour
         {
             Cell = cell,
             Target = ToWorld(cell),
+        });
+    }
+
+    private void AddCheckpoint(LevelObject obj)
+    {
+        Vector2Int cell = new Vector2Int(obj.x, obj.y);
+        if (!Inside(cell))
+            return;
+
+        string id = string.IsNullOrWhiteSpace(obj.id) ? $"checkpoint_{cell.x}_{cell.y}" : obj.id.Trim();
+        checkpoints.Add(new Checkpoint
+        {
+            Id = id,
+            Cell = cell,
+            Radius = Mathf.Max(0.25f, obj.radius <= 0f ? 1f : obj.radius),
+            Active = (!string.IsNullOrEmpty(activeCheckpointId) && string.Equals(id, activeCheckpointId, StringComparison.Ordinal)) || activeCheckpointCell == cell,
         });
     }
 

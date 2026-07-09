@@ -17,6 +17,7 @@ OBJECT_TYPES = (
     "story",
     "storyImage",
     "heal",
+    "checkpoint",
     "plate",
     "stone",
 )

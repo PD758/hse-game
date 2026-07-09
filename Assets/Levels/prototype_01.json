@@ -530,7 +530,20 @@
     }
   ],
   "decorations": [],
-  "lights": [],
+  "lights": [
+    {
+      "id": "light_1",
+      "type": "point",
+      "x": 15.957,
+      "y": 14.973,
+      "intensity": 0.35,
+      "radius": 1.75,
+      "color": "#d6f0ff",
+      "rotation": 330,
+      "outerAngle": 65,
+      "innerAngle": 30
+    }
+  ],
   "events": [
     {
       "id": "remote_hint_monologue",

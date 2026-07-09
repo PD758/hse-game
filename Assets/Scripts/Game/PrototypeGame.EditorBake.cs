@@ -48,6 +48,7 @@ public sealed partial class PrototypeGame
                 continue;
 
             if (obj.name.StartsWith("Signal Blocker ", StringComparison.Ordinal) ||
+                obj.name.StartsWith("Checkpoint ", StringComparison.Ordinal) ||
                 obj.name.StartsWith("Enemy ", StringComparison.Ordinal))
             {
                 DestroyImmediate(obj);
@@ -81,6 +82,7 @@ public sealed partial class PrototypeGame
         flashlightSprite = PersistSpriteForEditor(folder, "flashlight", flashlightSprite);
         storySprite = PersistSpriteForEditor(folder, "story_note", storySprite);
         healSprite = PersistSpriteForEditor(folder, "heal_cassette", healSprite);
+        checkpointSprite = PersistSpriteForEditor(folder, "checkpoint", checkpointSprite);
         playerSprite = PersistSpriteForEditor(folder, "player_base", playerSprite);
         stoneSprite = PersistSpriteForEditor(folder, "signal_blocker", stoneSprite);
         enemySprite = PersistSpriteForEditor(folder, "enemy_patrol", enemySprite);

@@ -395,6 +395,8 @@ def handle_left_click(
         obj.update({"id": f"story_{cell[0]}_{cell[1]}", "text": ""})
     if tool["value"] == "storyImage":
         obj.update({"id": f"story_image_{cell[0]}_{cell[1]}", "imagePath": ""})
+    if tool["value"] == "checkpoint":
+        obj.update({"id": f"checkpoint_{cell[0]}_{cell[1]}", "radius": 1.0})
     level["objects"].append(obj)
     return ("object", len(level["objects"]) - 1), None, True
 
@@ -802,6 +804,22 @@ def draw_marker(screen: pygame.Surface, viewport: Viewport, sprites: SpriteBank,
     x = int(data.get("x", 0))
     y = int(data.get("y", 0))
     rect = viewport.cell_to_screen(x, y)
+    if name == "checkpoint":
+        overlay = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+        pad = max(4, cell_size // 6)
+        points = [
+            (cell_size // 2, pad),
+            (cell_size - pad, cell_size // 2),
+            (cell_size // 2, cell_size - pad),
+            (pad, cell_size // 2),
+        ]
+        pygame.draw.polygon(overlay, (245, 250, 255, 92), points)
+        pygame.draw.polygon(overlay, (245, 250, 255, 178), points, max(1, cell_size // 16))
+        screen.blit(overlay, rect)
+        if selected:
+            pygame.draw.rect(screen, (255, 238, 120), rect, 3)
+        return
+
     screen.blit(sprites.get(name, cell_size, int(data.get("variant", -1))), rect)
     if selected:
         pygame.draw.rect(screen, (255, 238, 120), rect, 3)

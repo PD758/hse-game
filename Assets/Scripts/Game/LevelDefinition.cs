@@ -75,6 +75,7 @@ public sealed class LevelObject
     public int x;
     public int y;
     public int variant = -1;
+    public float radius = 1f;
     public LevelDirection direction;
     public List<string> requiresPlates = new List<string>();
     public List<string> requiresStories = new List<string>();

@@ -71,6 +71,9 @@ public sealed partial class PrototypeGame
         foreach (Stone stone in stones)
             CreateStoneView(stone);
 
+        foreach (Checkpoint checkpoint in checkpoints)
+            CreateCheckpointView(checkpoint);
+
         for (int i = 0; i < enemies.Count; i++)
             CreateEnemyView(enemies[i], i);
 
@@ -103,6 +106,54 @@ public sealed partial class PrototypeGame
         collider.size = new Vector2(0.95f, 0.95f);
         Urp2DLighting.AddShadowCaster(view);
         stone.View = view;
+    }
+
+    private void CreateCheckpointView(Checkpoint checkpoint)
+    {
+        if (checkpoint == null)
+            return;
+
+        GameObject view = new GameObject($"Checkpoint {checkpoint.Cell.x},{checkpoint.Cell.y}");
+        SpriteRenderer renderer = view.AddComponent<SpriteRenderer>();
+        checkpoint.View = view;
+        checkpoint.Renderer = renderer;
+        ConfigureCheckpointView(checkpoint);
+    }
+
+    private void ConfigureCheckpointView(Checkpoint checkpoint)
+    {
+        if (checkpoint?.View == null)
+            return;
+
+        bool hasTexture = checkpointSprite != null;
+        checkpoint.View.transform.position = ToWorld(checkpoint.Cell) + new Vector3(0f, 0.02f, 0f);
+        checkpoint.View.transform.localRotation = hasTexture ? Quaternion.identity : Quaternion.Euler(0f, 0f, 45f);
+        checkpoint.View.transform.localScale = hasTexture ? new Vector3(0.86f, 0.86f, 1f) : new Vector3(0.58f, 0.58f, 1f);
+
+        SpriteRenderer renderer = checkpoint.Renderer;
+        if (renderer == null)
+        {
+            renderer = checkpoint.View.GetComponent<SpriteRenderer>();
+            if (renderer == null)
+                renderer = checkpoint.View.AddComponent<SpriteRenderer>();
+            checkpoint.Renderer = renderer;
+        }
+
+        renderer.sprite = hasTexture ? checkpointSprite : EnsureEffectSprite();
+        renderer.sortingOrder = 8;
+        if (Urp2DLighting.SpriteUnlitMaterial != null)
+            renderer.sharedMaterial = Urp2DLighting.SpriteUnlitMaterial;
+        ApplyCheckpointVisual(checkpoint);
+    }
+
+    private void ApplyCheckpointVisual(Checkpoint checkpoint)
+    {
+        if (checkpoint?.Renderer == null)
+            return;
+
+        checkpoint.Renderer.color = checkpoint.Active
+            ? new Color(1f, 1f, 1f, 0.54f)
+            : new Color(1f, 1f, 1f, 0.28f);
     }
 
     private void CreateLighting()
@@ -170,8 +221,11 @@ public sealed partial class PrototypeGame
         {
             DestroySceneObjectsWithPrefix("Enemy ");
             DestroySceneObjectsWithPrefix("Signal Blocker ");
+            DestroySceneObjectsWithPrefix("Checkpoint ");
             foreach (Stone stone in stones)
                 CreateStoneView(stone);
+            foreach (Checkpoint checkpoint in checkpoints)
+                CreateCheckpointView(checkpoint);
             for (int i = 0; i < enemies.Count; i++)
                 CreateEnemyView(enemies[i], i);
             CreateLevelVisualViews();
@@ -207,9 +261,34 @@ public sealed partial class PrototypeGame
             enemy.View.SetActive(true);
         }
 
+        BindCheckpointViews();
         CreateLevelVisualViews();
         RefreshGameplayCameraRig();
         return true;
+    }
+
+    private void BindCheckpointViews()
+    {
+        foreach (Checkpoint checkpoint in checkpoints)
+        {
+            if (checkpoint == null)
+                continue;
+
+            GameObject view = FindSceneObjectIncludingInactive($"Checkpoint {checkpoint.Cell.x},{checkpoint.Cell.y}");
+            if (view == null)
+            {
+                CreateCheckpointView(checkpoint);
+                continue;
+            }
+
+            checkpoint.View = view;
+            view.SetActive(true);
+            SpriteRenderer renderer = view.GetComponent<SpriteRenderer>();
+            if (renderer == null)
+                renderer = view.AddComponent<SpriteRenderer>();
+            checkpoint.Renderer = renderer;
+            ConfigureCheckpointView(checkpoint);
+        }
     }
 
     private void DestroySceneObjectsWithPrefix(string namePrefix)
