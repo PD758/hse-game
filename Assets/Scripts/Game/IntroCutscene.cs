@@ -38,9 +38,9 @@ public sealed class IntroCutscene : MonoBehaviour
     private const string OutroSlideResourcePrefix = "Cutscenes/outro_";
     private static readonly string[] DefaultThoughtLines =
     {
-        "template",
-        "template",
-        "template"
+        "Как-то странно себя чувствую..",
+        "Хочется спать..",
+        "спать.."
     };
 
     public Texture2D IntroAtlas;
@@ -526,7 +526,7 @@ public sealed class IntroCutscene : MonoBehaviour
             return;
 
         string[] rawLines = text.text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        var lines = new System.Collections.Generic.List<string>();
+        var lines = new List<string>();
         foreach (string rawLine in rawLines)
         {
             string line = rawLine.Trim();

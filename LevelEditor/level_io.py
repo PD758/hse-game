@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from schema import TILE_FLOOR, TILE_RUBBLE, TILE_WALL, default_level
+from schema import TILE_FLOOR, TILE_WALL, default_level
 
 
 def load_level(path: Path) -> dict:
